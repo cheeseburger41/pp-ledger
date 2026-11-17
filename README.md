@@ -1,4 +1,4 @@
-# PrizePicks Ledger
+# Vici
 
 A personal bet tracker that installs on your phone like an app: balance, PnL, open risk, edge vs break-even and every entry. Not affiliated with PrizePicks.
 

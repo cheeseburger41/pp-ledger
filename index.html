@@ -3,65 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>PrizePicks Ledger</title>
-<meta name="description" content="Personal PrizePicks bet tracker: balance, PnL, open risk and every entry.">
+<title>Vici</title>
+<meta name="description" content="Vici: personal PrizePicks bet tracker with balance, PnL, open risk and every entry.">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Ledger">
+<meta name="apple-mobile-web-app-title" content="Vici">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#13151b">
+<meta name="theme-color" content="#050506">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}body{margin:0;padding:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <script src="config.js"></script>
 <style>
 /* Layout: a sportsbook ticket ledger. Header, filter bar, KPI scoreboard, analytics grid (balance + records, open risk, PnL splits, edge, daily), open slips, entry log. */
+/* Colour scheme: Black & platinum. Always black, whatever the device or claude.ai theme. */
 :root {
-  --bg: #f3f4f7;
-  --panel: #ffffff;
-  --ink: #13151b;
-  --ink-2: #4a4f5c;
-  --ink-3: #7b8090;
-  --line: #e1e3ea;
-  --line-2: #eceef3;
-  --accent: #2a4fd6;
-  --accent-soft: #e6ebfc;
-  --good: #11804a;
-  --good-soft: #e3f4ea;
-  --bad: #c23a3a;
-  --bad-soft: #fbe7e7;
-  --warn: #a86a00;
-  --warn-soft: #fbf0d9;
-  --grid: #e9ebf0;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
-  --shadow: 0 1px 2px rgba(20,24,40,.05), 0 6px 24px rgba(20,24,40,.05);
-  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --bg: #050506; --panel: #0f1012; --ink: #f2f2f3; --ink-2: #acaeb4; --ink-3: #85888f;
+  --line: #26272b; --line-2: #18191c; --accent: #d6d8dc; --accent-soft: #1d1e22;
+  --good: #4ad49c; --good-soft: #0d2219; --bad: #ff7d88; --bad-soft: #2b1216; --warn: #f2b65e; --warn-soft: #2a2010;
+  --grid: #1c1d20; --s1: #9fb9ee; --s2: #ecaa8b; --s3: #c0b3ee; --s4: #88d1c3;
+  --shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 14px 34px rgba(0,0,0,.6); --on-accent: #0a0a0b;
+  --accent-grad: linear-gradient(135deg, #f8f8f7 0%, #d5d7db 38%, #a6aab1 68%, #e8e9eb 100%);
+  --hero-bg: linear-gradient(155deg, #25272c 0%, #16171b 46%, #0f1012 100%);
+  --bg-deco: radial-gradient(1200px 560px at 50% -22%, rgba(222,224,228,.075), transparent 65%);
+  --f-display: "Jost", "Futura", "Avenir Next", system-ui, sans-serif;
   --f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --r: 10px;
-  --on-accent: #ffffff;
+  --plat-text: linear-gradient(180deg, #ffffff 0%, #e4e6e9 46%, #a2a6ad 100%);
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0f1116; --panel: #171a21; --ink: #eef0f5; --ink-2: #b4b9c6; --ink-3: #848a99;
-  --line: #2a2e38; --line-2: #22252d; --accent: #7f97ff; --accent-soft: #232b4a;
-  --good: #3fc07d; --good-soft: #15301f; --bad: #f07272; --bad-soft: #3a1c1e; --warn: #e3a93a; --warn-soft: #362a12;
-  --grid: #252832; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
-  --shadow: 0 1px 2px rgba(0,0,0,.3); --on-accent: #0f1116; color-scheme: dark; } }
-:root[data-theme="dark"] {
-  --bg: #0f1116; --panel: #171a21; --ink: #eef0f5; --ink-2: #b4b9c6; --ink-3: #848a99;
-  --line: #2a2e38; --line-2: #22252d; --accent: #7f97ff; --accent-soft: #232b4a;
-  --good: #3fc07d; --good-soft: #15301f; --bad: #f07272; --bad-soft: #3a1c1e; --warn: #e3a93a; --warn-soft: #362a12;
-  --grid: #252832; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
-  --shadow: 0 1px 2px rgba(0,0,0,.3); --on-accent: #0f1116; color-scheme: dark; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+body { background: var(--bg-deco) no-repeat, var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
 .wrap { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
 .num, .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -77,9 +57,7 @@ button { cursor: pointer; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-weight: 500; transition: border-color .15s, background .15s; }
 .btn:hover { border-color: var(--ink-3); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-:root[data-theme="dark"] .btn.primary { color: #0f1116; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0f1116; } }
+.btn.primary { background: var(--accent-grad); border-color: transparent; color: var(--on-accent); font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn.ghost:hover { color: var(--ink); background: var(--line-2); }
@@ -99,7 +77,7 @@ button { cursor: pointer; }
 .kpi .k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
 .kpi .v { font-family: var(--f-display); font-weight: 600; font-size: 32px; line-height: 1.1; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .kpi .sub { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
-.kpi.hero { background: var(--accent-soft); }
+.kpi.hero { background: var(--hero-bg); box-shadow: inset 0 2px 0 var(--accent); }
 .pos { color: var(--good); } .neg { color: var(--bad); }
 @media (max-width: 900px) { .board { grid-template-columns: repeat(3, minmax(0,1fr)); } .kpi:nth-child(4) { border-left: 0; } .kpi:nth-child(n+4) { border-top: 1px solid var(--line-2); } }
 @media (max-width: 520px) { .board { grid-template-columns: repeat(2, minmax(0,1fr)); } .kpi { border-left: 1px solid var(--line-2) !important; border-top: 1px solid var(--line-2); } .kpi:nth-child(odd) { border-left: 0 !important; } .kpi:nth-child(-n+2) { border-top: 0; } .kpi .v { font-size: 26px; } }
@@ -364,7 +342,7 @@ details.legend td, details.legend th { padding: 4px 10px; }
   .tabbar button { position: relative; display: grid; justify-items: center; gap: 3px; border: 0; background: none; padding: 5px 0 4px; min-height: 50px; font-size: 10.5px; font-weight: 600; letter-spacing: .03em; color: var(--ink-3); }
   .tabbar svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
   .tabbar button[aria-current="page"] { color: var(--accent); }
-  .tabbar .tb-add { align-self: center; justify-self: center; place-items: center; width: 54px; height: 54px; min-height: 0; padding: 0; margin-top: -22px; border-radius: 18px; background: var(--accent); color: var(--on-accent); box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 38%, transparent), 0 0 0 4px var(--bg); }
+  .tabbar .tb-add { align-self: center; justify-self: center; place-items: center; width: 54px; height: 54px; min-height: 0; padding: 0; margin-top: -22px; border-radius: 18px; background: var(--accent-grad); color: var(--on-accent); box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 38%, transparent), 0 0 0 4px var(--bg); }
   .tabbar .tb-add svg { width: 26px; height: 26px; stroke-width: 2.4; }
   .tabbar .tb-add[disabled] { opacity: .5; }
   .tb-n { position: absolute; top: 1px; left: calc(50% + 5px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: var(--on-accent); font: 600 10.5px/18px var(--f-mono); letter-spacing: 0; }
@@ -374,16 +352,37 @@ details.legend td, details.legend th { padding: 4px 10px; }
   @keyframes sheet { from { transform: translateY(28px); opacity: .5; } to { transform: none; opacity: 1; } }
 }
 
+/* Black & platinum finish: metal wordmark and balance, brushed-platinum controls, a machined top edge on the balance card */
+.brand h1, .ab-name { letter-spacing: .34em; background: var(--plat-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.kpi.hero .v, .ab-v { background: var(--plat-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.panel, .board { background-image: linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,0) 140px); }
+.kpi.hero { position: relative; box-shadow: none; }
+.kpi.hero::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--accent-grad); }
+.btn.primary, .chip[aria-pressed="true"], .seg button[aria-pressed="true"] { background: var(--accent-grad); border-color: transparent; color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.55); }
+dialog::backdrop { background: rgba(0,0,0,.72); }
+/* Type: Jost, light and letter-spaced, in place of the condensed bold */
+.brand h1 { font-weight: 300; font-size: 32px; }
+.ab-name { font-weight: 300; font-size: 20px; }
+.kpi .v, .sc .v, .ab-v { font-weight: 300; }
+.panel h2 { font-weight: 400; font-size: 15px; letter-spacing: .16em; }
+.dlg header h3 { font-weight: 400; font-size: 17px; letter-spacing: .14em; }
+.slip .h .m { font-weight: 400; font-size: 18px; }
+.kpi .k, .sc .k, th, label.f, .pickrow.hdr, .ab-k { font-weight: 500; }
+@media (max-width: 700px) {
+  .tabbar { background: color-mix(in srgb, var(--bg) 88%, transparent); border-top-color: var(--line-2); }
+  .tabbar .tb-add { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 10px 24px rgba(0,0,0,.7), 0 0 0 4px var(--bg); }
+  .appbar { border-bottom-color: var(--line-2); }
+}
+
 /* ---------- Standalone app ---------- */
-:root { --bar-bg: #13151b; --bar-ink: #f3f4f7; --bar-ink-2: #9aa0b0; --bar-accent: #8ea3ff; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bar-bg: #090b0f; } }
-:root[data-theme="dark"] { --bar-bg: #090b0f; }
+/* Black & platinum: the app bar is the page black in every mode */
+:root { --bar-bg: #050506; --bar-ink: #f2f2f3; --bar-ink-2: #9a9da4; --bar-accent: #d6d8dc; }
 .acct { display: block; }
 .top .actions .sync { margin-right: 6px; }
 @media (max-width: 700px) {
   body::before { background: var(--bar-bg); }
-  .appbar { background: var(--bar-bg); color: var(--bar-ink); border-bottom-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .ab-name span { color: var(--bar-accent); }
+  .appbar { background: var(--bar-bg); color: var(--bar-ink); border-bottom-color: var(--line-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .ab-name { color: var(--bar-ink); }
   .ab-k, .appbar .sync { color: var(--bar-ink-2); }
 }
 @media (display-mode: standalone) {
@@ -398,7 +397,7 @@ details.legend td, details.legend th { padding: 4px 10px; }
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .cbox { width: min(440px, 100%); display: grid; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 24px 22px; }
 .cbox .logo { width: 64px; height: 64px; border-radius: 15px; display: block; }
-.cbox h2 { font-family: var(--f-display); font-size: 30px; font-weight: 700; text-transform: uppercase; letter-spacing: .01em; margin: 0; line-height: 1; text-wrap: balance; }
+.cbox h2 { font-family: var(--f-display); font-size: 28px; font-weight: 300; text-transform: uppercase; letter-spacing: .34em; margin: 0; line-height: 1; text-wrap: balance; background: var(--plat-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .cbox h2 span { color: var(--accent); }
 .cbox p { margin: 0; color: var(--ink-2); }
 .cbox a { color: var(--accent); font-weight: 500; }
@@ -417,20 +416,19 @@ details.legend td, details.legend th { padding: 4px 10px; }
 </head>
 <body>
 <div class="appbar">
-  <div class="ab-l"><span class="ab-name">PrizePicks <span>Ledger</span></span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
+  <div class="ab-l"><span class="ab-name">Vici</span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
   <div class="ab-r"><span class="ab-k">Balance</span><span class="ab-v" id="ab-bal">$250.00</span></div>
 </div>
 
 <div class="wrap" data-tab="home">
   <header class="top" data-tabs="home">
     <div class="brand">
-      <h1>PrizePicks <span>Ledger</span></h1>
+      <h1>Vici</h1>
       <p id="summary">Every entry, every pick, every dollar. Starting balance $250.</p>
     </div>
     <div class="actions">
       <span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span>
       <button class="btn ghost act-export" id="btn-export" type="button" hidden>Export CSV</button>
-      <button class="btn ghost act-settings" id="btn-settings" type="button">Starting balance</button>
       <button class="btn primary act-new" id="btn-new" type="button">+ Log entry</button>
     </div>
   </header>
@@ -553,15 +551,15 @@ details.legend td, details.legend th { padding: 4px 10px; }
     </section>
     <section class="panel span-12 acct" data-tabs="stats">
       <h2>Account</h2>
-      <p class="hint">Sync, starting balance and a copy of every entry</p>
+      <p class="hint">Sync and a copy of every entry</p>
       <div class="acct-meta" id="acct-meta"></div>
-      <div class="row-btns"><button class="btn" id="a-sync" type="button">Sync now</button><button class="btn act-settings" type="button">Starting balance</button><button class="btn act-export" type="button" hidden>Export CSV</button><button class="btn ghost" id="a-token" type="button">Change token</button><button class="btn ghost danger" id="a-out" type="button">Disconnect this device</button></div>
+      <div class="row-btns"><button class="btn" id="a-sync" type="button">Sync now</button><button class="btn act-export" type="button" hidden>Export CSV</button><button class="btn ghost" id="a-token" type="button">Change token</button><button class="btn ghost danger" id="a-out" type="button">Disconnect this device</button></div>
       <div class="row-btns" id="a-out-confirm" hidden><span class="note" id="a-out-warn"></span><button class="btn danger" id="a-out-yes" type="button">Disconnect</button><button class="btn ghost" id="a-out-no" type="button">Keep</button></div>
     </section>
   </div>
 </div>
 
-<nav class="tabbar" aria-label="Ledger sections">
+<nav class="tabbar" aria-label="Vici sections">
   <button type="button" data-go="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"/><path d="M4 16l5-6 4 3 7-8"/></svg>Home</button>
   <button type="button" data-go="open"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1.5a2.5 2.5 0 0 0 0 5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1.5a2.5 2.5 0 0 0 0-5z"/><path d="M14 7.5v9" stroke-dasharray="1.6 2.4"/></svg>Open<span class="tb-n" id="tb-open" hidden></span></button>
   <button type="button" class="tb-add act-new" aria-label="Log entry"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -572,7 +570,7 @@ details.legend td, details.legend th { padding: 4px 10px; }
 <div class="connect" id="connect" hidden>
   <form class="cbox" id="connect-form" novalidate>
     <img class="logo" src="icons/icon-192.png" alt="" width="64" height="64">
-    <h2>PrizePicks <span>Ledger</span></h2>
+    <h2>Vici</h2>
     <p>Your bets sync through your private GitHub repo. Paste a token for it once and this device stays connected.</p>
     <label class="f">Data repo<input class="in" id="c-repo" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="username/pp-ledger-data"></label>
     <label class="f">GitHub token<input class="in" id="c-token" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="github_pat_…"></label>
@@ -610,18 +608,6 @@ details.legend td, details.legend th { padding: 4px 10px; }
       <div><button type="button" class="btn danger" id="dlg-delete" hidden>Delete entry</button><span id="del-confirm" hidden> <span class="note">Delete for good?</span> <button type="button" class="btn danger" id="del-yes">Delete</button> <button type="button" class="btn ghost" id="del-no">Keep</button></span></div>
       <div style="display:flex;gap:8px"><button type="button" class="btn" id="dlg-cancel">Cancel</button><button type="submit" class="btn primary" id="dlg-save">Save entry</button></div>
     </footer>
-  </form>
-</dialog>
-
-<dialog id="dlg-set" aria-labelledby="set-title" style="width:min(420px, calc(100vw - 24px))">
-  <form class="dlg" id="set-form" novalidate>
-    <header><h3 id="set-title">Starting balance</h3><button type="button" class="btn ghost" id="set-close" aria-label="Close">✕</button></header>
-    <div class="body">
-      <label class="f">Starting balance ($)<input class="in" type="number" id="s-start" min="0" step="0.01"></label>
-      <label class="f">Start date<input class="in" type="date" id="s-date"></label>
-      <p class="note">Raise it when you deposit more. Your entry history stays as it is.</p>
-    </div>
-    <footer><span></span><div style="display:flex;gap:8px"><button type="button" class="btn" id="set-cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div></footer>
   </form>
 </dialog>
 
@@ -1171,12 +1157,6 @@ details.legend td, details.legend th { padding: 4px 10px; }
   // datalists for stats
   for (const s of SPORTS) document.body.append(el("datalist", { id: "dl-" + s }, STATS[s].map(v => el("option", { value: v }))));
 
-  // ---------- Starting balance ----------
-  const sdlg = $("#dlg-set");
-  $$(".act-settings").forEach(b => b.addEventListener("click", () => { $("#s-start").value = state.settings.starting; $("#s-date").value = state.settings.startDate; sdlg.showModal(); }));
-  $("#set-close").addEventListener("click", () => sdlg.close()); $("#set-cancel").addEventListener("click", () => sdlg.close());
-  $("#set-form").addEventListener("submit", async ev => { ev.preventDefault(); const v = num($("#s-start").value); if (v == null || v < 0) return; const d = { starting: v, startDate: $("#s-date").value || state.settings.startDate }; try { if (state.db) await state.db.doc("settings/bankroll").set(d); state.settings = d; sdlg.close(); render(); toast("Starting balance updated"); } catch (e) { toast("Couldn't save the starting balance"); } });
-
   // ---------- Filters ----------
   $$("[data-sport]").forEach(b => b.addEventListener("click", () => { state.sport = b.dataset.sport; press("[data-sport]", b); render(); }));
   $$("[data-tf]").forEach(b => b.addEventListener("click", () => { state.typeF = b.dataset.tf; press("[data-tf]", b); render(); }));
@@ -1407,7 +1387,7 @@ details.legend td, details.legend th { padding: 4px 10px; }
   function showInstall(kind) {
     if (standalone() || LS.get("installDismissed")) return;
     const box = $("#install"); box.hidden = false;
-    $("#install-t").textContent = kind === "prompt" ? "Install the Ledger as an app for full-screen launch and offline use." : "Add the Ledger to your home screen: tap Share, then Add to Home Screen.";
+    $("#install-t").textContent = kind === "prompt" ? "Install Vici as an app for full-screen launch and offline use." : "Add Vici to your home screen: tap Share, then Add to Home Screen.";
     $("#install-go").hidden = kind !== "prompt";
   }
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; showInstall("prompt"); });

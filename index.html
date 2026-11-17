@@ -368,7 +368,14 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
 .dlg header h3 { font-weight: 400; font-size: 17px; letter-spacing: .14em; }
 .slip .h .m { font-weight: 400; font-size: 18px; }
 .kpi .k, .sc .k, th, label.f, .pickrow.hdr, .ab-k { font-weight: 500; }
-/* Quiet: no summary sentence, no panel hints */
+/* Quiet: no summary sentence, no panel hints; Edge vs break-even panel removed (Angus, 2026-11-17) */
+#p-edge { display: none !important; }
+#p-daily { grid-column: span 12; }
+.panel.fold > h2, .panel.fold > .panel-head { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.panel.fold h2::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 12px; vertical-align: 3px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(-45deg); transition: transform .2s; }
+.panel.fold.open h2::after { transform: rotate(45deg); vertical-align: 5px; }
+.panel.fold:not(.open) > :not(h2):not(.panel-head) { display: none; }
+.panel.fold:not(.open) > h2, .panel.fold:not(.open) > .panel-head h2 { margin-bottom: 0; }
 .brand p, .panel .hint, .panel-head .hint { display: none; }
 .panel h2 { margin-bottom: 10px; }
 .panel-head h2 { margin-bottom: 0; }
@@ -831,7 +838,6 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
       ["Worst day", worstD ? money(worstD[1], true) : "—", worstD ? fmtDate(worstD[0]) : "", worstD ? "neg" : ""],
       ["Biggest win", bigW ? money(pnl(bigW), true) : "—", bigW ? `${fmtName(bigW)} · ${fmtDate(bigW.date)}` : "", bigW ? "pos" : ""],
       ["Biggest loss", bigL ? money(pnl(bigL), true) : "—", bigL ? `${fmtName(bigL)} · ${fmtDate(bigL.date)}` : "", bigL ? "neg" : ""],
-      ["Current streak", streak ? `${streak.o === "won" ? "Won" : "Lost"} ${streak.k}` : "—", "", streak ? (streak.o === "won" ? "pos" : "neg") : ""],
       ["Max drawdown", dd > 0 ? money(-dd) : "$0.00", dd > 0 ? `${pct(ddPct)} off peak` : "", dd > 0 ? "neg" : ""],
       ["Average entry", avg != null ? money(avg) : "—", avg != null && bank > 0 ? `${pct(avg / bank)} of balance` : "", ""]
     ];
@@ -1409,6 +1415,17 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
   if (!sync.auth) { setMode("idle"); showConnect(); }
   else startSync();
 })();
+</script>
+<script>
+// Open risk and Edge vs break-even stay folded until tapped; the choice is remembered on this device.
+{
+  const fold = (id) => { const p = document.getElementById(id); if (!p) return; const head = p.querySelector(".panel-head") || p.querySelector("h2"); if (!head) return;
+    const key = "vici-fold-" + id; let open = false; try { open = localStorage.getItem(key) === "1"; } catch (e) {}
+    p.classList.add("fold"); p.classList.toggle("open", open); head.setAttribute("role", "button"); head.tabIndex = 0; head.setAttribute("aria-expanded", String(open));
+    const toggle = () => { const o = !p.classList.contains("open"); p.classList.toggle("open", o); head.setAttribute("aria-expanded", String(o)); try { localStorage.setItem(key, o ? "1" : "0"); } catch (e) {} };
+    head.addEventListener("click", toggle); head.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }); };
+  fold("p-risk");
+}
 </script>
 </body>
 </html>

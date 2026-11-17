@@ -489,12 +489,25 @@ tr.det[hidden] { display: none !important; }
 .install .btns { display: flex; gap: 6px; }
 
 .acct .row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+/* Vici Chat entry points in the app (append to app-extra.css). Phone: a round "ask" button at the right of the app bar.
+   Desktop: the "Ask Vici" button in the header actions uses the app's own .btn. */
+.ab-ask { display: none; }
+@media (max-width: 700px) {
+  .appbar .ab-r { margin-left: auto; }
+  .ab-ask { position: relative; flex: none; display: grid; place-items: center; width: 40px; height: 40px; margin-right: -4px; padding: 0;
+    border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+  .ab-ask::after { content: ""; position: absolute; inset: -4px; }
+  .ab-ask:active { transform: scale(.94); }
+  .ab-ask svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+}
 </style>
+<link rel="stylesheet" href="vici-chat.css">
 </head>
 <body>
 <div class="appbar">
   <div class="ab-l"><span class="ab-name">Vici</span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
   <div class="ab-r"><span class="ab-k">Balance</span><span class="ab-v" id="ab-bal">$250.00</span></div>
+  <button type="button" class="ab-ask act-chat" aria-label="Ask Vici"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4.5 19.5l1.2-4.1A7.5 7.5 0 1 1 20 11.5z"/></svg></button>
 </div>
 
 <div class="wrap" data-tab="home">
@@ -506,6 +519,7 @@ tr.det[hidden] { display: none !important; }
     <div class="actions">
       <span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span>
       <button class="btn ghost act-export" id="btn-export" type="button" hidden>Export CSV</button>
+      <button class="btn act-chat" type="button">Ask Vici</button>
       <button class="btn primary act-new" id="btn-new" type="button">+ Log entry</button>
     </div>
   </header>
@@ -563,6 +577,10 @@ tr.det[hidden] { display: none !important; }
         <div class="scen" id="scen"></div>
         <div id="expo"></div>
       </div>
+    </section>
+    <section class="panel span-12" id="p-model" data-tabs="stats">
+      <h2>Model</h2>
+      <div id="model-box"></div>
     </section>
     <section class="panel span-6" id="p-format" data-tabs="stats">
       <h2>PnL by format</h2>
@@ -1342,6 +1360,7 @@ tr.det[hidden] { display: none !important; }
     state.settings = d.settings;
     state.loaded = !!sync.remote;
     render(); drawAccount();
+    window.dispatchEvent(new Event("vici:data"));
   }
   const db = { doc(path) { const [col, id] = path.split("/"); return {
     async set(doc) { queue(col === "settings" ? { op: "settings", doc } : { op: "set", id, doc }); },
@@ -1475,9 +1494,9 @@ tr.det[hidden] { display: none !important; }
   }
   $("#a-sync").addEventListener("click", () => sync.auth ? syncNow(true) : showConnect());
   $("#a-token").addEventListener("click", () => showConnect());
-  $("#a-out").addEventListener("click", () => { $("#a-out-confirm").hidden = false; $("#a-out").hidden = true; $("#a-out-warn").textContent = sync.outbox.length ? `${plural(sync.outbox.length, "change hasn't", "changes haven't")} synced yet and will be lost.` : "This removes the token and saved copy from this device only."; });
+  $("#a-out").addEventListener("click", () => { $("#a-out-confirm").hidden = false; $("#a-out").hidden = true; const unsynced = sync.outbox.length + viciUnsynced(); $("#a-out-warn").textContent = unsynced ? `${plural(unsynced, "change hasn't", "changes haven't")} synced yet and will be lost.` : "This removes the token, saved copy, key and chats from this device only."; });
   $("#a-out-no").addEventListener("click", () => { $("#a-out-confirm").hidden = true; $("#a-out").hidden = false; });
-  $("#a-out-yes").addEventListener("click", () => { ["auth", "remote", "outbox"].forEach(k => LS.del(k)); location.reload(); });
+  $("#a-out-yes").addEventListener("click", () => { ["auth", "remote", "outbox"].forEach(k => LS.del(k)); $("#a-out-yes").disabled = true; viciForget().then(() => location.reload()); });
 
   // ---------- Install hint ----------
   let deferredInstall = null;
@@ -1492,6 +1511,59 @@ tr.det[hidden] { display: none !important; }
   $("#install-go").addEventListener("click", async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch (e) { } deferredInstall = null; $("#install").hidden = true; });
   $("#install-x").addEventListener("click", () => { LS.set("installDismissed", true); $("#install").hidden = true; });
   if (/iphone|ipad|ipod/i.test(navigator.userAgent) && navigator.standalone === false) showInstall("ios");
+
+  // ---------- Vici Chat bridge (window.Vici) ----------
+  // vici-model.js, vici-data.js and vici-chat.js reach the app only through this object (see INTEGRATION.md).
+  // Paste inside the app's IIFE, after the Sync section of app-tail.js and before "Boot": it uses state, pnl, isOpen,
+  // openForm, formType, payoutTouched, pickRow, recalc, SPORTS, $, $$, toast, gh, fail, sync and LS from the app.
+  // The Account panel's Disconnect also calls viciUnsynced() (its warning) and viciForget() (before the reload).
+  const viciCopy = v => JSON.parse(JSON.stringify(v));
+  function viciBalance() { // the same rule as render(): starting + settled PnL - stakes of open entries
+    const start = Number(state.settings.starting) || 0;
+    const net = state.entries.reduce((s, e) => s + (pnl(e) ?? 0), 0);
+    const open = state.entries.filter(isOpen).reduce((a, e) => a + (Number(e.stake) || 0), 0);
+    return Math.round((start + net - open) * 100) / 100;
+  }
+  function viciOpenDraft(d) { // the "Log entry" dialog, prefilled as a NEW entry; Angus checks it and taps Save
+    d = d || {};
+    openForm(null);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(d.date || ""))) $("#f-date").value = d.date;
+    formType = d.type === "flex" ? "flex" : "power";
+    if (d.stake != null && isFinite(d.stake)) $("#f-stake").value = d.stake;
+    if (d.toWin != null && isFinite(d.toWin)) $("#f-towin").value = d.toWin;
+    if (d.notes) $("#f-notes").value = String(d.notes).slice(0, 500);
+    const picks = (Array.isArray(d.picks) ? d.picks : []).slice(0, 6);
+    if (picks.length) {
+      $$("#pickrows .pickrow:not(.hdr)").forEach(r => r.remove());
+      for (const p of picks) $("#pickrows").append(pickRow({ sport: SPORTS.includes(p.sport) ? p.sport : "NBA", player: String(p.player || ""),
+        stat: String(p.stat || ""), line: Number(p.line), side: p.side === "under" ? "under" : "over", result: "pending", actual: null }));
+    }
+    payoutTouched = false;
+    recalc();
+  }
+  function viciUnsynced() { // AI picks changed on this device that GitHub doesn't have yet (the Disconnect warning counts them)
+    try { const st = window.ViciData && window.ViciData.journal.status(); return Number(st && st.pending) || 0; } catch (e) { return 0; }
+  }
+  function viciForget() { // Disconnect: Vici's key, chats, slip, usage and pick journal leave this device too. Never blocks > 3 s
+    const keys = ["anthropicKey", "chatDepth", "chatCurrent", "chatSlip", "usage", "usageOutbox", "journal", "journalOutbox"];
+    const wipe = () => { keys.forEach(k => LS.del(k)); };
+    let done;
+    try {
+      done = window.ViciChat && typeof window.ViciChat.forget === "function" ? Promise.resolve(window.ViciChat.forget())
+        : new Promise(res => { const rq = indexedDB.deleteDatabase("vici-chat"); rq.onsuccess = rq.onerror = rq.onblocked = () => res(); });
+    } catch (e) { done = Promise.resolve(); }
+    wipe();
+    return Promise.race([done.catch(() => {}), new Promise(res => setTimeout(res, 3000))]).then(wipe);
+  }
+  window.Vici = Object.freeze({
+    entries: () => viciCopy(state.entries),
+    settings: () => ({ starting: Number(state.settings.starting) || 0, startDate: state.settings.startDate }),
+    balance: viciBalance,
+    openDraft: viciOpenDraft,
+    toast: msg => toast(String(msg)),
+    gh: (path, opts) => (sync.auth ? gh(path, opts || {}) : Promise.reject(fail("no_auth"))),
+    repo: () => (sync.auth ? sync.auth.repo : null)
+  });
 
   // ---------- Boot ----------
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => { });
@@ -1515,5 +1587,9 @@ tr.det[hidden] { display: none !important; }
   fold("p-risk");
 }
 </script>
+<script src="vici-model.js" defer></script>
+<script src="vici-data.js" defer></script>
+<script src="vici-chat.js" defer></script>
+<script>document.addEventListener("DOMContentLoaded", function () { var b = document.getElementById("model-box"); if (b && window.ViciChat) window.ViciChat.renderModel(b); });</script>
 </body>
 </html>

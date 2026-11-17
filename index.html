@@ -371,6 +371,29 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
 /* Quiet: no summary sentence, no panel hints; Edge vs break-even panel removed (Angus, 2026-11-17) */
 #p-edge { display: none !important; }
 #p-daily { grid-column: span 12; }
+/* Daily PnL calendar */
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.cal-title { display: grid; justify-items: center; gap: 3px; text-align: center; min-width: 0; }
+.cal-title b { font-family: var(--f-display); font-weight: 400; font-size: 15px; letter-spacing: .12em; text-transform: uppercase; }
+.cal-tot { font-size: 12px; color: var(--ink-2); }
+.cal-tot.pos { color: var(--good); } .cal-tot.neg { color: var(--bad); }
+.cal-nav { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-size: 22px; line-height: 1; display: grid; place-items: center; padding: 0 0 2px; }
+.cal-nav:hover { border-color: var(--ink-3); color: var(--ink); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-wd { text-align: center; font-size: 10.5px; font-weight: 500; letter-spacing: .06em; color: var(--ink-3); padding: 2px 0 4px; }
+.cal-cell { position: relative; aspect-ratio: 1 / 1; border-radius: 8px; background: var(--bg); border: 1px solid var(--line-2); display: grid; align-content: space-between; padding: 5px 4px; min-width: 0; }
+.cal-cell.blank { background: transparent; border-color: transparent; }
+.cal-cell.future { opacity: .4; }
+.cal-cell.today { box-shadow: inset 0 0 0 1px var(--accent); }
+.cal-cell.up { background: var(--good-soft); border-color: color-mix(in srgb, var(--good) 35%, var(--line-2)); }
+.cal-cell.down { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 35%, var(--line-2)); }
+.cal-cell.flat { background: var(--line-2); }
+.cal-cell[tabindex] { cursor: default; }
+.cal-d { font-size: 11px; color: var(--ink-3); line-height: 1; }
+.cal-cell.up .cal-d, .cal-cell.down .cal-d { color: var(--ink-2); }
+.cal-v { font-size: 11px; font-weight: 500; letter-spacing: 0; line-height: 1; justify-self: end; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cal-cell.up .cal-v { color: var(--good); } .cal-cell.down .cal-v { color: var(--bad); } .cal-cell.flat .cal-v { color: var(--ink-2); }
+@media (min-width: 701px) { .cal-grid { gap: 6px; } .cal-cell { aspect-ratio: auto; min-height: 76px; padding: 8px 10px; } .cal-v { font-size: 14px; } .cal-d { font-size: 12px; } .cal-title b { font-size: 16px; } }
 .panel.fold > h2, .panel.fold > .panel-head { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .panel.fold h2::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 12px; vertical-align: 3px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(-45deg); transition: transform .2s; }
 .panel.fold.open h2::after { transform: rotate(45deg); vertical-align: 5px; }
@@ -944,32 +967,36 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
   }
 
   // ---------- Daily PnL ----------
+  // Daily PnL as a month calendar (Angus, 2026-11-17): each day's net result on the day placed; tap a day for the detail.
+  const cal = { month: null };
   function drawDaily(settled) {
     const host = $("#c-daily");
     const days = new Map(); for (const e of settled) { const r = days.get(e.date) || { d: e.date, v: 0, n: 0, w: 0 }; r.v += pnl(e); r.n++; if (pnl(e) > 0) r.w++; days.set(e.date, r); }
-    const rows = [...days.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-30);
-    if (!rows.length) { emptyBox(host, "Nothing settled yet", " Each day's net result shows here as entries are graded."); return; }
-    const W = Math.max(260, host.clientWidth), H = 210, m = { t: 20, r: 6, b: 24, l: 8 };
-    let lo = Math.min(0, ...rows.map(r => r.v)), hi = Math.max(0, ...rows.map(r => r.v)); if (lo === hi) hi = 1;
-    const pad = (hi - lo) * 0.12; if (lo < 0) lo -= pad; if (hi > 0) hi += pad;
-    const ticks = niceTicks(lo, hi, 4); lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
-    const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Daily net PnL: " + rows.map(r => `${fmtDate(r.d)} ${money(r.v, true)}`).join(", ") });
-    host.replaceChildren(svg);
-    m.l = measure(svg, ticks.map(t => money0(t, true))) + 10;
-    const iw = W - m.l - m.r, ih = H - m.t - m.b, y = v => m.t + (1 - (v - lo) / (hi - lo)) * ih;
-    for (const t of ticks) { svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: t === 0 ? "var(--ink-3)" : "var(--grid)" })); const tx = sv("text", { x: m.l - 8, y: y(t) + 4, "text-anchor": "end" }); tx.textContent = money0(t, true); svg.append(tx); }
-    const band = iw / rows.length, bw = Math.max(4, Math.min(44, band * 0.62));
+    const t = today(); if (!cal.month) cal.month = t.slice(0, 7);
+    const [Y, M] = cal.month.split("-").map(Number);
+    const first = new Date(Y, M - 1, 1), nDays = new Date(Y, M, 0).getDate(), lead = first.getDay();
+    const inMonth = [...days.values()].filter(r => r.d.startsWith(cal.month));
+    const tot = inMonth.reduce((a, r) => a + r.v, 0), nSet = inMonth.reduce((a, r) => a + r.n, 0);
+    const compact = host.clientWidth < 560;
+    const fmtCell = v => { if (!compact) return money0(v, true); const a = Math.abs(v), sgn = v > 0 ? "+" : v < 0 ? "−" : ""; return sgn + (a >= 1000 ? (a / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(a))); };
+    const nav = (dir, label, text) => el("button", { class: "cal-nav", type: "button", "aria-label": label, text, onclick: () => { const nm = new Date(Y, M - 1 + dir, 1); cal.month = `${nm.getFullYear()}-${String(nm.getMonth() + 1).padStart(2, "0")}`; drawDaily(settled); } });
+    const head = el("div", { class: "cal-head" }, nav(-1, "Previous month", "‹"),
+      el("div", { class: "cal-title" }, el("b", { text: first.toLocaleDateString("en-US", { month: "long", year: "numeric" }) }), el("span", { class: "cal-tot num " + (tot > 0 ? "pos" : tot < 0 ? "neg" : ""), text: nSet ? `${money(tot, true)} · ${nSet} settled` : "no settled entries" })),
+      nav(1, "Next month", "›"));
+    const grid = el("div", { class: "cal-grid", role: "grid", "aria-label": "Daily net PnL calendar" });
+    for (const w of ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]) grid.append(el("div", { class: "cal-wd", text: w }));
+    for (let i = 0; i < lead; i++) grid.append(el("div", { class: "cal-cell blank" }));
+    host.replaceChildren(head, grid);
     const T = tip(host);
-    rows.forEach((r, i) => {
-      const cx = m.l + band * i + band / 2, y0 = y(0), y1 = y(r.v), top = Math.min(y0, y1), h = Math.max(2, Math.abs(y1 - y0));
-      svg.append(sv("rect", { x: cx - bw / 2, y: r.v === 0 ? y0 - 1 : top, width: bw, height: h, rx: Math.min(4, bw / 2), fill: r.v > 0 ? "var(--good)" : r.v < 0 ? "var(--bad)" : "var(--ink-3)" }));
-      if (rows.length <= 10) { const vt = sv("text", { x: cx, y: r.v >= 0 ? top - 6 : top + h + 13, class: "val", "text-anchor": "middle" }); vt.textContent = money0(r.v, true); svg.append(vt); }
-      const hr = sv("rect", { x: cx - band / 2, y: 0, width: band, height: H, fill: "transparent" }); svg.append(hr);
-      const show = ev => { const rc = svg.getBoundingClientRect(); T.show(cx * rc.width / W, top * rc.width / W, fmtDate(r.d), [["Net PnL", money(r.v, true)], ["Settled", String(r.n)], ["Cashed", String(r.w)]]); };
-      hr.addEventListener("pointermove", show); hr.addEventListener("pointerdown", show); hr.addEventListener("pointerleave", () => T.hide());
-    });
-    const xl = (i, anchor) => { const t = sv("text", { x: rows.length === 1 ? m.l + iw / 2 : m.l + band * i + band / 2, y: H - 6, "text-anchor": rows.length === 1 ? "middle" : anchor }); t.textContent = fmtDate(rows[i].d); svg.append(t); };
-    xl(0, "start"); if (rows.length > 1) xl(rows.length - 1, "end");
+    for (let d = 1; d <= nDays; d++) {
+      const key = `${cal.month}-${String(d).padStart(2, "0")}`, r = days.get(key);
+      const cls = "cal-cell" + (r ? (r.v > 0 ? " up" : r.v < 0 ? " down" : " flat") : "") + (key === t ? " today" : key > t ? " future" : "");
+      const c = el("div", { class: cls, role: "gridcell", tabindex: r ? 0 : null, "aria-label": `${fmtDate(key)}: ${r ? money(r.v, true) + ", " + r.n + " settled" : "nothing settled"}` },
+        el("span", { class: "cal-d", text: String(d) }), r ? el("span", { class: "cal-v num", text: fmtCell(r.v) }) : null);
+      if (r) { const show = () => { const rc = c.getBoundingClientRect(), hr = host.getBoundingClientRect(); T.show(rc.left - hr.left + rc.width / 2, rc.top - hr.top, fmtDate(key), [["Net PnL", money(r.v, true)], ["Settled", String(r.n)], ["Cashed", String(r.w)]]); };
+        c.addEventListener("pointerenter", show); c.addEventListener("pointerdown", show); c.addEventListener("pointerleave", () => T.hide()); c.addEventListener("focus", show); c.addEventListener("blur", () => T.hide()); }
+      grid.append(c);
+    }
   }
 
   // ---------- Open slips ----------

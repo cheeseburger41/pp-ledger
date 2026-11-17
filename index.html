@@ -408,6 +408,45 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
   .appbar { border-bottom-color: var(--line-2); }
 }
 
+/* Condensed entries (Angus, 2026-11-17): one line per entry, tap to open */
+.slips.cmp { grid-template-columns: minmax(0, 1fr); gap: 8px; align-items: start; }
+@media (min-width: 900px) { .slips.cmp { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; } }
+.slip.cmp { display: block; padding: 0; cursor: default; }
+.slip.cmp .sh { display: grid; grid-template-columns: minmax(0, 1fr) auto 14px; grid-template-areas: "m sum chev" "tag sum chev"; column-gap: 12px; row-gap: 3px; align-items: center; width: 100%; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; padding: 11px 14px; cursor: pointer; border-radius: 8px; }
+.slip.cmp .sh:hover { background: var(--line-2); }
+.slip.cmp .sh .m { grid-area: m; font-family: var(--f-display); font-weight: 400; font-size: 17px; letter-spacing: .02em; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slip.cmp .sh .tag { grid-area: tag; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slip.cmp .sh .sum { grid-area: sum; display: grid; justify-items: end; gap: 3px; font-size: 13px; line-height: 1.1; }
+.slip.cmp .sh .sum .muted { font-size: 11.5px; }
+.slip.cmp .sh .chev { grid-area: chev; width: 7px; height: 7px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(45deg); transition: transform .2s; justify-self: center; margin-top: -4px; }
+.slip.cmp.open .sh .chev { transform: rotate(-135deg); margin-top: 4px; }
+.slip.cmp .sb { display: none; padding: 2px 14px 14px; gap: 10px; }
+.slip.cmp.open .sb { display: grid; }
+.slip.cmp .sb .ls.shared { padding-left: 0; }
+.slip.cmp .f { align-items: center; }
+.slip.cmp .f .act { margin-left: auto; }
+td.pc { width: 100%; max-width: 0; }
+.psum { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.psum .hit { color: var(--good); } .psum .miss { color: var(--bad); } .psum .push { color: var(--warn); }
+tr.row.open td { border-bottom: 0; }
+tr.det td { padding-top: 0; padding-bottom: 14px; }
+tr.det[hidden] { display: none !important; }
+.det-in { display: grid; gap: 8px; }
+.det-in .act { justify-self: end; }
+.psum .d { display: none; color: var(--ink-3); }
+@media (max-width: 800px) {
+  #p-log tr.row { gap: 6px 12px; padding: 11px 18px; }
+  #p-log tr.row td.pc { width: auto; max-width: none; }
+  #p-log tr.row.open { border-bottom: 0; }
+  #p-log tr.det { display: block; padding: 0 18px 14px; border-bottom: 1px solid var(--line-2); }
+  #p-log tr.det td { display: block; padding: 0; border: 0; }
+}
+@media (max-width: 680px) {
+  #p-log tr.row { grid-template-areas: "entry entry status" "picks picks picks" "stake payout pnl"; }
+  #p-log tr.row td:nth-child(1) { display: none; }
+  .psum .d { display: inline; }
+}
+
 /* ---------- Standalone app ---------- */
 /* Black & platinum: the app bar is the page black in every mode */
 :root { --bar-bg: #050506; --bar-ink: #f2f2f3; --bar-ink-2: #9a9da4; --bar-accent: #d6d8dc; }
@@ -1011,25 +1050,36 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
     if (p.auto && !pendingPick(p)) kids.push(bolt());
     return el("span", { class: "pk " + (p.result || "pending"), title: p.auto && !pendingPick(p) ? "Graded automatically from the box score" : null }, ...kids);
   }
+  // Condensed entries (Angus, 2026-11-17): one line per entry, tap to open; Grade/Edit opens the form.
+  const ui = { slipOpen: new Set(), logOpen: new Set() };
+  const surname = p => { const parts = String(p.player || "").replace(/\s*\([^)]*\)/g, " ").trim().split(/\s+/).filter(Boolean); if (!parts.length) return p.stat || "—"; let i = parts.length - 1; if (i > 0 && /^(jr|sr|ii|iii|iv)\.?$/i.test(parts[i])) i--; return parts[i]; };
   function drawOpen(openL) {
     const host = $("#open-list");
     if (!openL.length) { emptyBox(host, "No open entries", state.canWrite ? " Use Log entry to add a slip. It stays here until every pick is graded." : ""); host.firstChild.style.minHeight = "110px"; return; }
-    const wrap = el("div", { class: "slips" });
+    const wrap = el("div", { class: "slips cmp" });
     for (const e of sorted(openL)) {
       const graded = e.picks.filter(p => p.result && p.result !== "pending").length, be = entryBE(e);
       const infos = e.picks.map((p, i) => pendingPick(p) ? live.info.get(e.id + "#" + i) : null), pend = infos.filter(Boolean);
       const shared = pend.length > 1 && pend.length === e.picks.filter(pendingPick).length && pend.every(x => x.s === pend[0].s && x.t === pend[0].t) ? pend[0] : null;
-      wrap.append(el("button", { class: "slip", type: "button", onclick: () => openForm(e) },
-        el("div", { class: "h" }, el("span", { class: "m", text: fmtName(e) }), el("span", { class: "tag", text: `${entrySport(e)} · ${fmtDate(e.date)}${e.bonus ? " · Bonus" : ""}` }), shared ? el("small", { class: "ls shared " + shared.s, text: shared.t }) : null),
+      const on0 = ui.slipOpen.has(e.id);
+      const card = el("div", { class: "slip cmp" + (on0 ? " open" : "") });
+      const head = el("button", { class: "sh", type: "button", "aria-expanded": String(on0), onclick: () => { const on = card.classList.toggle("open"); head.setAttribute("aria-expanded", String(on)); if (on) ui.slipOpen.add(e.id); else ui.slipOpen.delete(e.id); } },
+        el("span", { class: "m", text: fmtName(e) }),
+        el("span", { class: "tag", text: `${entrySport(e)} · ${fmtDate(e.date)}${e.bonus ? " · Bonus" : ""}` }),
+        el("span", { class: "sum" }, el("b", { class: "mono", text: money(baseAmt(e)) }), el("span", { class: "mono muted", text: `${graded}/${e.picks.length}` })),
+        el("i", { class: "chev", "aria-hidden": "true" }));
+      const body = el("div", { class: "sb" },
+        shared ? el("small", { class: "ls shared " + shared.s, text: shared.t }) : null,
         el("ul", {}, e.picks.map((p, i) => { const inf = shared ? null : infos[i];
           let right = null;
           if (!pendingPick(p)) { const mg = hasActual(p) && p.line != null ? Math.abs(Math.round((Number(p.actual) - Number(p.line)) * 100) / 100) : null;
             right = el("span", { class: "res " + p.result, title: (p.result === "push" ? "Push" : `${p.result === "hit" ? "Hit" : "Miss"}${mg != null ? " by " + mg : ""}`) + (p.auto ? " · graded from the box score" : "") }, hasActual(p) ? String(Number(p.actual)) : p.result, p.auto ? bolt() : null); }
           return el("li", {}, el("div", { class: "pl" }, pickChip(p, true), inf ? el("small", { class: "ls " + inf.s, text: inf.t }) : null), right); })),
         el("div", { class: "f" },
-          el("span", {}, e.bonus ? "Bonus " : "Stake ", el("b", { class: "mono", text: money(baseAmt(e)) })),
-          el("span", {}, `${graded}/${e.picks.length} · max `, el("b", { class: "mono", text: money(maxPay(e)) })),
-          be != null ? el("span", { class: "muted", text: `BE ${pct(be)}` }) : null)));
+          el("span", {}, "max ", el("b", { class: "mono", text: money(maxPay(e)) })),
+          be != null ? el("span", { class: "muted", text: `BE ${pct(be)}` }) : null,
+          el("button", { class: "btn sm act", type: "button", text: "Grade", onclick: () => openForm(e) })));
+      card.append(head, body); wrap.append(card);
     }
     host.replaceChildren(wrap);
   }
@@ -1040,15 +1090,22 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
     let rows = sorted(list); if (state.status === "open") rows = rows.filter(isOpen); else if (state.status === "settled") rows = rows.filter(e => !isOpen(e));
     if (state.q) rows = rows.filter(e => [e.notes || "", isPack(e) ? "pack card" : "", ...(e.picks || []).flatMap(p => [p.player || "", p.stat || ""])].join(" ").toLowerCase().includes(state.q));
     if (!rows.length) { body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "muted", style: "padding:22px 18px;text-align:center", text: state.loaded ? (state.entries.length ? "No entries match these filters." : "No entries yet. Log your first slip with + Log entry.") : "Loading…" }))); return; }
-    body.replaceChildren(...rows.map(e => { const o = outcome(e), p = pnl(e);
-      return el("tr", { class: "row", tabindex: 0, onclick: () => openForm(e), onkeydown: ev => { if (ev.key === "Enter") openForm(e); } },
+    body.replaceChildren(...rows.flatMap(e => { const o = outcome(e), p = pnl(e), on0 = ui.logOpen.has(e.id);
+      const sum = el("div", { class: "psum" }, el("span", { class: "d mono", text: fmtDate(e.date) + " · " }), isPack(e) ? "Card" : e.picks.flatMap((pk, i) => [i ? ", " : null, el("span", { class: pk.result || "pending", text: surname(pk) })]));
+      const det = el("tr", { class: "det", hidden: !on0 }, el("td", { colspan: 7 }, el("div", { class: "det-in" },
+        el("div", { class: "picks" }, isPack(e) ? packChip(e) : e.picks.map(pk => pickChip(pk))),
+        e.notes ? el("div", { class: "note", text: e.notes }) : null,
+        el("button", { class: "btn sm act", type: "button", text: "Edit", onclick: () => openForm(e) }))));
+      const toggle = () => { const on = tr.classList.toggle("open"); tr.setAttribute("aria-expanded", String(on)); det.hidden = !on; if (on) ui.logOpen.add(e.id); else ui.logOpen.delete(e.id); };
+      const tr = el("tr", { class: "row cmp" + (on0 ? " open" : ""), tabindex: 0, "aria-expanded": String(on0), onclick: toggle, onkeydown: ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(); } } },
         el("td", { class: "mono nw", text: fmtDate(e.date) }),
         el("td", { class: "nw" }, el("div", { style: "font-weight:600", text: fmtName(e) }), el("div", { class: "tag", text: isPack(e) ? (e.bonus ? "Free pack" : "Paid pack") : entrySport(e) })),
-        el("td", {}, el("div", { class: "picks" }, isPack(e) ? packChip(e) : e.picks.map(p => pickChip(p)))),
+        el("td", { class: "pc" }, sum),
         e.bonus ? el("td", { class: "r nw", "data-l": "Stake" }, el("span", { class: "pill bonus", title: isPack(e) ? "Free pack, not taken from your balance" : "Promo money, not taken from your balance", text: (isPack(e) ? "Free " : "Bonus ") + money0(Number(e.bonusStake) || 0) })) : el("td", { class: "r mono", "data-l": "Stake", text: money(Number(e.stake) || 0) }),
         o === "open" ? el("td", { class: "r mono muted nw", "data-l": "Payout", text: "max " + money(maxPay(e)) }) : el("td", { class: "r mono nw", "data-l": "Payout", title: e.estPayout ? "Worked out with standard multipliers. Check the app and edit the entry if it paid differently." : null }, money(Number(paid(e)) || 0), e.estPayout ? el("span", { class: "est", text: "est." }) : null),
         el("td", { class: "r mono " + (p > 0 ? "pos" : p < 0 ? "neg" : ""), "data-l": "PnL", text: p == null ? "—" : money(p, true) }),
         el("td", {}, el("span", { class: "pill " + o, text: o === "even" ? "Push" : o })));
+      return [tr, det];
     }));
   }
 

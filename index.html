@@ -1,0 +1,1430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PrizePicks Ledger</title>
+<meta name="description" content="Personal PrizePicks bet tracker: balance, PnL, open risk and every entry.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#13151b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}body{margin:0;padding:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<script src="config.js"></script>
+<style>
+/* Layout: a sportsbook ticket ledger. Header, filter bar, KPI scoreboard, analytics grid (balance + records, open risk, PnL splits, edge, daily), open slips, entry log. */
+:root {
+  --bg: #f3f4f7;
+  --panel: #ffffff;
+  --ink: #13151b;
+  --ink-2: #4a4f5c;
+  --ink-3: #7b8090;
+  --line: #e1e3ea;
+  --line-2: #eceef3;
+  --accent: #2a4fd6;
+  --accent-soft: #e6ebfc;
+  --good: #11804a;
+  --good-soft: #e3f4ea;
+  --bad: #c23a3a;
+  --bad-soft: #fbe7e7;
+  --warn: #a86a00;
+  --warn-soft: #fbf0d9;
+  --grid: #e9ebf0;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --shadow: 0 1px 2px rgba(20,24,40,.05), 0 6px 24px rgba(20,24,40,.05);
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 10px;
+  --on-accent: #ffffff;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1116; --panel: #171a21; --ink: #eef0f5; --ink-2: #b4b9c6; --ink-3: #848a99;
+  --line: #2a2e38; --line-2: #22252d; --accent: #7f97ff; --accent-soft: #232b4a;
+  --good: #3fc07d; --good-soft: #15301f; --bad: #f07272; --bad-soft: #3a1c1e; --warn: #e3a93a; --warn-soft: #362a12;
+  --grid: #252832; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --shadow: 0 1px 2px rgba(0,0,0,.3); --on-accent: #0f1116; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1116; --panel: #171a21; --ink: #eef0f5; --ink-2: #b4b9c6; --ink-3: #848a99;
+  --line: #2a2e38; --line-2: #22252d; --accent: #7f97ff; --accent-soft: #232b4a;
+  --good: #3fc07d; --good-soft: #15301f; --bad: #f07272; --bad-soft: #3a1c1e; --warn: #e3a93a; --warn-soft: #362a12;
+  --grid: #252832; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --shadow: 0 1px 2px rgba(0,0,0,.3); --on-accent: #0f1116; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
+.num, .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.brand { min-width: 0; }
+.brand h1 { font-family: var(--f-display); font-weight: 700; font-size: 34px; letter-spacing: .01em; line-height: 1; margin: 0; text-transform: uppercase; text-wrap: balance; }
+.brand h1 span { color: var(--accent); }
+.brand p { margin: 6px 0 0; color: var(--ink-2); max-width: 70ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-weight: 500; transition: border-color .15s, background .15s; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+:root[data-theme="dark"] .btn.primary { color: #0f1116; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0f1116; } }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+.btn.ghost:hover { color: var(--ink); background: var(--line-2); }
+.btn.danger { color: var(--bad); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+.fbar { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 5px 13px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.filters .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); margin-right: 4px; }
+
+/* KPI scoreboard */
+.board { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+.kpi { padding: 14px 16px; border-left: 1px solid var(--line-2); min-width: 0; }
+.kpi:first-child { border-left: 0; }
+.kpi .k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
+.kpi .v { font-family: var(--f-display); font-weight: 600; font-size: 32px; line-height: 1.1; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi .sub { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+.kpi.hero { background: var(--accent-soft); }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+@media (max-width: 900px) { .board { grid-template-columns: repeat(3, minmax(0,1fr)); } .kpi:nth-child(4) { border-left: 0; } .kpi:nth-child(n+4) { border-top: 1px solid var(--line-2); } }
+@media (max-width: 520px) { .board { grid-template-columns: repeat(2, minmax(0,1fr)); } .kpi { border-left: 1px solid var(--line-2) !important; border-top: 1px solid var(--line-2); } .kpi:nth-child(odd) { border-left: 0 !important; } .kpi:nth-child(-n+2) { border-top: 0; } .kpi .v { font-size: 26px; } }
+
+/* Panels */
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 18px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px 18px; min-width: 0; position: relative; }
+.span-8 { grid-column: span 8; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; } .span-12 { grid-column: span 12; }
+@media (max-width: 900px) { .span-8, .span-4, .span-6 { grid-column: span 12; } }
+.panel h2 { font-family: var(--f-display); font-weight: 600; font-size: 19px; text-transform: uppercase; letter-spacing: .03em; margin: 0; }
+.panel .hint { color: var(--ink-3); font-size: 12px; margin: 2px 0 10px; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.chart { position: relative; min-height: 120px; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { font-family: var(--f-body); font-size: 11px; fill: var(--ink-3); }
+.chart .val { font-family: var(--f-mono); font-size: 11px; fill: var(--ink-2); }
+.chart .catlbl { font-size: 12px; fill: var(--ink); font-weight: 500; }
+.empty { display: grid; place-items: center; text-align: center; min-height: 160px; color: var(--ink-3); font-size: 13px; padding: 20px; border: 1px dashed var(--line); border-radius: 8px; }
+.empty b { display: block; color: var(--ink-2); font-weight: 600; margin-bottom: 2px; }
+
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.14); border-radius: 8px; padding: 8px 10px; font-size: 12px; min-width: 130px; z-index: 5; }
+.tip .t { font-weight: 600; margin-bottom: 3px; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-2); }
+.tip .r b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; }
+
+/* Records */
+.recs { display: grid; }
+.rec { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-2); }
+.rec:last-child { border-bottom: 0; }
+.rec .k { color: var(--ink-2); font-size: 13px; }
+.rec .v { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: 13px; text-align: right; }
+.rec .v small { display: block; font-family: var(--f-body); color: var(--ink-3); font-size: 11px; }
+
+/* Open risk */
+.risk { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 1040px) { .risk { grid-template-columns: minmax(0, 1fr); } .scen { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .scen { grid-template-columns: minmax(0, 1fr); } }
+.scen { display: grid; gap: 10px; }
+.sc { border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px; background: var(--bg); display: grid; gap: 3px; }
+.sc .k { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 600; }
+.sc .v { font-family: var(--f-display); font-size: 26px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.sc .s { font-size: 12px; color: var(--ink-2); }
+.meter { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; margin: 4px 0 2px; }
+.meter i { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+.meter.hot i { background: var(--warn); }
+.badge { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); margin-top: 3px; white-space: nowrap; }
+.more { margin-top: 8px; font-size: 13px; }
+
+/* Edge vs break-even */
+.edge { display: grid; }
+.erow { display: grid; grid-template-columns: minmax(0, 118px) minmax(0, 1fr) 128px; gap: 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line-2); }
+.erow:last-child { border-bottom: 0; }
+.erow.overall { background: var(--bg); border-radius: 8px; border-bottom: 0; padding: 9px 10px; margin-bottom: 4px; }
+.erow.eaxis { padding: 0 0 2px; border-bottom: 0; }
+.ek { min-width: 0; }
+.eticks { position: relative; height: 14px; font-size: 10.5px; color: var(--ink-3); font-family: var(--f-mono); }
+.eticks span { position: absolute; top: 0; transform: translateX(-50%); }
+.eticks span:first-child { transform: none; }
+.eticks span:last-child { transform: translateX(-100%); }
+.etrack { position: relative; height: 20px; }
+.etrack .bar { position: absolute; left: 0; right: 0; top: 9px; height: 2px; border-radius: 2px; background: var(--line); }
+.etrack .gap { position: absolute; top: 7px; height: 6px; border-radius: 3px; opacity: .35; }
+.etrack .gap.good, .etrack .me.good { background: var(--good); }
+.etrack .gap.bad, .etrack .me.bad { background: var(--bad); }
+.etrack .be { position: absolute; top: 2px; width: 2px; height: 16px; margin-left: -1px; border-radius: 1px; background: var(--ink); }
+.etrack .me { position: absolute; top: 4px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--line); }
+.ev { text-align: right; min-width: 0; }
+.ev b { display: block; font-family: var(--f-mono); font-weight: 500; font-size: 13px; }
+.ev small { color: var(--ink-3); font-size: 11px; }
+.ekey { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 11.5px; color: var(--ink-3); margin-top: 10px; }
+.ekey i { display: inline-block; vertical-align: -2px; margin-right: 6px; }
+.ekey .kb { width: 2px; height: 12px; background: var(--ink); }
+.ekey .kd { width: 10px; height: 10px; border-radius: 50%; background: var(--good); }
+@media (max-width: 520px) {
+  .erow { grid-template-columns: minmax(0, 1fr) 112px; gap: 4px 12px; }
+  .erow .etrack { grid-column: 1 / -1; grid-row: 2; }
+  .erow.eaxis { display: none; }
+}
+
+
+/* Tables */
+.tbl-wrap { overflow-x: auto; margin: 6px -18px -16px; }
+.tbl-wrap.inset { margin: 0; }
+table { border-collapse: collapse; width: 100%; min-width: 760px; }
+table.expo { min-width: 560px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+tr.row { cursor: pointer; }
+tr.row:hover td { background: var(--line-2); }
+th:first-child, td:first-child { padding-left: 18px; } th:last-child, td:last-child { padding-right: 18px; }
+table.expo th:first-child, table.expo td:first-child { padding-left: 0; } table.expo th:last-child, table.expo td:last-child { padding-right: 0; }
+td.r, th.r { text-align: right; }
+td.nw { white-space: nowrap; }
+.picks { display: flex; flex-wrap: wrap; gap: 4px; }
+.pk { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; max-width: 100%; background: var(--panel); }
+.pk .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.pk .mg { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); }
+.pk.hit { border-color: color-mix(in srgb, var(--good) 40%, var(--line)); } .pk.hit .dot { background: var(--good); }
+.pk.miss { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); } .pk.miss .dot { background: var(--bad); }
+.pk.push .dot { background: var(--warn); }
+.pk.pending .dot { background: transparent; border: 1.5px solid var(--ink-3); }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+.pill.won { background: var(--good-soft); color: var(--good); }
+.pill.lost { background: var(--bad-soft); color: var(--bad); }
+.pill.open { background: var(--accent-soft); color: var(--accent); }
+.pill.even { background: var(--warn-soft); color: var(--warn); }
+.pill.bonus { background: var(--line-2); color: var(--ink-2); }
+.tag { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); }
+.muted { color: var(--ink-3); }
+.search { border: 1px solid var(--line); border-radius: 999px; background: var(--bg); padding: 5px 12px; font-size: 13px; width: 200px; max-width: 100%; color: var(--ink); }
+.search:focus { outline: none; border-color: var(--accent); }
+.loghead { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+
+/* Open slips */
+.slips { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.slip { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; grid-template-rows: auto 1fr auto; gap: 8px; background: var(--bg); cursor: pointer; text-align: left; width: 100%; min-width: 0; }
+.slip > * { min-width: 0; }
+.slip:hover { border-color: var(--accent); }
+.slip .h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 8px; }
+.slip .h .m { font-family: var(--f-display); font-size: 20px; font-weight: 600; }
+.slip ul { list-style: none; margin: 0; padding: 0; display: grid; align-content: start; gap: 5px; font-size: 12.5px; }
+.slip li { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; min-width: 0; }
+.slip .pk { border: 0; padding: 0; background: transparent; white-space: normal; align-items: flex-start; min-width: 0; }
+.slip .pk .dot { margin-top: .42em; }
+.slip .f { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: 12px; color: var(--ink-2); border-top: 1px dashed var(--line); padding-top: 8px; }
+
+/* Dialog */
+dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; background: var(--panel); color: var(--ink); width: min(900px, calc(100vw - 24px)); max-height: calc(100vh - 32px); box-shadow: 0 24px 64px rgba(0,0,0,.25); }
+dialog::backdrop { background: rgba(10,12,18,.45); }
+.dlg { display: grid; grid-template-rows: auto 1fr auto; max-height: calc(100vh - 34px); }
+.dlg header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.dlg header h3 { font-family: var(--f-display); font-size: 22px; text-transform: uppercase; margin: 0; letter-spacing: .02em; }
+.dlg .body { overflow: auto; padding: 16px 18px; display: grid; gap: 16px; }
+.dlg footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid var(--line); }
+.fields { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; }
+@media (max-width: 600px) { .fields { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+label.f { display: grid; gap: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 600; min-width: 0; }
+label.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+label.check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.in { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); padding: 7px 9px; font-size: 14px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
+.in:focus { border-color: var(--accent); outline: none; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--bg); }
+.seg button { border: 0; background: transparent; padding: 7px 12px; font-size: 13px; font-weight: 500; color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.pickrows { display: grid; gap: 8px; }
+.pickrow { display: grid; grid-template-columns: 94px minmax(0,1.5fr) minmax(0,1.1fr) 66px 86px 74px 112px 30px; gap: 6px; align-items: center; }
+.pickrow.hdr { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 600; }
+.pickrow .x { border: 0; background: transparent; color: var(--ink-3); font-size: 18px; line-height: 1; padding: 4px; }
+.pickrow .x:hover { color: var(--bad); }
+@media (max-width: 680px) {
+  .pickrow { grid-template-columns: 1fr 1fr; padding: 10px; border: 1px solid var(--line); border-radius: 8px; position: relative; }
+  .pickrow.hdr { display: none; }
+  .pickrow .player { grid-column: 1 / -1; order: -1; width: calc(100% - 34px); }
+  .pickrow .x { position: absolute; top: 12px; right: 8px; }
+}
+.calc { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 13px; color: var(--ink-2); background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px; }
+.calc b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; }
+.note { font-size: 12px; color: var(--ink-3); }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 50; }
+.banner { background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 10px 14px; font-size: 13px; }
+details.legend { font-size: 12.5px; color: var(--ink-2); }
+details.legend summary { cursor: pointer; color: var(--ink-3); font-size: 12px; }
+details.legend p { max-width: 90ch; }
+details.legend table { min-width: 0; margin-top: 8px; }
+details.legend td, details.legend th { padding: 4px 10px; }
+@media (prefers-reduced-motion: no-preference) { .panel, .board { animation: rise .45s cubic-bezier(.2,.7,.2,1) both; } @keyframes rise { from { transform: translateY(6px); opacity: .6; } to { transform: none; opacity: 1; } } }
+/* Phone: tables become stacked cards */
+@media (max-width: 800px) {
+  #p-log table, #p-log tbody { display: block; min-width: 0; }
+  #p-log thead { display: none; }
+  #p-log tr.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "date entry status" "picks picks picks" "stake payout pnl"; gap: 8px 12px; padding: 14px 18px; border-bottom: 1px solid var(--line-2); }
+  #p-log tr.row td { display: block; padding: 0; border: 0; background: none; }
+  #p-log tr.row:hover { background: var(--line-2); }
+  #p-log tr.row td:nth-child(1) { grid-area: date; align-self: center; }
+  #p-log tr.row td:nth-child(2) { grid-area: entry; }
+  #p-log tr.row td:nth-child(3) { grid-area: picks; }
+  #p-log tr.row td:nth-child(4) { grid-area: stake; text-align: left; }
+  #p-log tr.row td:nth-child(5) { grid-area: payout; text-align: left; }
+  #p-log tr.row td:nth-child(6) { grid-area: pnl; text-align: right; }
+  #p-log tr.row td:nth-child(7) { grid-area: status; text-align: right; align-self: center; }
+  #p-log tr.row td[data-l]::before { content: attr(data-l); display: block; font-family: var(--f-body); font-size: 10.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 2px; }
+  #p-log tr.row td:nth-child(2) { grid-column: 2 / 3; }
+}
+@media (max-width: 680px) {
+  #p-log tr.row { grid-template-areas: "entry entry status" "date date date" "picks picks picks" "stake payout pnl"; }
+  #p-log tr.row td:nth-child(2) { grid-column: 1 / 3; }
+  #p-log tr.row td:nth-child(1) { font-size: 12px; color: var(--ink-3); margin-top: -6px; }
+  table.expo, table.expo tbody { display: block; min-width: 0; }
+  table.expo thead { display: none; }
+  table.expo tr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name staked tied" "picks picks picks"; gap: 8px 14px; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
+  table.expo td { display: block; padding: 0 !important; border: 0; }
+  table.expo td:nth-child(1) { grid-area: name; white-space: normal; }
+  table.expo td:nth-child(2) { grid-area: picks; }
+  table.expo td:nth-child(3) { display: none; }
+  table.expo td:nth-child(4) { grid-area: staked; }
+  table.expo td:nth-child(5) { grid-area: tied; }
+  table.expo td[data-l]::before { content: attr(data-l); display: block; font-family: var(--f-body); font-size: 10.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 2px; }
+}
+
+
+/* Live grading */
+.livebar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.btn.sm { padding: 5px 11px; font-size: 12.5px; }
+.live { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); flex: none; }
+.live.busy i { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); animation: blink 1s ease-in-out infinite; }
+.live.err i { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.slip li .pl { display: grid; gap: 1px; min-width: 0; }
+.ls { font-size: 11px; line-height: 1.35; color: var(--ink-3); padding-left: 12px; }
+.ls.live { color: var(--accent); font-weight: 600; }
+.ls.live::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 5px; vertical-align: 1px; animation: blink 1.4s ease-in-out infinite; }
+.ls.manual { color: var(--warn); }
+.ls.done { color: var(--good); }
+.pk .bolt { color: var(--accent); flex: none; }
+.est { font-family: var(--f-body); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--warn); margin-left: 5px; }
+@keyframes blink { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .ls.live::before, .live.busy i { animation: none; } }
+.slip .res { display: inline-flex; align-items: center; gap: 4px; font-family: var(--f-mono); font-size: 12px; white-space: nowrap; color: var(--ink-2); }
+.slip .res.hit { color: var(--good); } .slip .res.miss { color: var(--bad); } .slip .res.push { color: var(--warn); }
+.slip .h .ls.shared { flex-basis: 100%; padding-left: 0; }
+.livebar { margin-bottom: 4px; }
+.pk.card { border-style: dashed; }
+.pk .cardic { color: var(--accent); flex: none; }
+/* App mode: on phones the Ledger runs like an app, with a sticky balance bar, one section at a time and a bottom tab bar */
+.appbar, .tabbar, .acct { display: none; }
+.sync { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--ink-3); white-space: nowrap; }
+.sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.sync.live i { background: var(--good); }
+.sync.cache i, .sync.offline i { background: var(--warn); }
+.sync.connecting i { animation: blink 1s ease-in-out infinite; }
+@media (max-width: 700px) {
+  body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+  .wrap { padding-block: 12px 96px; gap: 14px; }
+  .wrap[data-tab="home"] [data-tabs]:not([data-tabs~="home"]),
+  .wrap[data-tab="open"] [data-tabs]:not([data-tabs~="open"]),
+  .wrap[data-tab="history"] [data-tabs]:not([data-tabs~="history"]),
+  .wrap[data-tab="stats"] [data-tabs]:not([data-tabs~="stats"]) { display: none !important; }
+  .appbar { display: flex; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; align-items: center; justify-content: space-between; gap: 12px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: color-mix(in srgb, var(--bg) 86%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(14px); backdrop-filter: saturate(1.4) blur(14px); border-bottom: 1px solid var(--line); }
+  .ab-l, .ab-r { display: grid; gap: 3px; min-width: 0; }
+  .ab-r { justify-items: end; }
+  .ab-name { font-family: var(--f-display); font-weight: 700; font-size: 21px; line-height: 1; text-transform: uppercase; letter-spacing: .01em; white-space: nowrap; }
+  .ab-name span { color: var(--accent); }
+  .ab-k { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .ab-v { font-family: var(--f-display); font-weight: 600; font-size: 25px; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .top .brand h1, .top .actions { display: none; }
+  .top .brand p { margin: 0; font-size: 13.5px; }
+  .fbar { flex-wrap: nowrap; overflow-x: auto; gap: 18px; margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px))); padding-block: 2px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); scrollbar-width: none; }
+  .fbar::-webkit-scrollbar { display: none; }
+  .fbar .filters { flex-wrap: nowrap; flex: none; }
+  .chip { padding: 7px 14px; }
+  #p-open { order: -1; }
+  .acct { display: block; }
+  .acct .row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .in, .search { font-size: 16px; }
+  .btn { min-height: 40px; }
+  .btn.sm { min-height: 34px; }
+  .toast { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); width: max-content; max-width: calc(100vw - 32px); }
+  #dlg { width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; }
+  #dlg .dlg { height: 100%; max-height: none; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .tabbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: end; position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; padding-top: 6px; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)); padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); background: color-mix(in srgb, var(--panel) 90%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(16px); backdrop-filter: saturate(1.4) blur(16px); border-top: 1px solid var(--line); user-select: none; -webkit-user-select: none; }
+  .tabbar button { position: relative; display: grid; justify-items: center; gap: 3px; border: 0; background: none; padding: 5px 0 4px; min-height: 50px; font-size: 10.5px; font-weight: 600; letter-spacing: .03em; color: var(--ink-3); }
+  .tabbar svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .tabbar button[aria-current="page"] { color: var(--accent); }
+  .tabbar .tb-add { align-self: center; justify-self: center; place-items: center; width: 54px; height: 54px; min-height: 0; padding: 0; margin-top: -22px; border-radius: 18px; background: var(--accent); color: var(--on-accent); box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 38%, transparent), 0 0 0 4px var(--bg); }
+  .tabbar .tb-add svg { width: 26px; height: 26px; stroke-width: 2.4; }
+  .tabbar .tb-add[disabled] { opacity: .5; }
+  .tb-n { position: absolute; top: 1px; left: calc(50% + 5px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: var(--on-accent); font: 600 10.5px/18px var(--f-mono); letter-spacing: 0; }
+}
+@media (max-width: 700px) and (prefers-reduced-motion: no-preference) {
+  #dlg[open] { animation: sheet .28s cubic-bezier(.2,.8,.2,1); }
+  @keyframes sheet { from { transform: translateY(28px); opacity: .5; } to { transform: none; opacity: 1; } }
+}
+
+/* ---------- Standalone app ---------- */
+:root { --bar-bg: #13151b; --bar-ink: #f3f4f7; --bar-ink-2: #9aa0b0; --bar-accent: #8ea3ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bar-bg: #090b0f; } }
+:root[data-theme="dark"] { --bar-bg: #090b0f; }
+.acct { display: block; }
+.top .actions .sync { margin-right: 6px; }
+@media (max-width: 700px) {
+  body::before { background: var(--bar-bg); }
+  .appbar { background: var(--bar-bg); color: var(--bar-ink); border-bottom-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .ab-name span { color: var(--bar-accent); }
+  .ab-k, .appbar .sync { color: var(--bar-ink-2); }
+}
+@media (display-mode: standalone) {
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bar-bg); }
+}
+.sync.error i { background: var(--bad); }
+.sync.syncing i { background: var(--accent); animation: blink 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .sync.syncing i, .sync.connecting i { animation: none; } }
+
+.connect { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; overflow-y: auto; background: var(--bg);
+  padding-top: calc(24px + env(safe-area-inset-top, 0px)); padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.cbox { width: min(440px, 100%); display: grid; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 24px 22px; }
+.cbox .logo { width: 64px; height: 64px; border-radius: 15px; display: block; }
+.cbox h2 { font-family: var(--f-display); font-size: 30px; font-weight: 700; text-transform: uppercase; letter-spacing: .01em; margin: 0; line-height: 1; text-wrap: balance; }
+.cbox h2 span { color: var(--accent); }
+.cbox p { margin: 0; color: var(--ink-2); }
+.cbox a { color: var(--accent); font-weight: 500; }
+.cbox .err { color: var(--bad); font-size: 13px; }
+.cbox .btn { min-height: 44px; }
+.cbox .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+
+.acct-meta { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+.acct-meta b { font-family: var(--f-mono); font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
+.install { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: space-between; background: var(--accent-soft); color: var(--ink); border-radius: var(--r); padding: 12px 14px; font-size: 13.5px; }
+.install p { margin: 0; min-width: 0; flex: 1 1 220px; }
+.install .btns { display: flex; gap: 6px; }
+
+.acct .row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="appbar">
+  <div class="ab-l"><span class="ab-name">PrizePicks <span>Ledger</span></span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
+  <div class="ab-r"><span class="ab-k">Balance</span><span class="ab-v" id="ab-bal">$250.00</span></div>
+</div>
+
+<div class="wrap" data-tab="home">
+  <header class="top" data-tabs="home">
+    <div class="brand">
+      <h1>PrizePicks <span>Ledger</span></h1>
+      <p id="summary">Every entry, every pick, every dollar. Starting balance $250.</p>
+    </div>
+    <div class="actions">
+      <span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span>
+      <button class="btn ghost act-export" id="btn-export" type="button" hidden>Export CSV</button>
+      <button class="btn ghost act-settings" id="btn-settings" type="button">Starting balance</button>
+      <button class="btn primary act-new" id="btn-new" type="button">+ Log entry</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+  <div class="install" id="install" data-tabs="home" hidden><p id="install-t"></p><div class="btns"><button class="btn primary sm" id="install-go" type="button" hidden>Install</button><button class="btn ghost sm" id="install-x" type="button">Dismiss</button></div></div>
+
+  <div class="fbar">
+    <div class="filters" role="group" aria-label="Filter by sport">
+      <span class="lbl">Sport</span>
+      <button class="chip" data-sport="All" aria-pressed="true" type="button">All</button>
+      <button class="chip" data-sport="NBA" aria-pressed="false" type="button">NBA</button>
+      <button class="chip" data-sport="NFL" aria-pressed="false" type="button">NFL</button>
+      <button class="chip" data-sport="CFB" aria-pressed="false" type="button">CFB</button>
+      <button class="chip" data-sport="Soccer" aria-pressed="false" type="button">Soccer</button>
+      <button class="chip" data-sport="Mixed" aria-pressed="false" type="button">Mixed</button>
+    </div>
+    <div class="filters" role="group" aria-label="Filter by entry type">
+      <span class="lbl">Type</span>
+      <button class="chip" data-tf="all" aria-pressed="true" type="button">All</button>
+      <button class="chip" data-tf="power" aria-pressed="false" type="button">Power</button>
+      <button class="chip" data-tf="flex" aria-pressed="false" type="button">Flex</button>
+      <button class="chip" data-tf="pack" aria-pressed="false" type="button">Packs</button>
+    </div>
+    <div class="filters" role="group" aria-label="Filter by date">
+      <span class="lbl">Range</span>
+      <button class="chip" data-range="7" aria-pressed="false" type="button">7D</button>
+      <button class="chip" data-range="30" aria-pressed="false" type="button">30D</button>
+      <button class="chip" data-range="all" aria-pressed="true" type="button">All</button>
+    </div>
+  </div>
+
+  <section class="board" aria-label="Key numbers" data-tabs="home">
+    <div class="kpi hero"><div class="k">Balance</div><div class="v num" id="k-bank">$250.00</div><div class="sub" id="k-bank-sub">Start $250</div></div>
+    <div class="kpi"><div class="k">Net PnL</div><div class="v num" id="k-pnl">$0.00</div><div class="sub" id="k-pnl-sub">Settled entries</div></div>
+    <div class="kpi"><div class="k">ROI</div><div class="v num" id="k-roi">—</div><div class="sub" id="k-roi-sub">PnL ÷ amount staked</div></div>
+    <div class="kpi"><div class="k">Entry win rate</div><div class="v num" id="k-win">—</div><div class="sub" id="k-win-sub">Paid more than stake</div></div>
+    <div class="kpi"><div class="k">Pick hit rate</div><div class="v num" id="k-hit">—</div><div class="sub" id="k-hit-sub">Picks graded hit</div></div>
+    <div class="kpi"><div class="k">In play</div><div class="v num" id="k-open">$0.00</div><div class="sub" id="k-open-sub">No open entries</div></div>
+  </section>
+
+  <div class="grid">
+    <section class="panel span-8" id="p-curve" data-tabs="home">
+      <div class="panel-head"><h2>Balance over time</h2><span class="hint">Entries come out the day you place them</span></div>
+      <div class="chart" id="c-curve"></div>
+    </section>
+    <section class="panel span-4" id="p-records" data-tabs="home">
+      <h2>Records</h2>
+      <p class="hint">Entries in the current filters</p>
+      <div class="recs" id="recs"></div>
+    </section>
+    <section class="panel span-12" id="p-risk" data-tabs="open">
+      <div class="panel-head"><h2>Open risk</h2><span class="hint">All open entries, whatever the filters</span></div>
+      <div class="risk" style="margin-top:10px">
+        <div class="scen" id="scen"></div>
+        <div id="expo"></div>
+      </div>
+    </section>
+    <section class="panel span-6" id="p-format" data-tabs="stats">
+      <h2>PnL by format</h2>
+      <p class="hint">Settled entries by pick count and type, with packs on their own row</p>
+      <div class="chart" id="c-format"></div>
+    </section>
+    <section class="panel span-6" id="p-sport" data-tabs="stats">
+      <h2>PnL by sport</h2>
+      <p class="hint">Entries mixing sports count as Mixed</p>
+      <div class="chart" id="c-sport"></div>
+    </section>
+    <section class="panel span-6" id="p-edge" data-tabs="stats">
+      <h2>Edge vs break-even</h2>
+      <p class="hint">Your pick hit rate in each format against the rate it needs to break even</p>
+      <div class="edge" id="edge"></div>
+      <div class="ekey"><span><i class="kb"></i>Rate needed to break even</span><span><i class="kd"></i>Your hit rate</span><span id="ekey-std" hidden>* standard payouts, only bonus entries in this format</span></div>
+    </section>
+    <section class="panel span-6" id="p-daily" data-tabs="stats">
+      <h2>Daily PnL</h2>
+      <p class="hint">Net result of settled entries, by the day placed</p>
+      <div class="chart" id="c-daily"></div>
+    </section>
+    <section class="panel span-12" id="p-open" data-tabs="open">
+      <div class="panel-head"><h2>Open entries</h2><div class="livebar" id="livebar"><span class="hint">Tap a slip to grade picks as games finish</span></div></div>
+      <div id="open-list"></div>
+    </section>
+    <section class="panel span-12" id="p-log" data-tabs="history">
+      <div class="panel-head">
+        <h2>Entry log</h2>
+        <div class="loghead">
+          <input class="search" id="q" type="search" placeholder="Search player or stat" aria-label="Search entries by player, stat or note">
+          <div class="filters" role="group" aria-label="Filter by status">
+            <button class="chip" data-status="all" aria-pressed="true" type="button">All</button>
+            <button class="chip" data-status="settled" aria-pressed="false" type="button">Settled</button>
+            <button class="chip" data-status="open" aria-pressed="false" type="button">Open</button>
+          </div>
+        </div>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Date</th><th>Entry</th><th>Picks</th><th class="r">Stake</th><th class="r">Payout</th><th class="r">PnL</th><th>Status</th></tr></thead>
+        <tbody id="log-body"></tbody>
+      </table></div>
+    </section>
+    <section class="panel span-12" data-tabs="stats">
+      <details class="legend">
+        <summary>How numbers are worked out, payouts and break-even rates</summary>
+        <p>Packs: a pack's price comes out of your balance and its card's value goes back in, so a pack's PnL is the card value minus the price. A free pack costs nothing, so its whole card value counts as profit. Packs count toward Balance, Net PnL, ROI and the balance and daily charts, but not toward win rate, pick hit rate, records for entries or break-even.</p>
+        <p>Balance = starting balance + net PnL of settled entries − entry amounts of open entries. An entry's amount leaves your balance the moment you log it and only comes back, with any winnings, when it settles. A Power entry only pays when every pick hits: one miss settles it as a loss right away. Bonus lineups use promo money, so they never take from your balance and only their winnings count. When every pick hits, the payout is the entry's To Win from the app; otherwise it uses the standard multipliers below, and a push or DNP drops that pick and pays the smaller entry.</p>
+        <p>Break-even is the share of picks you need to hit for an entry to pay back its cost on average. It comes from each entry's own To Win, so goblin and demon lines are priced in; bonus lineups are left out because they cost nothing. Flex break-evens assume the lower tiers shrink in step with your To Win. Open risk counts every open entry: the best case adds each entry's To Win to your balance, and the player table shows how much payout depends on each player.</p>
+        <p>Grading: open a slip and type each player's actual stat, and the pick grades itself. You can also ask Claude in your project to grade open picks from NFL and NBA box scores. Every change is saved to ledger.json in your private GitHub repo, and the repo's history keeps each version. A payout marked est. used the standard multipliers, so check it against the app.</p>
+        <p>Personal tracker. Not affiliated with PrizePicks.</p>
+        <div class="tbl-wrap inset"><table style="min-width:460px">
+          <thead><tr><th>Picks</th><th>Power (all hit)</th><th>Power break-even</th><th>Flex payouts</th><th>Flex break-even</th></tr></thead>
+          <tbody>
+            <tr><td>2</td><td class="mono">3x</td><td class="mono">57.7%</td><td class="muted">n/a</td><td class="muted">n/a</td></tr>
+            <tr><td>3</td><td class="mono">5x</td><td class="mono">58.5%</td><td class="mono">3/3 3x · 2/3 1x</td><td class="mono">57.7%</td></tr>
+            <tr><td>4</td><td class="mono">10x</td><td class="mono">56.2%</td><td class="mono">4/4 6x · 3/4 1.5x</td><td class="mono">55.0%</td></tr>
+            <tr><td>5</td><td class="mono">20x</td><td class="mono">54.9%</td><td class="mono">5/5 10x · 4/5 2x · 3/5 0.4x</td><td class="mono">54.3%</td></tr>
+            <tr><td>6</td><td class="mono">37.5x</td><td class="mono">54.7%</td><td class="mono">6/6 25x · 5/6 2x · 4/6 0.4x</td><td class="mono">54.2%</td></tr>
+          </tbody>
+        </table></div>
+      </details>
+    </section>
+    <section class="panel span-12 acct" data-tabs="stats">
+      <h2>Account</h2>
+      <p class="hint">Sync, starting balance and a copy of every entry</p>
+      <div class="acct-meta" id="acct-meta"></div>
+      <div class="row-btns"><button class="btn" id="a-sync" type="button">Sync now</button><button class="btn act-settings" type="button">Starting balance</button><button class="btn act-export" type="button" hidden>Export CSV</button><button class="btn ghost" id="a-token" type="button">Change token</button><button class="btn ghost danger" id="a-out" type="button">Disconnect this device</button></div>
+      <div class="row-btns" id="a-out-confirm" hidden><span class="note" id="a-out-warn"></span><button class="btn danger" id="a-out-yes" type="button">Disconnect</button><button class="btn ghost" id="a-out-no" type="button">Keep</button></div>
+    </section>
+  </div>
+</div>
+
+<nav class="tabbar" aria-label="Ledger sections">
+  <button type="button" data-go="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"/><path d="M4 16l5-6 4 3 7-8"/></svg>Home</button>
+  <button type="button" data-go="open"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1.5a2.5 2.5 0 0 0 0 5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1.5a2.5 2.5 0 0 0 0-5z"/><path d="M14 7.5v9" stroke-dasharray="1.6 2.4"/></svg>Open<span class="tb-n" id="tb-open" hidden></span></button>
+  <button type="button" class="tb-add act-new" aria-label="Log entry"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button type="button" data-go="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="2.8"/></svg>History</button>
+  <button type="button" data-go="stats"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-8M12 20V5M19 20v-5"/></svg>Stats</button>
+</nav>
+
+<div class="connect" id="connect" hidden>
+  <form class="cbox" id="connect-form" novalidate>
+    <img class="logo" src="icons/icon-192.png" alt="" width="64" height="64">
+    <h2>PrizePicks <span>Ledger</span></h2>
+    <p>Your bets sync through your private GitHub repo. Paste a token for it once and this device stays connected.</p>
+    <label class="f">Data repo<input class="in" id="c-repo" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="username/pp-ledger-data"></label>
+    <label class="f">GitHub token<input class="in" id="c-token" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="github_pat_…"></label>
+    <p class="note">Make one at <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub fine-grained tokens</a>. Under Repository access pick your data repo, and set Contents to Read and write. The token stays on this device.</p>
+    <p class="err" id="c-err" role="alert" hidden></p>
+    <div class="row"><button class="btn ghost" id="c-cancel" type="button" hidden>Cancel</button><button class="btn primary" id="c-go" type="submit">Connect</button></div>
+  </form>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <form class="dlg" id="entry-form" novalidate>
+    <header><h3 id="dlg-title">Log entry</h3><button type="button" class="btn ghost" id="dlg-close" aria-label="Close">✕</button></header>
+    <div class="body">
+      <div class="fields">
+        <label class="f">Date<input class="in" type="date" id="f-date" required></label>
+        <label class="f"><span id="f-stake-lbl">Entry ($)</span><input class="in" type="number" id="f-stake" min="0" step="0.01" inputmode="decimal" placeholder="10.00" required></label>
+        <div class="f" style="display:grid;gap:4px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);font-weight:600">Entry type
+          <div class="seg" role="group" aria-label="Entry type"><button type="button" data-type="power" aria-pressed="true">Power</button><button type="button" data-type="flex" aria-pressed="false">Flex</button><button type="button" data-type="pack" aria-pressed="false">Pack</button></div>
+        </div>
+        <label class="f" id="f-towin-wrap">To win ($)<input class="in" type="number" id="f-towin" min="0" step="0.01" inputmode="decimal" placeholder="from app"></label>
+        <label class="f"><span id="f-payout-lbl">Payout ($)</span><input class="in" type="number" id="f-payout" min="0" step="0.01" inputmode="decimal" placeholder="auto"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="f-bonus"> <span id="f-bonus-lbl">Bonus lineup (promo money, not taken from your balance)</span></label>
+      <div id="picks-wrap">
+        <div class="pickrows" id="pickrows">
+          <div class="pickrow hdr"><span>Sport</span><span>Player</span><span>Stat</span><span>Line</span><span>Pick</span><span>Actual</span><span>Result</span><span></span></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center"><button type="button" class="btn" id="add-pick">+ Add pick</button><span class="note">Type a player's actual stat and the result fills in.</span></div>
+      </div>
+      <div class="calc" id="calc"></div>
+      <label class="f">Notes<textarea class="in" id="f-notes" rows="2" placeholder="Why you took it: matchup, weather, minutes, injuries"></textarea></label>
+      <p class="note" id="form-err" role="alert" hidden></p>
+    </div>
+    <footer>
+      <div><button type="button" class="btn danger" id="dlg-delete" hidden>Delete entry</button><span id="del-confirm" hidden> <span class="note">Delete for good?</span> <button type="button" class="btn danger" id="del-yes">Delete</button> <button type="button" class="btn ghost" id="del-no">Keep</button></span></div>
+      <div style="display:flex;gap:8px"><button type="button" class="btn" id="dlg-cancel">Cancel</button><button type="submit" class="btn primary" id="dlg-save">Save entry</button></div>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="dlg-set" aria-labelledby="set-title" style="width:min(420px, calc(100vw - 24px))">
+  <form class="dlg" id="set-form" novalidate>
+    <header><h3 id="set-title">Starting balance</h3><button type="button" class="btn ghost" id="set-close" aria-label="Close">✕</button></header>
+    <div class="body">
+      <label class="f">Starting balance ($)<input class="in" type="number" id="s-start" min="0" step="0.01"></label>
+      <label class="f">Start date<input class="in" type="date" id="s-date"></label>
+      <p class="note">Raise it when you deposit more. Your entry history stays as it is.</p>
+    </div>
+    <footer><span></span><div style="display:flex;gap:8px"><button type="button" class="btn" id="set-cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div></footer>
+  </form>
+</dialog>
+
+<script>
+/* Data model (db): entries/<id> = {date:"YYYY-MM-DD", type:"power"|"flex"|"pack", stake:Number, payout:Number|null, toWin?:Number,
+   picks:[{sport:"NBA"|"NFL"|"CFB"|"Soccer", player, stat, line:Number, side:"over"|"under", result:"pending"|"hit"|"miss"|"push", actual:Number|null}],
+   notes, createdAt:ISO, updatedAt?:ISO}. Bonus lineups: stake 0, bonus:true, bonusStake, potentialPayout; payout = winnings only.
+   Packs: type "pack", picks [], stake = price paid (0 for a free pack, with bonus:true and bonusStake = its price), payout = the card's value.
+   settings/bankroll = {starting:Number, startDate:"YYYY-MM-DD"}.
+   An entry is open while any pick is pending, except a Power entry with any miss, which is settled lost (payout 0).
+   Settled PnL = payout - stake. Balance = starting + settled PnL - stakes of open entries. */
+(function () {
+  const SPORTS = ["NBA", "NFL", "CFB", "Soccer"];
+  const SPORT_COLOR = { NBA: "var(--s1)", NFL: "var(--s2)", CFB: "var(--s3)", Soccer: "var(--s4)", Mixed: "var(--ink-3)" };
+  const STATS = {
+    NBA: ["Points", "Rebounds", "Assists", "Pts+Rebs+Asts", "Pts+Rebs", "Pts+Asts", "Rebs+Asts", "3-PT Made", "Fantasy Score", "Blks+Stls", "Turnovers"],
+    NFL: ["Pass Yards", "Pass TDs", "Pass Attempts", "Completions", "Rush Yards", "Rush+Rec Yds", "Receiving Yards", "Receptions", "Rush Attempts", "Fantasy Score", "INT"],
+    CFB: ["Pass Yards", "Pass TDs", "Rush Yards", "Rush+Rec Yds", "Receiving Yards", "Receptions", "Fantasy Score"],
+    Soccer: ["Shots", "Shots On Target", "Goals", "Assists", "Goal + Assist", "Passes Attempted", "Tackles", "Goalie Saves", "Fouls", "Clearances"]
+  };
+  const POWER = { 2: 3, 3: 5, 4: 10, 5: 20, 6: 37.5 };
+  const FLEX = { 3: { 3: 3, 2: 1 }, 4: { 4: 6, 3: 1.5 }, 5: { 5: 10, 4: 2, 3: 0.4 }, 6: { 6: 25, 5: 2, 4: 0.4 } };
+
+  const state = { entries: [], settings: { starting: 250, startDate: "2026-11-16" }, sport: "All", typeF: "all", range: "all", status: "all", q: "", expoAll: false, db: null, canWrite: true, editing: null, loaded: false, synced: false };
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const el = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (v == null || v === false) continue; if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? "" : v); } for (const c of kids.flat()) if (c != null) n.append(c.nodeType ? c : document.createTextNode(String(c))); return n; };
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const sv = (tag, attrs = {}) => { const n = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) if (v != null) n.setAttribute(k, v); return n; };
+  const money = (v, signed) => { if (v == null || isNaN(v)) return "—"; const s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return (v < 0 ? "−$" : signed && v > 0 ? "+$" : "$") + s; };
+  const money0 = (v, signed) => money(v, signed).replace(/\.00$/, "");
+  const pct = v => v == null || isNaN(v) ? "—" : (v * 100).toFixed(1) + "%";
+  const sgnPct = v => v == null || isNaN(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(1) + "%";
+  const ymd = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const today = () => ymd(new Date());
+  const addDays = (s, n) => { const [y, m, d] = s.split("-").map(Number); return ymd(new Date(y, m - 1, d + n)); };
+  const fmtDate = s => { if (!s) return "—"; const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
+  const num = v => (v === "" || v == null || isNaN(Number(v))) ? null : Number(v);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const press = (sel, b) => $$(sel).forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+
+  // ---------- Money rules ----------
+  function entrySport(e) { const s = new Set((e.picks || []).map(p => p.sport)); return s.size === 1 ? [...s][0] : (s.size ? "Mixed" : "—"); }
+  const busted = (type, picks) => type !== "flex" && (picks || []).some(p => p.result === "miss");
+  function isOpen(e) { return !busted(e.type, e.picks) && (e.picks || []).some(p => !p.result || p.result === "pending"); }
+  function suggestPayout(type, picks, base, refund, toWin) {
+    if (busted(type, picks)) return 0; // Power pays nothing once any pick misses
+    if (!base || !picks || !picks.length || picks.some(p => !p.result || p.result === "pending")) return null;
+    const live = picks.filter(p => p.result !== "push");
+    const n = live.length, hits = live.filter(p => p.result === "hit").length;
+    if (toWin != null && n === picks.length && hits === n) return Number(toWin); // every pick hit: the app's To Win
+    if (n <= 1) return n === 1 && hits === 0 ? 0 : refund; // one pick left or all pushed: refunded unless it lost
+    let m = 0;
+    if (type === "flex" && n >= 3) m = (FLEX[Math.min(n, 6)] || {})[hits] || 0;
+    else m = hits === n ? (POWER[Math.min(n, 6)] || 0) : 0;
+    return Math.round(base * m * 100) / 100;
+  }
+  function pnl(e) { if (isOpen(e)) return null; if (busted(e.type, e.picks)) return 0 - (Number(e.stake) || 0); return e.payout == null ? null : (Number(e.payout) || 0) - (Number(e.stake) || 0); }
+  const paid = e => busted(e.type, e.picks) ? 0 : e.payout;
+  function outcome(e) { if (isOpen(e)) return "open"; if (busted(e.type, e.picks)) return "lost"; const p = pnl(e); return p == null ? "open" : p > 0 ? "won" : p < 0 ? "lost" : "even"; }
+  function sorted(list) { return list.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || "")); }
+  const isPack = e => e.type === "pack";
+  const typeName = e => e.type === "flex" ? "Flex" : isPack(e) ? "Pack" : "Power";
+  const fmtName = e => isPack(e) ? "Pack" : `${(e.picks || []).length}-Pick ${typeName(e)}`;
+  const fmtSort = (a, b) => { const pa = a.includes("-Pick "), pb = b.includes("-Pick "); if (!pa || !pb) return pa === pb ? a.localeCompare(b) : pa ? -1 : 1; const [na, ta] = a.split("-Pick "), [nb, tb] = b.split("-Pick "); return ta === tb ? Number(na) - Number(nb) : ta === "Power" ? -1 : 1; };
+  const baseAmt = e => e.bonus ? (Number(e.bonusStake) || 0) : (Number(e.stake) || 0);
+  function maxPay(e) { if (e.toWin != null) return Number(e.toWin) || 0; const n = (e.picks || []).length; const m = e.type === "flex" ? (FLEX[n] ? FLEX[n][n] : 0) : (POWER[n] || 0); return baseAmt(e) * m; }
+
+  // ---------- Break-even ----------
+  const comb = (n, k) => { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; };
+  function tiersFor(type, n, base, toWin) {
+    if (type === "flex") { const std = FLEX[n]; if (!std) return null; const r = toWin != null && base ? (toWin / base) / std[n] : 1; const t = {}; for (const k of Object.keys(std)) t[k] = std[k] * r; return t; }
+    const M = toWin != null && base ? toWin / base : POWER[n]; return M ? { [n]: M } : null;
+  }
+  function breakEven(n, tiers) {
+    if (!tiers || !n) return null;
+    const f = p => Object.entries(tiers).reduce((s, [k, m]) => s + comb(n, +k) * Math.pow(p, +k) * Math.pow(1 - p, n - +k) * m, 0);
+    if (f(1) < 1) return null;
+    let lo = 0, hi = 1; for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (f(mid) >= 1) hi = mid; else lo = mid; }
+    return hi;
+  }
+  const entryBE = e => e.bonus ? null : breakEven((e.picks || []).length, tiersFor(e.type, (e.picks || []).length, baseAmt(e), e.toWin != null ? Number(e.toWin) : null));
+  function weightedBE(list) { let w = 0, s = 0; for (const e of list) { const b = entryBE(e), st = Number(e.stake) || 0; if (b != null && st > 0) { w += st; s += b * st; } } return w ? s / w : null; }
+
+  // ---------- Filters ----------
+  function inRange(e) { return state.range === "all" || (e.date || "") >= addDays(today(), -(Number(state.range) - 1)); }
+  function visible() { return state.entries.filter(e => (state.sport === "All" || entrySport(e) === state.sport) && (state.typeF === "all" || (e.type === "flex" ? "flex" : isPack(e) ? "pack" : "power") === state.typeF) && inRange(e)); }
+  const gradedLegs = list => list.flatMap(e => e.picks || []).filter(p => p.result === "hit" || p.result === "miss");
+
+  // ---------- Render ----------
+  function render() {
+    const all = state.entries, list = visible();
+    const start = Number(state.settings.starting) || 0;
+    const settledAll = all.filter(e => pnl(e) != null), netAll = settledAll.reduce((s, e) => s + pnl(e), 0);
+    const openAll = all.filter(isOpen), openAllStake = openAll.reduce((a, e) => a + (Number(e.stake) || 0), 0);
+    const bank = start + netAll - openAllStake;
+    const bestCase = bank + openAll.reduce((a, e) => a + maxPay(e), 0);
+    const settled = list.filter(e => pnl(e) != null);
+    const net = settled.reduce((s, e) => s + pnl(e), 0);
+    const staked = settled.reduce((s, e) => s + (Number(e.stake) || 0), 0);
+    const settledE = settled.filter(e => !isPack(e)), packsN = settled.length - settledE.length;
+    const wins = settledE.filter(e => pnl(e) > 0).length;
+    const legs = gradedLegs(list), hits = legs.filter(p => p.result === "hit").length;
+    const be = weightedBE(list);
+    const openL = list.filter(isOpen), openStake = openL.reduce((s, e) => s + (Number(e.stake) || 0), 0), openBack = openL.reduce((s, e) => s + maxPay(e), 0);
+    const filt = state.sport !== "All" || state.typeF !== "all" || state.range !== "all";
+
+    setKpi("#k-bank", money(bank), "");
+    $("#k-bank-sub").textContent = openAllStake ? `${money0(openAllStake)} in play · start ${money0(start)}` : `Start ${money0(start)}`;
+    setKpi("#k-pnl", money(net, true), net > 0 ? "pos" : net < 0 ? "neg" : "");
+    $("#k-pnl-sub").textContent = plural(settledE.length, "settled entry", "settled entries") + (packsN ? ` · ${plural(packsN, "pack", "packs")}` : "") + (filt ? " · filtered" : "");
+    setKpi("#k-roi", staked ? sgnPct(net / staked) : "—", !staked ? "" : net > 0 ? "pos" : net < 0 ? "neg" : "");
+    $("#k-roi-sub").textContent = staked ? `on ${money(staked)} staked` : settled.length ? "No paid entries settled yet" : "PnL ÷ amount staked";
+    setKpi("#k-win", settledE.length ? pct(wins / settledE.length) : "—", "");
+    $("#k-win-sub").textContent = settledE.length ? `${wins} of ${settledE.length} entries cashed` : "Paid more than stake";
+    const hr = legs.length ? hits / legs.length : null;
+    setKpi("#k-hit", hr == null ? "—" : pct(hr), hr == null || be == null ? "" : hr >= be ? "pos" : "neg");
+    $("#k-hit-sub").textContent = (legs.length ? `${hits} of ${legs.length} picks` : "No graded picks") + (be != null ? ` · need ${pct(be)}` : "");
+    setKpi("#k-open", money(openStake), "");
+    $("#k-open-sub").textContent = openL.length ? `${plural(openL.length, "entry", "entries")} · up to ${money0(openBack)} back` : "No open entries";
+
+    const s = $("#summary");
+    if (!state.loaded) s.textContent = "Loading your entries…";
+    else if (!all.length) s.textContent = `Fresh account with ${money(start)}. Log your first entry and your balance, edge and open risk fill in as you grade picks.`;
+    else { const best = bestSport(); s.textContent = `Balance ${money(bank)}` + (openAll.length ? `, with ${money(openAllStake)} riding on ${plural(openAll.length, "open entry", "open entries")} (${money(bestCase)} if they all hit)` : "") + ". " + (settledAll.length ? `Net ${netAll >= 0 ? "up" : "down"} ${money(Math.abs(netAll))} across ${plural(settledAll.filter(e => !isPack(e)).length, "settled entry", "settled entries")}${settledAll.some(isPack) ? ` and ${plural(settledAll.filter(isPack).length, "pack", "packs")}` : ""}${best ? `. ${best.k} leads at ${money(best.v, true)}` : ""}.` : "Nothing has settled yet."); }
+
+    drawCurve(); drawRecords(list, start, bank); drawRisk(openAll, bank);
+    drawBars("#c-format", byKey(settled, fmtName, [...new Set(settled.map(fmtName))].sort(fmtSort)), "format");
+    drawBars("#c-sport", byKey(settled.filter(e => !isPack(e)), entrySport, SPORTS.concat("Mixed")), "sport");
+    drawEdge(list); drawDaily(settled); drawOpen(openL); drawLog(list); drawLiveBar();
+    $$(".act-new").forEach(b => { b.disabled = !state.canWrite; });
+    $("#ab-bal").textContent = money(bank);
+    const tn = $("#tb-open"); tn.hidden = !openAll.length; tn.textContent = String(openAll.length);
+  }
+  function setKpi(sel, text, cls) { const n = $(sel); n.textContent = text; n.classList.remove("pos", "neg"); if (cls) n.classList.add(cls); }
+  function bestSport() { const m = byKey(state.entries.filter(e => !isPack(e) && pnl(e) != null), entrySport, SPORTS.concat("Mixed")).filter(r => r.n); if (m.length < 2) return null; m.sort((a, b) => b.v - a.v); return m[0]; }
+  function byKey(list, fn, order) {
+    const m = new Map(order.map(k => [k, { k, v: 0, n: 0, staked: 0, wins: 0 }]));
+    for (const e of list) { const k = fn(e); if (!m.has(k)) m.set(k, { k, v: 0, n: 0, staked: 0, wins: 0 }); const r = m.get(k); r.v += pnl(e); r.n++; r.staked += Number(e.stake) || 0; if (pnl(e) > 0) r.wins++; }
+    return [...m.values()];
+  }
+
+  // ---------- Shared chart bits ----------
+  function tip(host) {
+    let t = host.querySelector(".tip"); if (!t) { t = el("div", { class: "tip", hidden: true }); host.append(t); }
+    return {
+      show(x, y, title, rows) { t.replaceChildren(el("div", { class: "t", text: title }), ...rows.map(([a, b]) => el("div", { class: "r" }, el("span", { text: a }), el("b", { text: b })))); t.hidden = false; const w = host.clientWidth, tw = t.offsetWidth, th = t.offsetHeight; let lx = x + 14; if (lx + tw > w) lx = x - tw - 14; if (lx < 0) lx = 0; t.style.left = lx + "px"; t.style.top = Math.max(0, y - th - 10) + "px"; },
+      hide() { t.hidden = true; }
+    };
+  }
+  function emptyBox(host, title, text) { host.replaceChildren(el("div", { class: "empty" }, el("div", {}, el("b", { text: title }), text))); }
+  function niceTicks(lo, hi, n) { const span = hi - lo || 1; const step0 = span / n; const mag = Math.pow(10, Math.floor(Math.log10(step0))); const step = [1, 2, 2.5, 5, 10].map(x => x * mag).find(s => s >= step0); const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6)); return out; }
+  function measure(svg, texts, cls) { const probe = sv("text", cls ? { class: cls } : {}); svg.append(probe); let w = 0; for (const t of texts) { probe.textContent = t; w = Math.max(w, probe.getComputedTextLength()); } probe.remove(); return w; }
+
+  // ---------- Balance curve ----------
+  function drawCurve() {
+    const host = $("#c-curve");
+    const start = Number(state.settings.starting) || 0;
+    const counted = state.entries.filter(e => isOpen(e) || pnl(e) != null);
+    if (!counted.length) { emptyBox(host, "No entries yet", " The line starts at your starting balance. Each entry comes out the day you place it, and winnings come back when it settles."); return; }
+    const delta = e => isOpen(e) ? -(Number(e.stake) || 0) : pnl(e);
+    const days = new Map(); for (const e of counted) days.set(e.date, (days.get(e.date) || 0) + delta(e));
+    const ds = [...days.keys()].sort();
+    let run = start; const pts = [{ date: state.settings.startDate < ds[0] ? state.settings.startDate : null, v: start, d: 0, label: "Start" }];
+    for (const d of ds) { run += days.get(d); pts.push({ date: d, v: run, d: days.get(d), n: counted.filter(e => e.date === d).length, o: counted.filter(e => e.date === d && isOpen(e)).reduce((a, e) => a + (Number(e.stake) || 0), 0) }); }
+    const W = Math.max(280, host.clientWidth), H = 250, m = { t: 14, r: 66, b: 26, l: 8 };
+    const vals = pts.map(p => p.v); let lo = Math.min(...vals, start), hi = Math.max(...vals, start); const pad = Math.max((hi - lo) * 0.12, start * 0.04, 5); lo -= pad; hi += pad;
+    const ticks = niceTicks(lo, hi, 4); lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
+    const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": `Balance over time, from ${money(start)} to ${money(run)}` });
+    host.replaceChildren(svg);
+    m.l = measure(svg, ticks.map(t => money0(t))) + 10;
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const x = i => m.l + (pts.length === 1 ? iw / 2 : (i / (pts.length - 1)) * iw);
+    const y = v => m.t + (1 - (v - lo) / (hi - lo)) * ih;
+    for (const t of ticks) { svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" })); const tx = sv("text", { x: m.l - 8, y: y(t) + 4, "text-anchor": "end" }); tx.textContent = money0(t); svg.append(tx); }
+    svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: y(start), y2: y(start), stroke: "var(--ink-3)", "stroke-dasharray": "4 4", "stroke-width": 1 }));
+    const sl = sv("text", { x: W - m.r + 6, y: y(start) + 4 }); sl.textContent = "Start"; svg.append(sl);
+    const col = "var(--accent)";
+    const defs = sv("defs"); const g = sv("linearGradient", { id: "cg", x1: 0, x2: 0, y1: 0, y2: 1 }); g.append(sv("stop", { offset: "0%", "stop-color": col, "stop-opacity": .2 }), sv("stop", { offset: "100%", "stop-color": col, "stop-opacity": 0 })); defs.append(g); svg.append(defs);
+    const line = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+    svg.append(sv("path", { d: `${line}L${x(pts.length - 1)},${m.t + ih}L${x(0)},${m.t + ih}Z`, fill: "url(#cg)" }));
+    svg.append(sv("path", { d: line, fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }));
+    const last = pts.length - 1;
+    if (pts.length <= 40) pts.forEach((p, i) => { if (i !== last) svg.append(sv("circle", { cx: x(i), cy: y(p.v), r: 3, fill: "var(--panel)", stroke: col, "stroke-width": 1.5 })); });
+    svg.append(sv("circle", { cx: x(last), cy: y(pts[last].v), r: 5, fill: col, stroke: "var(--panel)", "stroke-width": 2 }));
+    const endL = sv("text", { x: x(last) + 9, y: y(pts[last].v) + 4, class: "val", style: "font-weight:600" }); endL.textContent = money(pts[last].v); svg.append(endL);
+    const xl = (i, anchor) => { const t = sv("text", { x: x(i), y: H - 6, "text-anchor": anchor }); t.textContent = pts[i].date ? fmtDate(pts[i].date) : "Start"; svg.append(t); };
+    xl(0, "start"); if (last > 0) xl(last, "end");
+    const cross = sv("line", { y1: m.t, y2: m.t + ih, stroke: "var(--ink-3)", "stroke-width": 1, visibility: "hidden" }); const dot = sv("circle", { r: 4.5, fill: col, stroke: "var(--panel)", "stroke-width": 2, visibility: "hidden" }); svg.append(cross, dot);
+    const T = tip(host);
+    const hit = sv("rect", { x: m.l, y: 0, width: iw, height: H, fill: "transparent" }); svg.append(hit);
+    const move = ev => { const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) * (W / r.width); let i = pts.length === 1 ? 0 : Math.round((px - m.l) / iw * (pts.length - 1)); i = Math.max(0, Math.min(last, i)); const p = pts[i];
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible"); dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(p.v)); dot.setAttribute("visibility", "visible");
+      T.show(x(i) * r.width / W, y(p.v) * r.width / W, p.date ? fmtDate(p.date) : "Starting balance", p.label ? [["Balance", money(p.v)]] : [["Balance", money(p.v)], ["Day change", money(p.d, true)], ...(p.o ? [["Still in play", money(p.o)]] : []), ["Entries", String(p.n)]]); };
+    hit.addEventListener("pointermove", move); hit.addEventListener("pointerdown", move);
+    hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); T.hide(); });
+  }
+
+  // ---------- Records ----------
+  function drawRecords(list, start, bank) {
+    const settled = list.filter(e => pnl(e) != null);
+    const days = new Map(); for (const e of settled) days.set(e.date, (days.get(e.date) || 0) + pnl(e));
+    const dayArr = [...days.entries()];
+    const bestD = dayArr.filter(d => d[1] > 0).sort((a, b) => b[1] - a[1])[0];
+    const worstD = dayArr.filter(d => d[1] < 0).sort((a, b) => a[1] - b[1])[0];
+    const settledE = settled.filter(e => !isPack(e));
+    const bigW = settledE.filter(e => pnl(e) > 0).sort((a, b) => pnl(b) - pnl(a))[0];
+    const bigL = settledE.filter(e => pnl(e) < 0).sort((a, b) => pnl(a) - pnl(b))[0];
+    const seq = settledE.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.updatedAt || b.createdAt || "").localeCompare(a.updatedAt || a.createdAt || "")).map(outcome).filter(o => o === "won" || o === "lost");
+    let streak = null; if (seq.length) { let k = 0; while (k < seq.length && seq[k] === seq[0]) k++; streak = { o: seq[0], k }; }
+    let run = start, peak = start, dd = 0, ddPct = 0;
+    for (const d of [...days.keys()].sort()) { run += days.get(d); if (run > peak) peak = run; if (peak - run > dd) { dd = peak - run; ddPct = peak ? dd / peak : 0; } }
+    const cashE = list.filter(e => !isPack(e) && !e.bonus && (Number(e.stake) || 0) > 0);
+    const avg = cashE.length ? cashE.reduce((a, e) => a + Number(e.stake), 0) / cashE.length : null;
+    const rows = [
+      ["Best day", bestD ? money(bestD[1], true) : "—", bestD ? fmtDate(bestD[0]) : "No winning day yet", bestD ? "pos" : ""],
+      ["Worst day", worstD ? money(worstD[1], true) : "—", worstD ? fmtDate(worstD[0]) : "No losing day yet", worstD ? "neg" : ""],
+      ["Biggest win", bigW ? money(pnl(bigW), true) : "—", bigW ? `${fmtName(bigW)} · ${fmtDate(bigW.date)}` : "No winning entry yet", bigW ? "pos" : ""],
+      ["Biggest loss", bigL ? money(pnl(bigL), true) : "—", bigL ? `${fmtName(bigL)} · ${fmtDate(bigL.date)}` : "No paid entry lost yet", bigL ? "neg" : ""],
+      ["Current streak", streak ? `${streak.o === "won" ? "Won" : "Lost"} ${streak.k}` : "—", streak ? `Last ${plural(streak.k, "settled entry", "settled entries")}` : "Needs a settled entry", streak ? (streak.o === "won" ? "pos" : "neg") : ""],
+      ["Max drawdown", dd > 0 ? money(-dd) : "$0.00", dd > 0 ? `${pct(ddPct)} below the peak` : "No drop from a peak yet", dd > 0 ? "neg" : ""],
+      ["Average entry", avg != null ? money(avg) : "—", avg != null && bank > 0 ? `${pct(avg / bank)} of your balance` : "Paid entries only", ""]
+    ];
+    $("#recs").replaceChildren(...rows.map(([k, v, sub, cls]) => el("div", { class: "rec" }, el("span", { class: "k", text: k }), el("span", { class: "v " + cls }, v, el("small", { text: sub })))));
+  }
+
+  // ---------- Open risk ----------
+  function drawRisk(openAll, bank) {
+    const sc = $("#scen"), ex = $("#expo");
+    const stake = openAll.reduce((a, e) => a + (Number(e.stake) || 0), 0);
+    const back = openAll.reduce((a, e) => a + maxPay(e), 0);
+    const share = bank + stake > 0 ? stake / (bank + stake) : 0;
+    const card = (k, v, sub, cls) => el("div", { class: "sc" }, el("div", { class: "k", text: k }), el("div", { class: "v " + (cls || ""), text: v }), el("div", { class: "s", text: sub }));
+    if (!openAll.length) { sc.replaceChildren(card("Riding now", "$0.00", "Nothing open. New entries show their risk here.")); emptyBox(ex, "No open picks", " Player exposure appears while entries are open."); return; }
+    const hot = share > 0.25;
+    sc.replaceChildren(
+      card("If every open entry hits", money(bank + back), `${money(back)} back to your balance`, "pos"),
+      card("If every open entry misses", money(bank), "Entries are already out of your balance"),
+      el("div", { class: "sc" }, el("div", { class: "k", text: "Riding now" }), el("div", { class: "v", text: money(stake) }),
+        el("div", { class: "meter" + (hot ? " hot" : ""), role: "img", "aria-label": `${pct(share)} of your money is in play` }, el("i", { style: `width:${Math.min(100, share * 100).toFixed(1)}%` })),
+        el("div", { class: "s", text: `${pct(share)} of your money is in play${hot ? ", above a quarter of it" : ""}` }))
+    );
+    const m = new Map();
+    for (const e of openAll) for (const p of e.picks || []) {
+      if (p.result && p.result !== "pending") continue;
+      const key = (p.player || "?").trim().toLowerCase();
+      const r = m.get(key) || { name: (p.player || "?").trim(), sport: p.sport, picks: new Set(), entries: new Set(), staked: 0, riding: 0 };
+      r.picks.add(`${p.side === "under" ? "Less" : "More"} ${p.line ?? ""} ${p.stat || ""}`.trim());
+      if (!r.entries.has(e.id)) { r.entries.add(e.id); r.staked += Number(e.stake) || 0; r.riding += maxPay(e); }
+      m.set(key, r);
+    }
+    const rows = [...m.values()].sort((a, b) => b.riding - a.riding || b.entries.size - a.entries.size || a.name.localeCompare(b.name));
+    const shown = state.expoAll ? rows : rows.slice(0, 8);
+    const table = el("table", { class: "expo" },
+      el("thead", {}, el("tr", {}, el("th", { text: "Player" }), el("th", { text: "Open picks" }), el("th", { class: "r", text: "Entries" }), el("th", { class: "r", text: "Staked" }), el("th", { class: "r", text: "Payout tied to them" }))),
+      el("tbody", {}, shown.map(r => el("tr", {},
+        el("td", { class: "nw" }, el("div", { style: "font-weight:600", text: r.name }), r.entries.size > 1 ? el("span", { class: "badge", text: `In ${r.entries.size} entries` }) : el("div", { class: "tag", text: r.sport || "" })),
+        el("td", {}, el("div", { class: "picks" }, [...r.picks].map(t => el("span", { class: "pk pending" }, el("span", { class: "dot" }), t)))),
+        el("td", { class: "r mono", text: String(r.entries.size) }),
+        el("td", { class: "r mono", "data-l": "Staked", text: money(r.staked) }),
+        el("td", { class: "r mono", "data-l": "Payout tied", text: money(r.riding) })))));
+    const kids = [el("div", { class: "tbl-wrap inset" }, table)];
+    if (rows.length > 8) kids.push(el("button", { type: "button", class: "btn ghost more", text: state.expoAll ? "Show the top 8" : `Show all ${rows.length} players`, onclick: () => { state.expoAll = !state.expoAll; drawRisk(openAll, bank); } }));
+    ex.replaceChildren(...kids);
+  }
+
+  // ---------- Diverging PnL bars ----------
+  function drawBars(sel, rows, kind) {
+    const host = $(sel); rows = rows.filter(r => r.n);
+    if (!rows.length) { emptyBox(host, "Nothing settled yet", kind === "format" ? " Each format's net PnL appears once entries are graded." : " Each sport's net PnL appears once entries are graded."); return; }
+    const W = Math.max(260, host.clientWidth), rowH = 40, m = { t: 8, b: 8 }, H = m.t + m.b + rows.length * rowH;
+    const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Net PnL by " + kind + ": " + rows.map(r => `${r.k} ${money(r.v, true)}`).join(", ") });
+    host.replaceChildren(svg);
+    const labW = Math.min(Math.max(measure(svg, rows.map(r => r.k), "catlbl") + 14, 56), W * 0.4), valW = 72;
+    const ext = Math.max(1, ...rows.map(r => Math.abs(r.v)));
+    const hasNeg = rows.some(r => r.v < 0), hasPos = rows.some(r => r.v > 0), both = hasNeg && hasPos;
+    const span = both ? (W - labW - 2 * valW) / 2 : (W - labW - valW);
+    const zx = both ? labW + valW + span : hasNeg ? W : labW;
+    svg.append(sv("line", { x1: zx, x2: zx, y1: m.t - 4, y2: H - m.b + 4, stroke: "var(--ink-3)", "stroke-width": 1 }));
+    const T = tip(host);
+    rows.forEach((r, i) => {
+      const cy = m.t + i * rowH + rowH / 2, w = Math.abs(r.v) / ext * span, bh = 16;
+      const lab = sv("text", { x: 0, y: cy + 4, class: "catlbl" }); lab.textContent = r.k; svg.append(lab);
+      if (kind === "sport") svg.append(sv("rect", { x: 0, y: cy + 8, width: 18, height: 2.5, rx: 1, fill: SPORT_COLOR[r.k] || "var(--ink-3)" }));
+      const neg = r.v < 0, bx = neg ? zx - w : zx;
+      if (w > 0) svg.append(sv("rect", { x: bx, y: cy - bh / 2, width: Math.max(w, 2), height: bh, rx: 4, fill: neg ? "var(--bad)" : "var(--good)" }));
+      const vt = sv("text", { x: neg ? bx - 6 : bx + Math.max(w, 0) + 6, y: cy + 4, class: "val", "text-anchor": neg ? "end" : "start" }); vt.textContent = money(r.v, true); svg.append(vt);
+      const hr = sv("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, fill: "transparent" }); svg.append(hr);
+      const show = ev => { const rc = svg.getBoundingClientRect(); T.show(ev.clientX - rc.left, cy * rc.width / W, r.k, [["Net PnL", money(r.v, true)], ["Entries", String(r.n)], ["Cashed", `${r.wins} (${pct(r.wins / r.n)})`], ["ROI", r.staked ? sgnPct(r.v / r.staked) : "—"]]); };
+      hr.addEventListener("pointermove", show); hr.addEventListener("pointerdown", show); hr.addEventListener("pointerleave", () => T.hide());
+    });
+  }
+
+  // ---------- Edge vs break-even ----------
+  function drawEdge(list) {
+    const host = $("#edge");
+    const groups = new Map();
+    for (const e of list) { if (!(e.picks || []).length) continue; const k = fmtName(e); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); }
+    if (!groups.size) { emptyBox(host, "No entries yet", " Each format shows the hit rate it needs next to yours."); return; }
+    const rows = [{ k: "All entries", es: list.filter(e => (e.picks || []).length), be: weightedBE(list), overall: true }];
+    for (const k of [...groups.keys()].sort(fmtSort)) {
+      const es = groups.get(k), n = es[0].picks.length;
+      let be = weightedBE(es), std = false;
+      if (be == null) { be = breakEven(n, tiersFor(es[0].type, n, 1, null)); std = true; }
+      rows.push({ k, es, be, std });
+    }
+    if (rows[0].be == null) rows[0].std = true;
+    $("#ekey-std").hidden = !rows.some(r => r.std);
+    const lo = 0.3, hi = 0.9, X = v => ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * 100).toFixed(2) + "%";
+    const axis = el("div", { class: "erow eaxis", "aria-hidden": "true" }, el("span"), el("div", { class: "eticks" }, [0.3, 0.45, 0.6, 0.75, 0.9].map(t => el("span", { style: `left:${X(t)}`, text: Math.round(t * 100) + "%" }))), el("span"));
+    host.replaceChildren(axis, ...rows.map(r => {
+      const legs = gradedLegs(r.es), h = legs.filter(p => p.result === "hit").length, n = legs.length, rate = n ? h / n : null;
+      const good = rate != null && r.be != null && rate >= r.be;
+      const a = rate != null && r.be != null ? Math.min(rate, r.be) : null, b = rate != null && r.be != null ? Math.max(rate, r.be) : null;
+      return el("div", { class: "erow" + (r.overall ? " overall" : "") },
+        el("div", { class: "ek" }, el("div", { style: "font-weight:600", text: r.k }), el("div", { class: "tag", text: plural(r.es.length, "entry", "entries") })),
+        el("div", { class: "etrack", role: "img", "aria-label": `${r.k}: ${rate == null ? "no graded picks" : pct(rate) + " of picks hit"}; needs ${r.be == null ? "unknown" : pct(r.be)} to break even` },
+          el("span", { class: "bar" }),
+          a != null ? el("span", { class: "gap " + (good ? "good" : "bad"), style: `left:${X(a)};width:calc(${X(b)} - ${X(a)})` }) : null,
+          r.be != null ? el("span", { class: "be", style: `left:${X(r.be)}` }) : null,
+          rate != null ? el("span", { class: "me " + (good ? "good" : "bad"), style: `left:${X(rate)}` }) : null),
+        el("div", { class: "ev" }, el("b", { class: rate == null ? "" : good ? "pos" : "neg", text: rate == null ? "—" : pct(rate) }), el("small", { text: `${n ? `${h}/${n} picks · ` : "0 graded · "}need ${r.be == null ? "—" : pct(r.be)}${r.std ? "*" : ""}` })));
+    }));
+  }
+
+  // ---------- Daily PnL ----------
+  function drawDaily(settled) {
+    const host = $("#c-daily");
+    const days = new Map(); for (const e of settled) { const r = days.get(e.date) || { d: e.date, v: 0, n: 0, w: 0 }; r.v += pnl(e); r.n++; if (pnl(e) > 0) r.w++; days.set(e.date, r); }
+    const rows = [...days.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-30);
+    if (!rows.length) { emptyBox(host, "Nothing settled yet", " Each day's net result shows here as entries are graded."); return; }
+    const W = Math.max(260, host.clientWidth), H = 210, m = { t: 20, r: 6, b: 24, l: 8 };
+    let lo = Math.min(0, ...rows.map(r => r.v)), hi = Math.max(0, ...rows.map(r => r.v)); if (lo === hi) hi = 1;
+    const pad = (hi - lo) * 0.12; if (lo < 0) lo -= pad; if (hi > 0) hi += pad;
+    const ticks = niceTicks(lo, hi, 4); lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
+    const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Daily net PnL: " + rows.map(r => `${fmtDate(r.d)} ${money(r.v, true)}`).join(", ") });
+    host.replaceChildren(svg);
+    m.l = measure(svg, ticks.map(t => money0(t, true))) + 10;
+    const iw = W - m.l - m.r, ih = H - m.t - m.b, y = v => m.t + (1 - (v - lo) / (hi - lo)) * ih;
+    for (const t of ticks) { svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: t === 0 ? "var(--ink-3)" : "var(--grid)" })); const tx = sv("text", { x: m.l - 8, y: y(t) + 4, "text-anchor": "end" }); tx.textContent = money0(t, true); svg.append(tx); }
+    const band = iw / rows.length, bw = Math.max(4, Math.min(44, band * 0.62));
+    const T = tip(host);
+    rows.forEach((r, i) => {
+      const cx = m.l + band * i + band / 2, y0 = y(0), y1 = y(r.v), top = Math.min(y0, y1), h = Math.max(2, Math.abs(y1 - y0));
+      svg.append(sv("rect", { x: cx - bw / 2, y: r.v === 0 ? y0 - 1 : top, width: bw, height: h, rx: Math.min(4, bw / 2), fill: r.v > 0 ? "var(--good)" : r.v < 0 ? "var(--bad)" : "var(--ink-3)" }));
+      if (rows.length <= 10) { const vt = sv("text", { x: cx, y: r.v >= 0 ? top - 6 : top + h + 13, class: "val", "text-anchor": "middle" }); vt.textContent = money0(r.v, true); svg.append(vt); }
+      const hr = sv("rect", { x: cx - band / 2, y: 0, width: band, height: H, fill: "transparent" }); svg.append(hr);
+      const show = ev => { const rc = svg.getBoundingClientRect(); T.show(cx * rc.width / W, top * rc.width / W, fmtDate(r.d), [["Net PnL", money(r.v, true)], ["Settled", String(r.n)], ["Cashed", String(r.w)]]); };
+      hr.addEventListener("pointermove", show); hr.addEventListener("pointerdown", show); hr.addEventListener("pointerleave", () => T.hide());
+    });
+    const xl = (i, anchor) => { const t = sv("text", { x: rows.length === 1 ? m.l + iw / 2 : m.l + band * i + band / 2, y: H - 6, "text-anchor": rows.length === 1 ? "middle" : anchor }); t.textContent = fmtDate(rows[i].d); svg.append(t); };
+    xl(0, "start"); if (rows.length > 1) xl(rows.length - 1, "end");
+  }
+
+  // ---------- Open slips ----------
+  function pickLabel(p) { return `${p.player || "?"} ${p.side === "under" ? "Less" : "More"} ${p.line ?? ""} ${p.stat || ""}`.trim(); }
+  function packChip(e) { const ic = sv("svg", { viewBox: "0 0 10 12", width: 9, height: 11, class: "cardic", "aria-hidden": "true" }); ic.append(sv("rect", { x: .75, y: .75, width: 8.5, height: 10.5, rx: 1.5, fill: "none", stroke: "currentColor", "stroke-width": 1.5 })); return el("span", { class: "pk card" }, ic, `Card worth ${money(Number(e.payout) || 0)}`); }
+  function bolt() { const b = sv("svg", { viewBox: "0 0 10 10", width: 10, height: 10, class: "bolt", "aria-hidden": "true" }); b.append(sv("path", { d: "M6.2.5 1.6 5.9h3.1L3.7 9.5l4.7-5.4H5.3z", fill: "currentColor" })); return b; }
+  const hasActual = p => p.actual != null && p.actual !== "" && !isNaN(Number(p.actual));
+  function pickChip(p, bare) {
+    const kids = [el("span", { class: "dot" }), pickLabel(p)];
+    if (bare) return el("span", { class: "pk " + (p.result || "pending") }, ...kids);
+    if (p.actual != null && p.actual !== "" && !isNaN(Number(p.actual)) && p.line != null) { const a = Number(p.actual), mg = p.side === "under" ? Number(p.line) - a : a - Number(p.line); kids.push(el("span", { class: "mg", text: `${a} (${mg > 0 ? "+" : mg < 0 ? "−" : "±"}${Math.abs(Math.round(mg * 100) / 100)})` })); }
+    if (p.auto && !pendingPick(p)) kids.push(bolt());
+    return el("span", { class: "pk " + (p.result || "pending"), title: p.auto && !pendingPick(p) ? "Graded automatically from the box score" : null }, ...kids);
+  }
+  function drawOpen(openL) {
+    const host = $("#open-list");
+    if (!openL.length) { emptyBox(host, "No open entries", state.canWrite ? " Use Log entry to add a slip. It stays here until every pick is graded." : ""); host.firstChild.style.minHeight = "110px"; return; }
+    const wrap = el("div", { class: "slips" });
+    for (const e of sorted(openL)) {
+      const graded = e.picks.filter(p => p.result && p.result !== "pending").length, be = entryBE(e);
+      const infos = e.picks.map((p, i) => pendingPick(p) ? live.info.get(e.id + "#" + i) : null), pend = infos.filter(Boolean);
+      const shared = pend.length > 1 && pend.length === e.picks.filter(pendingPick).length && pend.every(x => x.s === pend[0].s && x.t === pend[0].t) ? pend[0] : null;
+      wrap.append(el("button", { class: "slip", type: "button", onclick: () => openForm(e) },
+        el("div", { class: "h" }, el("span", { class: "m", text: fmtName(e) }), el("span", { class: "tag", text: `${entrySport(e)} · ${fmtDate(e.date)}${e.bonus ? " · Bonus" : ""}` }), shared ? el("small", { class: "ls shared " + shared.s, text: shared.t }) : null),
+        el("ul", {}, e.picks.map((p, i) => { const inf = shared ? null : infos[i];
+          let right = null;
+          if (!pendingPick(p)) { const mg = hasActual(p) && p.line != null ? Math.abs(Math.round((Number(p.actual) - Number(p.line)) * 100) / 100) : null;
+            right = el("span", { class: "res " + p.result, title: (p.result === "push" ? "Push" : `${p.result === "hit" ? "Hit" : "Miss"}${mg != null ? " by " + mg : ""}`) + (p.auto ? " · graded from the box score" : "") }, hasActual(p) ? String(Number(p.actual)) : p.result, p.auto ? bolt() : null); }
+          return el("li", {}, el("div", { class: "pl" }, pickChip(p, true), inf ? el("small", { class: "ls " + inf.s, text: inf.t }) : null), right); })),
+        el("div", { class: "f" },
+          el("span", {}, e.bonus ? "Bonus " : "Stake ", el("b", { class: "mono", text: money(baseAmt(e)) })),
+          el("span", {}, `${graded}/${e.picks.length} graded · max `, el("b", { class: "mono", text: money(maxPay(e)) })),
+          be != null ? el("span", { class: "muted", text: `Needs ${pct(be)} of picks to break even` }) : null)));
+    }
+    host.replaceChildren(wrap);
+  }
+
+  // ---------- Log table ----------
+  function drawLog(list) {
+    const body = $("#log-body");
+    let rows = sorted(list); if (state.status === "open") rows = rows.filter(isOpen); else if (state.status === "settled") rows = rows.filter(e => !isOpen(e));
+    if (state.q) rows = rows.filter(e => [e.notes || "", isPack(e) ? "pack card" : "", ...(e.picks || []).flatMap(p => [p.player || "", p.stat || ""])].join(" ").toLowerCase().includes(state.q));
+    if (!rows.length) { body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "muted", style: "padding:22px 18px;text-align:center", text: state.loaded ? (state.entries.length ? "No entries match these filters." : "No entries yet. Log your first slip with + Log entry.") : "Loading…" }))); return; }
+    body.replaceChildren(...rows.map(e => { const o = outcome(e), p = pnl(e);
+      return el("tr", { class: "row", tabindex: 0, onclick: () => openForm(e), onkeydown: ev => { if (ev.key === "Enter") openForm(e); } },
+        el("td", { class: "mono nw", text: fmtDate(e.date) }),
+        el("td", { class: "nw" }, el("div", { style: "font-weight:600", text: fmtName(e) }), el("div", { class: "tag", text: isPack(e) ? (e.bonus ? "Free pack" : "Paid pack") : entrySport(e) })),
+        el("td", {}, el("div", { class: "picks" }, isPack(e) ? packChip(e) : e.picks.map(p => pickChip(p)))),
+        e.bonus ? el("td", { class: "r nw", "data-l": "Stake" }, el("span", { class: "pill bonus", title: isPack(e) ? "Free pack, not taken from your balance" : "Promo money, not taken from your balance", text: (isPack(e) ? "Free " : "Bonus ") + money0(Number(e.bonusStake) || 0) })) : el("td", { class: "r mono", "data-l": "Stake", text: money(Number(e.stake) || 0) }),
+        o === "open" ? el("td", { class: "r mono muted nw", "data-l": "Payout", text: "max " + money(maxPay(e)) }) : el("td", { class: "r mono nw", "data-l": "Payout", title: e.estPayout ? "Worked out with standard multipliers. Check the app and edit the entry if it paid differently." : null }, money(Number(paid(e)) || 0), e.estPayout ? el("span", { class: "est", text: "est." }) : null),
+        el("td", { class: "r mono " + (p > 0 ? "pos" : p < 0 ? "neg" : ""), "data-l": "PnL", text: p == null ? "—" : money(p, true) }),
+        el("td", {}, el("span", { class: "pill " + o, text: o === "even" ? "Push" : o })));
+    }));
+  }
+
+  // ---------- Form ----------
+  const dlg = $("#dlg"); let formType = "power";
+  function pickRow(p = {}) {
+    const sport = p.sport || (lastSport() || "NBA");
+    const row = el("div", { class: "pickrow" });
+    const sSel = el("select", { class: "in", "aria-label": "Sport" }, SPORTS.map(s => el("option", { value: s, text: s })));
+    sSel.value = sport;
+    const player = el("input", { class: "in player", placeholder: "Player", "aria-label": "Player", value: p.player || "" });
+    const stat = el("input", { class: "in", placeholder: "Stat", "aria-label": "Stat", list: "dl-" + sport, value: p.stat || "" });
+    const line = el("input", { class: "in", type: "number", step: "0.5", placeholder: "Line", "aria-label": "Line", value: p.line ?? "" });
+    const side = el("select", { class: "in", "aria-label": "More or Less" }, el("option", { value: "over", text: "More" }), el("option", { value: "under", text: "Less" })); side.value = p.side || "over";
+    const actual = el("input", { class: "in", type: "number", step: "any", placeholder: "Actual", "aria-label": "Actual stat", value: p.actual ?? "" });
+    const res = el("select", { class: "in", "aria-label": "Result" }, ["pending", "hit", "miss", "push"].map(v => el("option", { value: v, text: { pending: "Pending", hit: "Hit", miss: "Miss", push: "Push / DNP" }[v] }))); res.value = p.result || "pending";
+    const x = el("button", { type: "button", class: "x", "aria-label": "Remove pick", text: "×", onclick: () => { row.remove(); recalc(); } });
+    const autoGrade = () => { const a = num(actual.value), l = num(line.value); if (a != null && l != null) { res.value = a === l ? "push" : (side.value === "under" ? a < l : a > l) ? "hit" : "miss"; payoutTouched = false; } recalc(); };
+    sSel.addEventListener("change", () => { stat.setAttribute("list", "dl-" + sSel.value); recalc(); });
+    [player, stat].forEach(n => n.addEventListener("input", recalc));
+    line.addEventListener("input", autoGrade); side.addEventListener("change", autoGrade); actual.addEventListener("input", autoGrade);
+    res.addEventListener("change", () => { payoutTouched = false; recalc(); });
+    // keep any extra fields a pick already has (matchup, notes) when it is saved again
+    row._get = () => { const o = { ...p, sport: sSel.value, player: player.value.trim(), stat: stat.value.trim(), line: num(line.value), side: side.value, result: res.value, actual: num(actual.value) }; if (o.result !== p.result || o.actual !== (p.actual ?? null)) delete o.auto; return o; };
+    row.append(sSel, player, stat, line, side, actual, res, x); return row;
+  }
+  function lastSport() { const rows = $$("#pickrows .pickrow:not(.hdr)"); return rows.length ? rows[rows.length - 1]._get().sport : null; }
+  function formPicks() { return $$("#pickrows .pickrow:not(.hdr)").map(r => r._get()); }
+  let payoutTouched = false;
+  const formAmt = () => num($("#f-stake").value) || 0;
+  const formBonus = () => $("#f-bonus").checked;
+  const formToWin = () => num($("#f-towin").value);
+  function formSuggest(picks) { const amt = formAmt(); return suggestPayout(formType, picks, amt, formBonus() ? 0 : amt, formToWin()); }
+  function recalc() {
+    const pack = formType === "pack";
+    $("#f-towin-wrap").hidden = pack; $("#picks-wrap").hidden = pack;
+    $("#f-payout-lbl").textContent = pack ? "Card value ($)" : "Payout ($)";
+    $("#f-payout").placeholder = pack ? "1.59" : "auto";
+    $("#f-stake").placeholder = pack ? "5.00" : "10.00";
+    $("#f-bonus-lbl").textContent = pack ? "Free pack (not taken from your balance)" : "Bonus lineup (promo money, not taken from your balance)";
+    if (pack) {
+      const amt = formAmt(), bonus = formBonus(), cash = bonus ? 0 : amt, pv = num($("#f-payout").value);
+      $("#f-stake-lbl").textContent = "Pack price ($)";
+      const c = $("#calc"); c.replaceChildren();
+      c.append(el("span", {}, "Costs you ", el("b", { text: bonus ? "nothing (free pack)" : amt ? money(amt) : "—" })));
+      c.append(el("span", {}, "Card ", el("b", { text: pv == null ? "—" : money(pv) })));
+      c.append(el("span", {}, "PnL ", el("b", { class: pv == null ? "" : pv - cash > 0 ? "pos" : pv - cash < 0 ? "neg" : "", text: pv == null ? "—" : money(pv - cash, true) })));
+      $$(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.type === formType)));
+      return;
+    }
+    const picks = formPicks(), amt = formAmt(), bonus = formBonus(), cash = bonus ? 0 : amt, toWin = formToWin(), n = picks.length;
+    $("#f-stake-lbl").textContent = bonus ? "Bonus amount ($)" : "Entry ($)";
+    const isBust = busted(formType, picks);
+    const sug = formSuggest(picks);
+    const pay = $("#f-payout");
+    if (!payoutTouched || isBust) pay.value = sug == null ? "" : sug.toFixed(2);
+    const open = !isBust && picks.some(p => p.result === "pending");
+    const mx = formType === "flex" ? (FLEX[n] ? FLEX[n][n] : null) : POWER[n];
+    $("#f-towin").placeholder = mx && amt ? (amt * mx).toFixed(2) : "from app";
+    const be = bonus ? null : breakEven(n, tiersFor(formType, n, amt, toWin));
+    const c = $("#calc"); c.replaceChildren();
+    c.append(el("span", {}, "Picks ", el("b", { text: String(n) })));
+    const maxTxt = toWin != null ? money(toWin) : mx ? `${money(amt * mx)} (standard ${mx}x)` : formType === "flex" ? "Flex needs 3–6 picks" : "Power needs 2–6 picks";
+    c.append(el("span", {}, "Max payout ", el("b", { text: maxTxt })));
+    c.append(el("span", {}, "Break-even ", el("b", { text: bonus ? "free entry" : be != null && amt ? `${pct(be)} of picks` : "—" })));
+    c.append(el("span", {}, "Status ", el("b", { text: open ? (bonus ? "Open · bonus, balance untouched" : "Open · taken from balance") : isBust ? "Lost · a Power pick missed" : n ? "Settled" : "—" })));
+    if (!open && n) { const pv = num(pay.value); c.append(el("span", {}, "PnL ", el("b", { class: pv - cash > 0 ? "pos" : pv - cash < 0 ? "neg" : "", text: pv == null ? "—" : money(pv - cash, true) }))); }
+    $$(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.type === formType)));
+  }
+  function openForm(e) {
+    state.editing = e || null;
+    $("#dlg-title").textContent = e ? "Edit entry" : "Log entry";
+    $("#f-date").value = e ? e.date : today();
+    $("#f-bonus").checked = !!(e && e.bonus);
+    $("#f-stake").value = e ? (e.bonus ? (e.bonusStake ?? "") : e.stake) : "";
+    $("#f-towin").value = e && e.toWin != null ? e.toWin : "";
+    $("#f-notes").value = e ? (e.notes || "") : "";
+    formType = e ? e.type : "power";
+    $$("#pickrows .pickrow:not(.hdr)").forEach(r => r.remove());
+    const pr = $("#pickrows"); (e ? (isPack(e) ? [] : e.picks) : [{}, {}]).forEach(p => pr.append(pickRow(p)));
+    payoutTouched = !!(e && e.payout != null && (isPack(e) || e.payout !== formSuggest(e.picks)));
+    $("#f-payout").value = e && e.payout != null ? e.payout : "";
+    $("#dlg-delete").hidden = !e || !state.canWrite; $("#del-confirm").hidden = true; $("#form-err").hidden = true;
+    $("#dlg-save").disabled = !state.canWrite;
+    recalc(); dlg.showModal();
+  }
+  $$(".seg button").forEach(b => b.addEventListener("click", () => {
+    const was = formType; formType = b.dataset.type;
+    if (formType !== "pack" && !formPicks().length) { $("#pickrows").append(pickRow(), pickRow()); }
+    if (was === "pack" || formType === "pack") $("#f-payout").value = "";
+    payoutTouched = false; recalc(); }));
+  $("#f-stake").addEventListener("input", recalc);
+  $("#f-towin").addEventListener("input", recalc);
+  $("#f-bonus").addEventListener("change", recalc);
+  $("#f-payout").addEventListener("input", () => { payoutTouched = $("#f-payout").value !== ""; recalc(); });
+  $("#add-pick").addEventListener("click", () => { if (formPicks().length >= 6) return toast("PrizePicks entries max out at 6 picks"); $("#pickrows").append(pickRow()); recalc(); });
+  $("#dlg-close").addEventListener("click", () => dlg.close()); $("#dlg-cancel").addEventListener("click", () => dlg.close());
+  $("#dlg-delete").addEventListener("click", () => { $("#del-confirm").hidden = false; $("#dlg-delete").hidden = true; });
+  $("#del-no").addEventListener("click", () => { $("#del-confirm").hidden = true; $("#dlg-delete").hidden = false; });
+  $("#del-yes").addEventListener("click", async () => { const e = state.editing; if (!e || !state.db) return; try { await state.db.doc("entries/" + e.id).delete(); dlg.close(); toast("Entry deleted"); } catch (err) { showErr(err); } });
+  function showErr(err) { const n = $("#form-err"); n.hidden = false; n.style.color = "var(--bad)"; n.textContent = "Couldn't save that. Try again."; }
+  $("#entry-form").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const picks = formPicks().filter(p => p.player || p.stat), amt = num($("#f-stake").value), date = $("#f-date").value, bonus = formBonus(), toWin = formToWin();
+    const err = $("#form-err"); err.style.color = "var(--bad)";
+    const fail = m => { err.hidden = false; err.textContent = m; };
+    if (!date) return fail("Add the entry date.");
+    if (formType === "pack") {
+      const card = num($("#f-payout").value);
+      if (!amt || amt <= 0) return fail("Enter the pack's price, for example 5.");
+      if (card == null || card < 0) return fail("Enter what the card was worth, for example 1.59.");
+      if (!state.db) return fail("Connect your ledger first, under Stats → Account.");
+      const now = new Date().toISOString();
+      const prev = {}; if (state.editing) for (const [k, v] of Object.entries(state.editing)) if (k !== "id") prev[k] = v;
+      const doc = { ...prev, date, type: "pack", stake: bonus ? 0 : amt, payout: card, picks: [], notes: $("#f-notes").value.trim(), createdAt: prev.createdAt || now, updatedAt: now };
+      if (bonus) { doc.bonus = true; doc.bonusStake = amt; } else { delete doc.bonus; delete doc.bonusStake; }
+      for (const k of ["toWin", "potentialPayout", "estPayout"]) delete doc[k];
+      const id = state.editing ? state.editing.id : "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      $("#dlg-save").disabled = true;
+      try { await state.db.doc("entries/" + id).set(doc); dlg.close(); toast(state.editing ? "Pack updated" : `Pack logged · ${money(card - (bonus ? 0 : amt), true)}`); } catch (e2) { showErr(e2); } finally { $("#dlg-save").disabled = false; }
+      return;
+    }
+    if (!amt || amt <= 0) return fail(bonus ? "Enter the bonus amount, for example 10." : "Enter the amount you paid for the entry, for example 10.");
+    if (picks.length < 2 || picks.length > 6) return fail("An entry needs 2 to 6 picks with a player and stat.");
+    if (formType === "flex" && picks.length < 3) return fail("Flex entries need at least 3 picks. Switch to Power for 2.");
+    if (picks.some(p => p.line == null)) return fail("Every pick needs a line, for example 24.5.");
+    const isBust = busted(formType, picks);
+    const open = !isBust && picks.some(p => p.result === "pending");
+    let payout = open ? null : isBust ? 0 : num($("#f-payout").value);
+    if (!open && payout == null) payout = suggestPayout(formType, picks, amt, bonus ? 0 : amt, toWin) ?? 0;
+    const now = new Date().toISOString();
+    const prev = {}; if (state.editing) for (const [k, v] of Object.entries(state.editing)) if (k !== "id") prev[k] = v;
+    const doc = { ...prev, date, type: formType, stake: bonus ? 0 : amt, payout, picks, notes: $("#f-notes").value.trim(), createdAt: prev.createdAt || now, updatedAt: now };
+    if (bonus) { doc.bonus = true; doc.bonusStake = amt; if (toWin != null) doc.potentialPayout = toWin; } else { delete doc.bonus; delete doc.bonusStake; delete doc.potentialPayout; }
+    if (toWin != null) doc.toWin = toWin; else delete doc.toWin;
+    delete doc.estPayout;
+    if (!state.db) return fail("Connect your ledger first, under Stats → Account.");
+    const id = state.editing ? state.editing.id : "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    $("#dlg-save").disabled = true;
+    try { await state.db.doc("entries/" + id).set(doc); dlg.close(); toast(state.editing ? "Entry updated" : "Entry logged"); } catch (e2) { showErr(e2); } finally { $("#dlg-save").disabled = false; }
+  });
+
+  // datalists for stats
+  for (const s of SPORTS) document.body.append(el("datalist", { id: "dl-" + s }, STATS[s].map(v => el("option", { value: v }))));
+
+  // ---------- Starting balance ----------
+  const sdlg = $("#dlg-set");
+  $$(".act-settings").forEach(b => b.addEventListener("click", () => { $("#s-start").value = state.settings.starting; $("#s-date").value = state.settings.startDate; sdlg.showModal(); }));
+  $("#set-close").addEventListener("click", () => sdlg.close()); $("#set-cancel").addEventListener("click", () => sdlg.close());
+  $("#set-form").addEventListener("submit", async ev => { ev.preventDefault(); const v = num($("#s-start").value); if (v == null || v < 0) return; const d = { starting: v, startDate: $("#s-date").value || state.settings.startDate }; try { if (state.db) await state.db.doc("settings/bankroll").set(d); state.settings = d; sdlg.close(); render(); toast("Starting balance updated"); } catch (e) { toast("Couldn't save the starting balance"); } });
+
+  // ---------- Filters ----------
+  $$("[data-sport]").forEach(b => b.addEventListener("click", () => { state.sport = b.dataset.sport; press("[data-sport]", b); render(); }));
+  $$("[data-tf]").forEach(b => b.addEventListener("click", () => { state.typeF = b.dataset.tf; press("[data-tf]", b); render(); }));
+  $$("[data-range]").forEach(b => b.addEventListener("click", () => { state.range = b.dataset.range; press("[data-range]", b); render(); }));
+  $$("[data-status]").forEach(b => b.addEventListener("click", () => { state.status = b.dataset.status; press("[data-status]", b); drawLog(visible()); }));
+  let qT; $("#q").addEventListener("input", ev => { clearTimeout(qT); qT = setTimeout(() => { state.q = ev.target.value.trim().toLowerCase(); drawLog(visible()); }, 120); });
+  $$(".act-new").forEach(b => b.addEventListener("click", () => openForm(null)));
+
+  // ---------- App tabs (phone) ----------
+  function go(tab) {
+    const w = $(".wrap");
+    if (w.dataset.tab === tab) { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) { window.scrollTo(0, 0); } return; }
+    w.dataset.tab = tab;
+    $$(".tabbar [data-go]").forEach(b => { if (b.dataset.go === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    window.scrollTo(0, 0); render();
+  }
+  $$(".tabbar [data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
+
+  let toastT; function toast(msg) { let t = $(".toast"); if (!t) { t = el("div", { class: "toast", role: "status" }); document.body.append(t); } t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, Math.min(7000, 2200 + msg.length * 35)); }
+
+  // ---------- Grading helpers (the app grades by hand; Claude grades from box scores in the repo) ----------
+  const live = { info: new Map() };
+  const pendingPick = p => !p.result || p.result === "pending";
+  const clock = ts => new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const when = ts => new Date(ts).toDateString() === new Date().toDateString() ? clock(ts) : new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  function drawLiveBar() {
+    const bar = $("#livebar"); if (!bar) return;
+    bar.replaceChildren(el("span", { class: "hint", text: "Tap a slip to grade it, or ask Claude to grade from box scores" }));
+  }
+
+  // ---------- Export ----------
+  function setupExport() {
+    const run = async () => {
+      const q = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const lines = [["entry_id", "date", "type", "picks", "stake", "payout", "pnl", "status", "bonus_amount", "to_win", "break_even", "leg", "sport", "player", "stat", "line", "pick", "actual", "result"].join(",")];
+      for (const e of sorted(state.entries)) { const be = entryBE(e); if (!(e.picks || []).length) lines.push([e.id, e.date, e.type, 0, e.stake, paid(e) ?? "", pnl(e) ?? "", outcome(e), e.bonus ? (e.bonusStake ?? "") : "", "", "", "", "", "", isPack(e) ? "Card" : "", "", "", isPack(e) ? (e.payout ?? "") : "", ""].map(q).join(",")); e.picks.forEach((p, i) => lines.push([e.id, e.date, e.type, e.picks.length, e.stake, paid(e) ?? "", pnl(e) ?? "", outcome(e), e.bonus ? (e.bonusStake ?? "") : "", e.toWin ?? "", be != null ? (be * 100).toFixed(1) + "%" : "", i + 1, p.sport, p.player, p.stat, p.line, p.side === "under" ? "Less" : "More", p.actual ?? "", p.result].map(q).join(","))); }
+      const name = "prizepicks-ledger-" + today() + ".csv";
+      const file = new File([lines.join("\n")], name, { type: "text/csv" });
+      try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+      const url = URL.createObjectURL(file); const a = el("a", { href: url, download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+    };
+    $$(".act-export").forEach(b => { b.hidden = false; b.addEventListener("click", run); });
+  }
+
+  // ---------- Sync ----------
+  // Your bets live in ledger.json in your private GitHub repo: {version, settings:{starting, startDate}, entries:{<id>: entry}}.
+  // This device keeps the last synced copy plus any changes not yet saved (the outbox), so it opens instantly and works offline.
+  // Every save is a commit, so the repo's history keeps every change.
+  const CFG = window.LEDGER_CONFIG || {};
+  const DEFAULT_SETTINGS = { starting: 250, startDate: "2026-11-16" };
+  const LS = {
+    get(k) { try { return JSON.parse(localStorage.getItem("ppl." + k) || "null"); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem("ppl." + k, JSON.stringify(v)); } catch (e) { } },
+    del(k) { try { localStorage.removeItem("ppl." + k); } catch (e) { } }
+  };
+  const sync = { auth: LS.get("auth"), remote: LS.get("remote"), outbox: LS.get("outbox") || [], busy: false, again: false, mode: "idle", lastOk: (LS.get("remote") || {}).at || null, timer: null, kick: null, problem: "" };
+  const saveLocal = () => { LS.set("remote", sync.remote); LS.set("outbox", sync.outbox); };
+  const emptyData = () => ({ version: 1, settings: { ...DEFAULT_SETTINGS }, entries: {} });
+  function normalize(d) {
+    const out = emptyData(); if (!d || typeof d !== "object") return out;
+    if (d.settings && typeof d.settings === "object") out.settings = { starting: Number(d.settings.starting) || 0, startDate: d.settings.startDate || DEFAULT_SETTINGS.startDate };
+    const src = d.entries || {};
+    if (Array.isArray(src)) { for (const e of src) if (e && e.id) { const { id, ...doc } = e; out.entries[id] = doc; } }
+    else for (const [id, e] of Object.entries(src)) if (e && typeof e === "object") { const { id: _drop, ...doc } = e; out.entries[id] = doc; }
+    return out;
+  }
+  function applyOps(data, ops) {
+    const d = normalize(data);
+    for (const o of ops) {
+      if (o.op === "set") d.entries[o.id] = o.doc;
+      else if (o.op === "update") d.entries[o.id] = { ...(d.entries[o.id] || {}), ...o.doc };
+      else if (o.op === "delete") delete d.entries[o.id];
+      else if (o.op === "settings") d.settings = { starting: Number(o.doc.starting) || 0, startDate: o.doc.startDate || DEFAULT_SETTINGS.startDate };
+    }
+    return d;
+  }
+  function ordered(d) { // newest first, so the file reads like the log
+    const ids = Object.keys(d.entries).sort((a, b) => (d.entries[b].date || "").localeCompare(d.entries[a].date || "") || (d.entries[b].createdAt || "").localeCompare(d.entries[a].createdAt || "") || a.localeCompare(b));
+    const entries = {}; for (const id of ids) entries[id] = d.entries[id];
+    return { version: 1, settings: d.settings, entries };
+  }
+  function publish() {
+    const d = applyOps(sync.remote && sync.remote.data, sync.outbox);
+    state.entries = Object.entries(d.entries).map(([id, doc]) => ({ ...doc, id, picks: Array.isArray(doc.picks) ? doc.picks : [] }));
+    state.settings = d.settings;
+    state.loaded = !!sync.remote;
+    render(); drawAccount();
+  }
+  const db = { doc(path) { const [col, id] = path.split("/"); return {
+    async set(doc) { queue(col === "settings" ? { op: "settings", doc } : { op: "set", id, doc }); },
+    async update(doc) { queue({ op: "update", id, doc }); },
+    async delete() { queue({ op: "delete", id }); } }; } };
+  function queue(o) { o.at = Date.now(); sync.outbox.push(o); saveLocal(); publish(); clearTimeout(sync.kick); sync.kick = setTimeout(() => syncNow(), 250); }
+
+  const toB64 = str => { const b = new TextEncoder().encode(str); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+  const fromB64 = str => { const bin = atob(String(str).replace(/\s/g, "")); const b = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return new TextDecoder().decode(b); };
+  const fail = (code, extra) => Object.assign(new Error(String(code)), { code }, extra || {});
+  async function gh(path, opts = {}, auth = sync.auth) {
+    let res;
+    try { res = await fetch("https://api.github.com" + path, { ...opts, cache: "no-store", headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: "Bearer " + auth.token, ...(opts.headers || {}) } }); }
+    catch (e) { throw fail("net"); }
+    if ((res.status === 403 || res.status === 429) && (res.headers.get("x-ratelimit-remaining") === "0" || res.headers.get("retry-after"))) throw fail("rate");
+    return res;
+  }
+  const filePath = (auth = sync.auth) => `/repos/${auth.repo}/contents/${(auth.path || "ledger.json").split("/").map(encodeURIComponent).join("/")}`;
+  async function pull() {
+    const h = {}; if (sync.remote && sync.remote.etag) h["If-None-Match"] = sync.remote.etag;
+    const res = await gh(filePath(), { headers: h });
+    if (res.status === 304 && sync.remote) { sync.remote.at = Date.now(); saveLocal(); return; }
+    if (res.status === 404) {
+      const r = await gh(`/repos/${sync.auth.repo}`);
+      if (!r.ok) throw fail(r.status === 404 ? "no_repo" : r.status);
+      sync.remote = { sha: null, etag: null, at: Date.now(), data: emptyData() }; saveLocal(); return;
+    }
+    if (!res.ok) throw fail(res.status);
+    const j = await res.json();
+    let text = j && j.encoding === "base64" && j.content ? fromB64(j.content) : null;
+    if (text == null) { const raw = await gh(filePath(), { headers: { Accept: "application/vnd.github.raw+json" } }); if (!raw.ok) throw fail(raw.status); text = await raw.text(); }
+    let data; try { data = JSON.parse(text); } catch (e) { throw fail("bad_json"); }
+    sync.remote = { sha: j.sha, etag: res.headers.get("ETag"), at: Date.now(), data: normalize(data) }; saveLocal();
+  }
+  function describe(o, known) {
+    if (o.op === "settings") return `Set starting balance to ${money(Number(o.doc.starting) || 0)}`;
+    const e = o.op === "delete" ? known[o.id] || {} : o.doc || {};
+    const what = isPack(e) ? "pack" : `${(e.picks || []).length}-pick ${e.type === "flex" ? "Flex" : "Power"}`;
+    return `${o.op === "delete" ? "Delete" : known[o.id] ? "Update" : "Log"} ${what}${e.date ? " · " + e.date : ""}`;
+  }
+  async function push() {
+    for (let tries = 0; tries < 4 && sync.outbox.length; tries++) {
+      const ops = sync.outbox.slice(), base = sync.remote.data, next = ordered(applyOps(base, ops));
+      const known = normalize(base).entries;
+      const body = { message: describe(ops[0], known) + (ops.length > 1 ? ` (+${ops.length - 1} more)` : "") + " [Ledger app]", content: toB64(JSON.stringify(next, null, 2) + "\n") };
+      if (sync.remote.sha) body.sha = sync.remote.sha;
+      const res = await gh(filePath(), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (res.ok) { const j = await res.json(); sync.remote = { sha: j.content && j.content.sha, etag: null, at: Date.now(), data: next }; sync.outbox = sync.outbox.slice(ops.length); saveLocal(); tries = -1; continue; }
+      if (res.status === 409 || res.status === 422) { sync.remote.etag = null; await pull(); continue; } // someone else saved first: build on their copy
+      throw fail(res.status);
+    }
+    if (sync.outbox.length) throw fail("conflict");
+  }
+  async function syncNow(manual) {
+    if (!sync.auth) return;
+    if (sync.busy) { sync.again = true; return; }
+    if (navigator.onLine === false) { setMode("offline"); return; }
+    sync.busy = true; setMode("syncing");
+    try { await pull(); if (sync.outbox.length) await push(); sync.lastOk = Date.now(); sync.problem = ""; setMode("synced"); if (manual) toast("Synced with GitHub"); }
+    catch (e) { syncError(e); }
+    finally { sync.busy = false; publish(); if (sync.again) { sync.again = false; syncNow(); } }
+  }
+  function syncError(e) {
+    const c = e && e.code, repo = sync.auth ? sync.auth.repo : "your repo";
+    if (c === "net") { sync.problem = ""; setMode("offline"); return; }
+    sync.problem = c === 401 ? "GitHub didn't accept your token. It may have expired. Paste a new one under Account."
+      : c === 403 ? `Your token can't save to ${repo}. Give it Contents: Read and write, then paste it again under Account.`
+      : c === "no_repo" ? `Can't find ${repo} with this token. Check the repo name and that the token includes it.`
+      : c === "rate" ? "GitHub is limiting requests for a few minutes. Your changes are safe on this device and will sync after."
+      : c === "bad_json" ? `ledger.json in ${repo} isn't valid JSON, so syncing is paused to protect your data. Ask Claude to fix it.`
+      : c === "conflict" ? "Another device kept saving at the same moment. Your changes are safe on this device and will sync on the next try."
+      : `Couldn't sync with GitHub (error ${c}). Your changes are safe on this device and will retry.`;
+    setMode("error");
+  }
+  function setMode(m) {
+    sync.mode = m; const n = sync.outbox.length;
+    const text = m === "synced" ? `Synced ${clock(sync.lastOk)}` : m === "syncing" ? "Syncing…" : m === "offline" ? (n ? `Offline · ${plural(n, "change", "changes")} waiting` : "Offline · saved copy") : m === "error" ? "Sync problem" : "Not connected";
+    $$(".sync").forEach(s => { s.className = "sync " + (m === "synced" ? "live" : m === "offline" ? "offline" : m); const t = s.querySelector(".sync-t"); if (t) t.textContent = text; });
+    banner(m === "error" ? sync.problem : !sync.remote && m === "offline" ? "You're offline. Your ledger loads as soon as you're back online." : "");
+    drawAccount();
+  }
+  function banner(text) { const b = $("#banner"); b.hidden = !text; b.textContent = text || ""; }
+  function startSync() {
+    clearInterval(sync.timer);
+    sync.timer = setInterval(() => { if (document.visibilityState === "visible") syncNow(); }, 60e3);
+    syncNow();
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && sync.auth && Date.now() - (sync.remote ? sync.remote.at : 0) > 15e3) syncNow(); });
+  window.addEventListener("online", () => syncNow());
+  window.addEventListener("offline", () => { if (!sync.busy) setMode("offline"); });
+
+  // ---------- Connect screen ----------
+  const cv = $("#connect");
+  function showConnect(msg) {
+    $("#c-repo").value = (sync.auth && sync.auth.repo) || CFG.dataRepo || "";
+    $("#c-token").value = "";
+    const err = $("#c-err"); err.hidden = !msg; err.textContent = msg || "";
+    $("#c-cancel").hidden = !sync.auth;
+    cv.hidden = false; setTimeout(() => $(($("#c-repo").value ? "#c-token" : "#c-repo")).focus(), 50);
+  }
+  $("#c-cancel").addEventListener("click", () => { cv.hidden = true; });
+  $("#connect-form").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const repo = $("#c-repo").value.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/\/+$/, ""), token = $("#c-token").value.trim();
+    const err = $("#c-err"), show = m => { err.hidden = false; err.textContent = m; };
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return show("Enter the repo as username/repo-name, for example angus/pp-ledger-data.");
+    if (token.length < 20) return show("Paste the whole token. It starts with github_pat_.");
+    const go = $("#c-go"); go.disabled = true; go.textContent = "Checking…";
+    try {
+      const auth = { repo, token, path: CFG.path || "ledger.json" };
+      const r = await gh(`/repos/${repo}`, {}, auth);
+      if (r.status === 401) return show("GitHub didn't accept that token. Check you copied all of it, or make a new one.");
+      if (r.status === 404 || r.status === 403) return show(`This token can't see ${repo}. When you make the token, pick that repo under Repository access.`);
+      if (!r.ok) return show(`GitHub answered with error ${r.status}. Try again in a minute.`);
+      const changed = !sync.auth || sync.auth.repo !== repo;
+      sync.auth = auth; LS.set("auth", auth);
+      if (changed) { sync.remote = null; sync.outbox = []; saveLocal(); }
+      cv.hidden = true; toast("Connected to " + repo); startSync();
+    } catch (e) { show(e && e.code === "net" ? "You're offline. Connect once you have signal." : "Couldn't reach GitHub. Try again."); }
+    finally { go.disabled = false; go.textContent = "Connect"; }
+  });
+
+  // ---------- Account panel ----------
+  function drawAccount() {
+    const m = $("#acct-meta"); if (!m) return;
+    const n = sync.outbox.length;
+    m.replaceChildren(
+      el("span", {}, "Your bets sync to ", el("b", { text: sync.auth ? sync.auth.repo : "no repo yet" })),
+      el("span", {}, "Last synced ", el("b", { text: sync.lastOk ? when(sync.lastOk) : "never" })),
+      n ? el("span", {}, "Waiting to sync ", el("b", { text: plural(n, "change", "changes") })) : null);
+  }
+  $("#a-sync").addEventListener("click", () => sync.auth ? syncNow(true) : showConnect());
+  $("#a-token").addEventListener("click", () => showConnect());
+  $("#a-out").addEventListener("click", () => { $("#a-out-confirm").hidden = false; $("#a-out").hidden = true; $("#a-out-warn").textContent = sync.outbox.length ? `${plural(sync.outbox.length, "change hasn't", "changes haven't")} synced yet and will be lost.` : "This removes the token and saved copy from this device only."; });
+  $("#a-out-no").addEventListener("click", () => { $("#a-out-confirm").hidden = true; $("#a-out").hidden = false; });
+  $("#a-out-yes").addEventListener("click", () => { ["auth", "remote", "outbox"].forEach(k => LS.del(k)); location.reload(); });
+
+  // ---------- Install hint ----------
+  let deferredInstall = null;
+  const standalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  function showInstall(kind) {
+    if (standalone() || LS.get("installDismissed")) return;
+    const box = $("#install"); box.hidden = false;
+    $("#install-t").textContent = kind === "prompt" ? "Install the Ledger as an app for full-screen launch and offline use." : "Add the Ledger to your home screen: tap Share, then Add to Home Screen.";
+    $("#install-go").hidden = kind !== "prompt";
+  }
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; showInstall("prompt"); });
+  $("#install-go").addEventListener("click", async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch (e) { } deferredInstall = null; $("#install").hidden = true; });
+  $("#install-x").addEventListener("click", () => { LS.set("installDismissed", true); $("#install").hidden = true; });
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent) && navigator.standalone === false) showInstall("ios");
+
+  // ---------- Boot ----------
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => { });
+  let rT; const reflow = () => { clearTimeout(rT); rT = setTimeout(render, 120); };
+  new ResizeObserver(reflow).observe($(".wrap"));
+  state.db = db;
+  setupExport();
+  if (sync.remote) publish(); else render();
+  if (!sync.auth) { setMode("idle"); showConnect(); }
+  else startSync();
+})();
+</script>
+</body>
+</html>

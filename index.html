@@ -381,7 +381,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
 .cal-nav:hover { border-color: var(--ink-3); color: var(--ink); }
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal-wd { text-align: center; font-size: 10.5px; font-weight: 500; letter-spacing: .06em; color: var(--ink-3); padding: 2px 0 4px; }
-.cal-cell { position: relative; aspect-ratio: 1 / 1; border-radius: 8px; background: var(--bg); border: 1px solid var(--line-2); display: grid; align-content: space-between; padding: 5px 4px; min-width: 0; }
+.cal-cell { position: relative; aspect-ratio: 1 / 1; border-radius: 8px; background: var(--bg); border: 1px solid var(--line-2); display: grid; align-content: space-between; padding: 5px 3px; min-width: 0; }
 .cal-cell.blank { background: transparent; border-color: transparent; }
 .cal-cell.future { opacity: .4; }
 .cal-cell.today { box-shadow: inset 0 0 0 1px var(--accent); }
@@ -434,6 +434,10 @@ tr.det[hidden] { display: none !important; }
 .det-in { display: grid; gap: 8px; }
 .det-in .act { justify-self: end; }
 .psum .d { display: none; color: var(--ink-3); }
+.row .est { margin: 0 5px 0 0; }
+.pk .mg { white-space: nowrap; }
+.cal-v.l5 { font-size: 10.5px; letter-spacing: -.02em; }
+.cal-v.long { font-size: 9.5px; letter-spacing: -.03em; }
 @media (max-width: 800px) {
   #p-log tr.row { gap: 6px 12px; padding: 11px 18px; }
   #p-log tr.row td.pc { width: auto; max-width: none; }
@@ -918,7 +922,7 @@ tr.det[hidden] { display: none !important; }
       ["Worst day", worstD ? money(worstD[1], true) : "—", worstD ? fmtDate(worstD[0]) : "", worstD ? "neg" : ""],
       ["Biggest win", bigW ? money(pnl(bigW), true) : "—", bigW ? `${fmtName(bigW)} · ${fmtDate(bigW.date)}` : "", bigW ? "pos" : ""],
       ["Biggest loss", bigL ? money(pnl(bigL), true) : "—", bigL ? `${fmtName(bigL)} · ${fmtDate(bigL.date)}` : "", bigL ? "neg" : ""],
-      ["Max drawdown", dd > 0 ? money(-dd) : "$0.00", dd > 0 ? `${pct(ddPct)} off peak` : "", dd > 0 ? "neg" : ""],
+      ["Max drawdown", dd > 0 ? money(-dd) : "$0.00", dd > 0 ? `${pct(ddPct)} off peak · settled` : "", dd > 0 ? "neg" : ""],
       ["Average entry", avg != null ? money(avg) : "—", avg != null && bank > 0 ? `${pct(avg / bank)} of balance` : "", ""]
     ];
     $("#recs").replaceChildren(...rows.map(([k, v, sub, cls]) => el("div", { class: "rec" }, el("span", { class: "k", text: k }), el("span", { class: "v " + cls }, v, el("small", { text: sub })))));
@@ -938,7 +942,7 @@ tr.det[hidden] { display: none !important; }
       card("All miss", money(bank), "stakes already out"),
       el("div", { class: "sc" }, el("div", { class: "k", text: "In play" }), el("div", { class: "v", text: money(stake) }),
         el("div", { class: "meter" + (hot ? " hot" : ""), role: "img", "aria-label": `${pct(share)} of your money is in play` }, el("i", { style: `width:${Math.min(100, share * 100).toFixed(1)}%` })),
-        el("div", { class: "s", text: `${pct(share)} of balance${hot ? " · high" : ""}` }))
+        el("div", { class: "s", text: `${pct(share)} at risk${hot ? " · high" : ""}` }))
     );
     const m = new Map();
     for (const e of openAll) for (const p of e.picks || []) {
@@ -1028,17 +1032,17 @@ tr.det[hidden] { display: none !important; }
   const cal = { month: null };
   function drawDaily(settled) {
     const host = $("#c-daily");
-    const days = new Map(); for (const e of settled) { const r = days.get(e.date) || { d: e.date, v: 0, n: 0, w: 0 }; r.v += pnl(e); r.n++; if (pnl(e) > 0) r.w++; days.set(e.date, r); }
+    const days = new Map(); for (const e of settled) { const r = days.get(e.date) || { d: e.date, v: 0, n: 0, w: 0, k: 0 }; r.v += pnl(e); r.n++; if (isPack(e)) r.k++; if (pnl(e) > 0) r.w++; days.set(e.date, r); }
     const t = today(); if (!cal.month) cal.month = t.slice(0, 7);
     const [Y, M] = cal.month.split("-").map(Number);
     const first = new Date(Y, M - 1, 1), nDays = new Date(Y, M, 0).getDate(), lead = first.getDay();
     const inMonth = [...days.values()].filter(r => r.d.startsWith(cal.month));
-    const tot = inMonth.reduce((a, r) => a + r.v, 0), nSet = inMonth.reduce((a, r) => a + r.n, 0);
+    const tot = inMonth.reduce((a, r) => a + r.v, 0), nSet = inMonth.reduce((a, r) => a + r.n, 0), nPk = inMonth.reduce((a, r) => a + r.k, 0);
     const compact = host.clientWidth < 560;
-    const fmtCell = v => { if (!compact) return money0(v, true); const a = Math.abs(v), sgn = v > 0 ? "+" : v < 0 ? "−" : ""; return sgn + (a >= 1000 ? (a / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(a))); };
+    const fmtCell = v => { if (!compact) return money0(v, true); const a = Math.abs(v), sgn = v > 0 ? "+" : v < 0 ? "−" : ""; return sgn + "$" + (a >= 1000 ? (a / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(a))); };
     const nav = (dir, label, text) => el("button", { class: "cal-nav", type: "button", "aria-label": label, text, onclick: () => { const nm = new Date(Y, M - 1 + dir, 1); cal.month = `${nm.getFullYear()}-${String(nm.getMonth() + 1).padStart(2, "0")}`; drawDaily(settled); } });
     const head = el("div", { class: "cal-head" }, nav(-1, "Previous month", "‹"),
-      el("div", { class: "cal-title" }, el("b", { text: first.toLocaleDateString("en-US", { month: "long", year: "numeric" }) }), el("span", { class: "cal-tot num " + (tot > 0 ? "pos" : tot < 0 ? "neg" : ""), text: nSet ? `${money(tot, true)} · ${nSet} settled` : "no settled entries" })),
+      el("div", { class: "cal-title" }, el("b", { text: first.toLocaleDateString("en-US", { month: "long", year: "numeric" }) }), el("span", { class: "cal-tot num " + (tot > 0 ? "pos" : tot < 0 ? "neg" : ""), text: nSet ? `${money(tot, true)} · ${nSet - nPk} settled${nPk ? ` · ${nPk} packs` : ""}` : "—" })),
       nav(1, "Next month", "›"));
     const grid = el("div", { class: "cal-grid", role: "grid", "aria-label": "Daily net PnL calendar" });
     for (const w of ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]) grid.append(el("div", { class: "cal-wd", text: w }));
@@ -1049,8 +1053,8 @@ tr.det[hidden] { display: none !important; }
       const key = `${cal.month}-${String(d).padStart(2, "0")}`, r = days.get(key);
       const cls = "cal-cell" + (r ? (r.v > 0 ? " up" : r.v < 0 ? " down" : " flat") : "") + (key === t ? " today" : key > t ? " future" : "");
       const c = el("div", { class: cls, role: "gridcell", tabindex: r ? 0 : null, "aria-label": `${fmtDate(key)}: ${r ? money(r.v, true) + ", " + r.n + " settled" : "nothing settled"}` },
-        el("span", { class: "cal-d", text: String(d) }), r ? el("span", { class: "cal-v num", text: fmtCell(r.v) }) : null);
-      if (r) { const show = () => { const rc = c.getBoundingClientRect(), hr = host.getBoundingClientRect(); T.show(rc.left - hr.left + rc.width / 2, rc.top - hr.top, fmtDate(key), [["Net PnL", money(r.v, true)], ["Settled", String(r.n)], ["Cashed", String(r.w)]]); };
+        el("span", { class: "cal-d", text: String(d) }), r ? el("span", { class: "cal-v num" + (compact ? (fmtCell(r.v).length >= 6 ? " long" : fmtCell(r.v).length === 5 ? " l5" : "") : ""), text: fmtCell(r.v) }) : null);
+      if (r) { const show = () => { const rc = c.getBoundingClientRect(), hr = host.getBoundingClientRect(); T.show(rc.left - hr.left + rc.width / 2, rc.top - hr.top, fmtDate(key), [["Net PnL", money(r.v, true)], ["Entries", String(r.n)], ["Cashed", String(r.w)]]); };
         c.addEventListener("pointerenter", show); c.addEventListener("pointerdown", show); c.addEventListener("pointerleave", () => T.hide()); c.addEventListener("focus", show); c.addEventListener("blur", () => T.hide()); }
       grid.append(c);
     }
@@ -1084,7 +1088,7 @@ tr.det[hidden] { display: none !important; }
       const head = el("button", { class: "sh", type: "button", "aria-expanded": String(on0), onclick: () => { const on = card.classList.toggle("open"); head.setAttribute("aria-expanded", String(on)); if (on) ui.slipOpen.add(e.id); else ui.slipOpen.delete(e.id); } },
         el("span", { class: "m", text: fmtName(e) }),
         el("span", { class: "tag", text: `${entrySport(e)} · ${fmtDate(e.date)}${e.bonus ? " · Bonus" : ""}` }),
-        el("span", { class: "sum" }, el("b", { class: "mono", text: money(baseAmt(e)) }), el("span", { class: "mono muted", text: `${graded}/${e.picks.length}` })),
+        el("span", { class: "sum" }, el("b", { class: "mono", text: money(baseAmt(e)) }), el("span", { class: "mono muted", text: graded ? `${graded}/${e.picks.length} graded` : `${e.picks.length} picks` })),
         el("i", { class: "chev", "aria-hidden": "true" }));
       const body = el("div", { class: "sb" },
         shared ? el("small", { class: "ls shared " + shared.s, text: shared.t }) : null,
@@ -1120,7 +1124,7 @@ tr.det[hidden] { display: none !important; }
         el("td", { class: "nw" }, el("div", { style: "font-weight:600", text: fmtName(e) }), el("div", { class: "tag", text: isPack(e) ? (e.bonus ? "Free pack" : "Paid pack") : entrySport(e) })),
         el("td", { class: "pc" }, sum),
         e.bonus ? el("td", { class: "r nw", "data-l": "Stake" }, el("span", { class: "pill bonus", title: isPack(e) ? "Free pack, not taken from your balance" : "Promo money, not taken from your balance", text: (isPack(e) ? "Free " : "Bonus ") + money0(Number(e.bonusStake) || 0) })) : el("td", { class: "r mono", "data-l": "Stake", text: money(Number(e.stake) || 0) }),
-        o === "open" ? el("td", { class: "r mono muted nw", "data-l": "Payout", text: "max " + money(maxPay(e)) }) : el("td", { class: "r mono nw", "data-l": "Payout", title: e.estPayout ? "Worked out with standard multipliers. Check the app and edit the entry if it paid differently." : null }, money(Number(paid(e)) || 0), e.estPayout ? el("span", { class: "est", text: "est." }) : null),
+        o === "open" ? el("td", { class: "r mono muted nw", "data-l": "Payout", text: "max " + money(maxPay(e)) }) : el("td", { class: "r mono nw", "data-l": "Payout", title: e.estPayout ? "Worked out with standard multipliers. Check the app and edit the entry if it paid differently." : null }, e.estPayout ? el("span", { class: "est", text: "est." }) : null, money(Number(paid(e)) || 0)),
         el("td", { class: "r mono " + (p > 0 ? "pos" : p < 0 ? "neg" : ""), "data-l": "PnL", text: p == null ? "—" : money(p, true) }),
         el("td", {}, el("span", { class: "pill " + o, text: o === "even" ? "Push" : o })));
       return [tr, det];
@@ -1483,10 +1487,10 @@ tr.det[hidden] { display: none !important; }
   function drawAccount() {
     const m = $("#acct-meta"); if (!m) return;
     const n = sync.outbox.length;
-    m.replaceChildren(
+    m.replaceChildren(...[
       el("span", {}, "Your bets sync to ", el("b", { text: sync.auth ? sync.auth.repo : "no repo yet" })),
       el("span", {}, "Last synced ", el("b", { text: sync.lastOk ? when(sync.lastOk) : "never" })),
-      n ? el("span", {}, "Waiting to sync ", el("b", { text: plural(n, "change", "changes") })) : null);
+      n ? el("span", {}, "Waiting to sync ", el("b", { text: plural(n, "change", "changes") })) : null].filter(Boolean));
   }
   $("#a-sync").addEventListener("click", () => sync.auth ? syncNow(true) : showConnect());
   $("#a-token").addEventListener("click", () => showConnect());

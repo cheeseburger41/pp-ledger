@@ -368,6 +368,10 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
 .dlg header h3 { font-weight: 400; font-size: 17px; letter-spacing: .14em; }
 .slip .h .m { font-weight: 400; font-size: 18px; }
 .kpi .k, .sc .k, th, label.f, .pickrow.hdr, .ab-k { font-weight: 500; }
+/* Quiet: no summary sentence, no panel hints */
+.brand p, .panel .hint, .panel-head .hint { display: none; }
+.panel h2 { margin-bottom: 10px; }
+.panel-head h2 { margin-bottom: 0; }
 @media (max-width: 700px) {
   .tabbar { background: color-mix(in srgb, var(--bg) 88%, transparent); border-top-color: var(--line-2); }
   .tabbar .tb-add { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 10px 24px rgba(0,0,0,.7), 0 0 0 4px var(--bg); }
@@ -501,7 +505,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
       <h2>Edge vs break-even</h2>
       <p class="hint">Your pick hit rate in each format against the rate it needs to break even</p>
       <div class="edge" id="edge"></div>
-      <div class="ekey"><span><i class="kb"></i>Rate needed to break even</span><span><i class="kd"></i>Your hit rate</span><span id="ekey-std" hidden>* standard payouts, only bonus entries in this format</span></div>
+      <div class="ekey"><span><i class="kb"></i>Break-even</span><span><i class="kd"></i>Hit rate</span><span id="ekey-std" hidden>* standard payouts, only bonus entries in this format</span></div>
     </section>
     <section class="panel span-6" id="p-daily" data-tabs="stats">
       <h2>Daily PnL</h2>
@@ -531,7 +535,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
     </section>
     <section class="panel span-12" data-tabs="stats">
       <details class="legend">
-        <summary>How numbers are worked out, payouts and break-even rates</summary>
+        <summary>How the numbers work</summary>
         <p>Packs: a pack's price comes out of your balance and its card's value goes back in, so a pack's PnL is the card value minus the price. A free pack costs nothing, so its whole card value counts as profit. Packs count toward Balance, Net PnL, ROI and the balance and daily charts, but not toward win rate, pick hit rate, records for entries or break-even.</p>
         <p>Balance = starting balance + net PnL of settled entries − entry amounts of open entries. An entry's amount leaves your balance the moment you log it and only comes back, with any winnings, when it settles. A Power entry only pays when every pick hits: one miss settles it as a loss right away. Bonus lineups use promo money, so they never take from your balance and only their winnings count. When every pick hits, the payout is the entry's To Win from the app; otherwise it uses the standard multipliers below, and a push or DNP drops that pick and pays the smaller entry.</p>
         <p>Break-even is the share of picks you need to hit for an entry to pay back its cost on average. It comes from each entry's own To Win, so goblin and demon lines are priced in; bonus lineups are left out because they cost nothing. Flex break-evens assume the lower tiers shrink in step with your To Win. Open risk counts every open entry: the best case adds each entry's To Win to your balance, and the player table shows how much payout depends on each player.</p>
@@ -593,12 +597,12 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
         <label class="f" id="f-towin-wrap">To win ($)<input class="in" type="number" id="f-towin" min="0" step="0.01" inputmode="decimal" placeholder="from app"></label>
         <label class="f"><span id="f-payout-lbl">Payout ($)</span><input class="in" type="number" id="f-payout" min="0" step="0.01" inputmode="decimal" placeholder="auto"></label>
       </div>
-      <label class="check"><input type="checkbox" id="f-bonus"> <span id="f-bonus-lbl">Bonus lineup (promo money, not taken from your balance)</span></label>
+      <label class="check"><input type="checkbox" id="f-bonus"> <span id="f-bonus-lbl">Bonus lineup (promo money)</span></label>
       <div id="picks-wrap">
         <div class="pickrows" id="pickrows">
           <div class="pickrow hdr"><span>Sport</span><span>Player</span><span>Stat</span><span>Line</span><span>Pick</span><span>Actual</span><span>Result</span><span></span></div>
         </div>
-        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center"><button type="button" class="btn" id="add-pick">+ Add pick</button><span class="note">Type a player's actual stat and the result fills in.</span></div>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center"><button type="button" class="btn" id="add-pick">+ Add pick</button><span class="note">Type the actual stat to grade.</span></div>
       </div>
       <div class="calc" id="calc"></div>
       <label class="f">Notes<textarea class="in" id="f-notes" rows="2" placeholder="Why you took it: matchup, weather, minutes, injuries"></textarea></label>
@@ -716,18 +720,18 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
     const filt = state.sport !== "All" || state.typeF !== "all" || state.range !== "all";
 
     setKpi("#k-bank", money(bank), "");
-    $("#k-bank-sub").textContent = openAllStake ? `${money0(openAllStake)} in play · start ${money0(start)}` : `Start ${money0(start)}`;
+    $("#k-bank-sub").textContent = openAllStake ? `${money0(openAllStake)} in play` : `Start ${money0(start)}`;
     setKpi("#k-pnl", money(net, true), net > 0 ? "pos" : net < 0 ? "neg" : "");
-    $("#k-pnl-sub").textContent = plural(settledE.length, "settled entry", "settled entries") + (packsN ? ` · ${plural(packsN, "pack", "packs")}` : "") + (filt ? " · filtered" : "");
+    $("#k-pnl-sub").textContent = `${settledE.length} settled` + (packsN ? ` · ${packsN} packs` : "") + (filt ? " · filtered" : "");
     setKpi("#k-roi", staked ? sgnPct(net / staked) : "—", !staked ? "" : net > 0 ? "pos" : net < 0 ? "neg" : "");
-    $("#k-roi-sub").textContent = staked ? `on ${money(staked)} staked` : settled.length ? "No paid entries settled yet" : "PnL ÷ amount staked";
+    $("#k-roi-sub").textContent = staked ? `${money0(staked)} staked` : "—";
     setKpi("#k-win", settledE.length ? pct(wins / settledE.length) : "—", "");
-    $("#k-win-sub").textContent = settledE.length ? `${wins} of ${settledE.length} entries cashed` : "Paid more than stake";
+    $("#k-win-sub").textContent = settledE.length ? `${wins}/${settledE.length} cashed` : "—";
     const hr = legs.length ? hits / legs.length : null;
     setKpi("#k-hit", hr == null ? "—" : pct(hr), hr == null || be == null ? "" : hr >= be ? "pos" : "neg");
-    $("#k-hit-sub").textContent = (legs.length ? `${hits} of ${legs.length} picks` : "No graded picks") + (be != null ? ` · need ${pct(be)}` : "");
+    $("#k-hit-sub").textContent = (legs.length ? `${hits}/${legs.length}` : "—") + (be != null ? ` · need ${pct(be)}` : "");
     setKpi("#k-open", money(openStake), "");
-    $("#k-open-sub").textContent = openL.length ? `${plural(openL.length, "entry", "entries")} · up to ${money0(openBack)} back` : "No open entries";
+    $("#k-open-sub").textContent = openL.length ? `${openL.length} open · max ${money0(openBack)}` : "—";
 
     const s = $("#summary");
     if (!state.loaded) s.textContent = "Loading your entries…";
@@ -823,13 +827,13 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
     const cashE = list.filter(e => !isPack(e) && !e.bonus && (Number(e.stake) || 0) > 0);
     const avg = cashE.length ? cashE.reduce((a, e) => a + Number(e.stake), 0) / cashE.length : null;
     const rows = [
-      ["Best day", bestD ? money(bestD[1], true) : "—", bestD ? fmtDate(bestD[0]) : "No winning day yet", bestD ? "pos" : ""],
-      ["Worst day", worstD ? money(worstD[1], true) : "—", worstD ? fmtDate(worstD[0]) : "No losing day yet", worstD ? "neg" : ""],
-      ["Biggest win", bigW ? money(pnl(bigW), true) : "—", bigW ? `${fmtName(bigW)} · ${fmtDate(bigW.date)}` : "No winning entry yet", bigW ? "pos" : ""],
-      ["Biggest loss", bigL ? money(pnl(bigL), true) : "—", bigL ? `${fmtName(bigL)} · ${fmtDate(bigL.date)}` : "No paid entry lost yet", bigL ? "neg" : ""],
-      ["Current streak", streak ? `${streak.o === "won" ? "Won" : "Lost"} ${streak.k}` : "—", streak ? `Last ${plural(streak.k, "settled entry", "settled entries")}` : "Needs a settled entry", streak ? (streak.o === "won" ? "pos" : "neg") : ""],
-      ["Max drawdown", dd > 0 ? money(-dd) : "$0.00", dd > 0 ? `${pct(ddPct)} below the peak` : "No drop from a peak yet", dd > 0 ? "neg" : ""],
-      ["Average entry", avg != null ? money(avg) : "—", avg != null && bank > 0 ? `${pct(avg / bank)} of your balance` : "Paid entries only", ""]
+      ["Best day", bestD ? money(bestD[1], true) : "—", bestD ? fmtDate(bestD[0]) : "", bestD ? "pos" : ""],
+      ["Worst day", worstD ? money(worstD[1], true) : "—", worstD ? fmtDate(worstD[0]) : "", worstD ? "neg" : ""],
+      ["Biggest win", bigW ? money(pnl(bigW), true) : "—", bigW ? `${fmtName(bigW)} · ${fmtDate(bigW.date)}` : "", bigW ? "pos" : ""],
+      ["Biggest loss", bigL ? money(pnl(bigL), true) : "—", bigL ? `${fmtName(bigL)} · ${fmtDate(bigL.date)}` : "", bigL ? "neg" : ""],
+      ["Current streak", streak ? `${streak.o === "won" ? "Won" : "Lost"} ${streak.k}` : "—", "", streak ? (streak.o === "won" ? "pos" : "neg") : ""],
+      ["Max drawdown", dd > 0 ? money(-dd) : "$0.00", dd > 0 ? `${pct(ddPct)} off peak` : "", dd > 0 ? "neg" : ""],
+      ["Average entry", avg != null ? money(avg) : "—", avg != null && bank > 0 ? `${pct(avg / bank)} of balance` : "", ""]
     ];
     $("#recs").replaceChildren(...rows.map(([k, v, sub, cls]) => el("div", { class: "rec" }, el("span", { class: "k", text: k }), el("span", { class: "v " + cls }, v, el("small", { text: sub })))));
   }
@@ -841,14 +845,14 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
     const back = openAll.reduce((a, e) => a + maxPay(e), 0);
     const share = bank + stake > 0 ? stake / (bank + stake) : 0;
     const card = (k, v, sub, cls) => el("div", { class: "sc" }, el("div", { class: "k", text: k }), el("div", { class: "v " + (cls || ""), text: v }), el("div", { class: "s", text: sub }));
-    if (!openAll.length) { sc.replaceChildren(card("Riding now", "$0.00", "Nothing open. New entries show their risk here.")); emptyBox(ex, "No open picks", " Player exposure appears while entries are open."); return; }
+    if (!openAll.length) { sc.replaceChildren(card("In play", "$0.00", "Nothing open")); emptyBox(ex, "No open picks", ""); return; }
     const hot = share > 0.25;
     sc.replaceChildren(
-      card("If every open entry hits", money(bank + back), `${money(back)} back to your balance`, "pos"),
-      card("If every open entry misses", money(bank), "Entries are already out of your balance"),
-      el("div", { class: "sc" }, el("div", { class: "k", text: "Riding now" }), el("div", { class: "v", text: money(stake) }),
+      card("All hit", money(bank + back), `+${money0(back)}`, "pos"),
+      card("All miss", money(bank), "stakes already out"),
+      el("div", { class: "sc" }, el("div", { class: "k", text: "In play" }), el("div", { class: "v", text: money(stake) }),
         el("div", { class: "meter" + (hot ? " hot" : ""), role: "img", "aria-label": `${pct(share)} of your money is in play` }, el("i", { style: `width:${Math.min(100, share * 100).toFixed(1)}%` })),
-        el("div", { class: "s", text: `${pct(share)} of your money is in play${hot ? ", above a quarter of it" : ""}` }))
+        el("div", { class: "s", text: `${pct(share)} of balance${hot ? " · high" : ""}` }))
     );
     const m = new Map();
     for (const e of openAll) for (const p of e.picks || []) {
@@ -929,7 +933,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
           a != null ? el("span", { class: "gap " + (good ? "good" : "bad"), style: `left:${X(a)};width:calc(${X(b)} - ${X(a)})` }) : null,
           r.be != null ? el("span", { class: "be", style: `left:${X(r.be)}` }) : null,
           rate != null ? el("span", { class: "me " + (good ? "good" : "bad"), style: `left:${X(rate)}` }) : null),
-        el("div", { class: "ev" }, el("b", { class: rate == null ? "" : good ? "pos" : "neg", text: rate == null ? "—" : pct(rate) }), el("small", { text: `${n ? `${h}/${n} picks · ` : "0 graded · "}need ${r.be == null ? "—" : pct(r.be)}${r.std ? "*" : ""}` })));
+        el("div", { class: "ev" }, el("b", { class: rate == null ? "" : good ? "pos" : "neg", text: rate == null ? "—" : pct(rate) }), el("small", { text: `${n ? `${h}/${n} · ` : ""}need ${r.be == null ? "—" : pct(r.be)}${r.std ? "*" : ""}` })));
     }));
   }
 
@@ -991,8 +995,8 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
           return el("li", {}, el("div", { class: "pl" }, pickChip(p, true), inf ? el("small", { class: "ls " + inf.s, text: inf.t }) : null), right); })),
         el("div", { class: "f" },
           el("span", {}, e.bonus ? "Bonus " : "Stake ", el("b", { class: "mono", text: money(baseAmt(e)) })),
-          el("span", {}, `${graded}/${e.picks.length} graded · max `, el("b", { class: "mono", text: money(maxPay(e)) })),
-          be != null ? el("span", { class: "muted", text: `Needs ${pct(be)} of picks to break even` }) : null)));
+          el("span", {}, `${graded}/${e.picks.length} · max `, el("b", { class: "mono", text: money(maxPay(e)) })),
+          be != null ? el("span", { class: "muted", text: `BE ${pct(be)}` }) : null)));
     }
     host.replaceChildren(wrap);
   }
@@ -1051,7 +1055,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
     $("#f-payout-lbl").textContent = pack ? "Card value ($)" : "Payout ($)";
     $("#f-payout").placeholder = pack ? "1.59" : "auto";
     $("#f-stake").placeholder = pack ? "5.00" : "10.00";
-    $("#f-bonus-lbl").textContent = pack ? "Free pack (not taken from your balance)" : "Bonus lineup (promo money, not taken from your balance)";
+    $("#f-bonus-lbl").textContent = pack ? "Free pack" : "Bonus lineup (promo money)";
     if (pack) {
       const amt = formAmt(), bonus = formBonus(), cash = bonus ? 0 : amt, pv = num($("#f-payout").value);
       $("#f-stake-lbl").textContent = "Pack price ($)";
@@ -1387,7 +1391,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
   function showInstall(kind) {
     if (standalone() || LS.get("installDismissed")) return;
     const box = $("#install"); box.hidden = false;
-    $("#install-t").textContent = kind === "prompt" ? "Install Vici as an app for full-screen launch and offline use." : "Add Vici to your home screen: tap Share, then Add to Home Screen.";
+    $("#install-t").textContent = kind === "prompt" ? "Install Vici for full screen and offline use." : "Add Vici to your home screen: Share → Add to Home Screen.";
     $("#install-go").hidden = kind !== "prompt";
   }
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; showInstall("prompt"); });

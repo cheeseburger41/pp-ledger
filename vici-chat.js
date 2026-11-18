@@ -2,12 +2,13 @@
  *
  * The chat sheet inside Vici: conversation storage (IndexedDB), the Claude agent loop (official SDK, beta Messages API,
  * streaming), the client tools (ESPN via ViciData, ledger via window.Vici, learning via ViciModel), pick cards, the slip
- * tray, silent usage aggregates (synced to vici-usage.json, never shown) and the Model panel.
+ * tray and silent usage aggregates (synced to vici-usage.json, never shown). The learning has no panel of its own (Angus removed
+ * it, 2026-11-18): it shows as Vici % on the cards and the header record.
  *
  *   ViciChat.init()                 wire every .act-chat (click delegation), data listeners, grading + usage sync timers
  *   ViciChat.open(prompt?)          open the sheet (prompt pre-fills the composer; nothing is sent without a tap)
  *   ViciChat.close()
- *   ViciChat.renderModel(container) render the learning view into container (re-renders itself on data changes)
+ *   ViciChat.renderModel(container) no-op kept for older app builds: empties container and hides its #p-model section
  *
  * Safety: every string from the model, the web, ESPN or the user is put in the DOM with textContent / createElement.
  * The markdown renderer escapes everything and only builds a whitelisted set of elements; links are https only.
@@ -33,7 +34,8 @@
   const TZ = "America/Los_Angeles";
   const LS = {
     key: "ppl.anthropicKey", depth: "ppl.chatDepth", cur: "ppl.chatCurrent", slip: "ppl.chatSlip",
-    usage: "ppl.usage", usageOut: "ppl.usageOutbox", sport: "ppl.modelSport"
+    usage: "ppl.usage", usageOut: "ppl.usageOutbox",
+    sport: "ppl.modelSport"   // obsolete since the Model panel went (2026-11-18): cleared at start and by Disconnect
   };
   const BETA_FALLBACK = "server-side-fallback-2026-07-01";
   const BETA_BINDING = "thinking-binding-controls-2026-08-01";
@@ -286,7 +288,6 @@
     const s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return (v < 0 ? "−$" : signed && v > 0 ? "+$" : "$") + s;
   }
-  const pct0 = v => (isNum(v) ? Math.round(v * 100) + "%" : "—");
   const isAltLine = t => t === "goblin" || t === "demon";   // PrizePicks lines that change the slip's payout
   const fmtLine = v => (isNum(Number(v)) ? String(Number(v)) : "—");
   function sideOf(s) {
@@ -962,7 +963,7 @@
     inited: false, dom: null, open: false, pushed: false, ignorePop: false, opener: null, inerted: [],
     conv: null, busy: false, stopped: false, ac: null, act: null, group: null, nodes: new Map(),
     atts: [], slip: new Map(), expanded: new Set(), panel: null, forgetArmed: false,
-    model: null, names: {}, lastGrade: 0, modelHosts: new Set(), client: null, clientKey: null, sdkP: null,
+    model: null, names: {}, lastGrade: 0, client: null, clientKey: null, sdkP: null,
     beat: 0, logged: null
   };
 
@@ -2318,7 +2319,7 @@
     ta.style.height = Math.min(ta.scrollHeight, 148) + "px";
   }
 
-  // ---------------------------------------------------------------- panels (history, settings, model)
+  // ---------------------------------------------------------------- panels (history, settings)
   function showPanel(kind) {
     if (!S.dom) return;
     if (kind === "history" && S.busy) return;
@@ -2328,12 +2329,11 @@
     p.textContent = "";
     p.hidden = false;
     p.setAttribute("data-kind", kind);
-    const title = { history: "History", settings: "Settings", model: "Model" }[kind] || "";
+    const title = { history: "History", settings: "Settings" }[kind] || "";
     const body = h("div", { class: "vc-pb" });
     p.append(h("div", { class: "vc-ph" }, iconBtn("back", "Back", hidePanel), h("h2", { text: title }), h("span", { class: "vc-sp" })), body);
     if (kind === "history") historyPanel(body);
     else if (kind === "settings") settingsPanel(body);
-    else if (kind === "model") { body.classList.add("vm-host"); renderModelView(body); }
     const first = p.querySelector("button");
     if (first && finePointer()) first.focus({ preventScroll: true });
   }
@@ -2434,7 +2434,7 @@
     S.conv = c;
   }
 
-  // ---------------------------------------------------------------- model view
+  // ---------------------------------------------------------------- header record
   /** Vici's own graded record (its journaled picks: hits and misses). */
   function botRecord() {
     let hit = 0, miss = 0;
@@ -2449,133 +2449,14 @@
     S.dom.stat.textContent = n ? r.hit + "–" + r.miss : "";
     if (n) S.dom.stat.title = "Vici's picks: " + r.hit + " hit, " + r.miss + " missed"; else S.dom.stat.removeAttribute("title");
   }
-  const svgText = (x, y, t, cls, anchor) => { const n = sv("text", { x, y, class: cls || "", "text-anchor": anchor || "start" }); n.textContent = t; return n; };
-  function calChart(cal) {
-    const pts = (cal.buckets || []).filter(bk => bk.n && isNum(bk.pred) && isNum(bk.actual));
-    // y (actual hit rate) spans 40-80% and grows in 10-point steps to fit every bucket; x (Vici %) spans 45-80% and grows
-    // in 5-point steps to fit every bucket (Vici % runs 30-85%), so no point is pinned to an edge
-    const acts = pts.map(bk => bk.actual), preds = pts.map(bk => bk.pred);
-    const ylo = Math.max(0, Math.min(0.4, Math.floor(Math.min.apply(null, acts.concat(0.4)) * 10 + 1e-9) / 10));
-    const yhi = Math.min(1, Math.max(0.8, Math.ceil(Math.max.apply(null, acts.concat(0.8)) * 10 - 1e-9) / 10));
-    const steps = Math.round((yhi - ylo) * 10);
-    const W = 340, l = 36, r = 12, t = 10, b = 24, H = t + b + steps * 34;
-    const lo = Math.max(0.3, Math.min(0.45, Math.floor(Math.min.apply(null, preds.concat(0.45)) * 20 + 1e-9) / 20));
-    const hi = Math.min(0.85, Math.max(0.8, Math.ceil(Math.max.apply(null, preds.concat(0.8)) * 20 - 1e-9) / 20));
-    const X = v => l + ((clamp(v, lo, hi) - lo) / (hi - lo)) * (W - l - r);
-    const Y = v => t + (1 - (clamp(v, ylo, yhi) - ylo) / (yhi - ylo)) * (H - t - b);
-    const s = sv("svg", { viewBox: "0 0 " + W + " " + H, class: "vm-svg", role: "img", "aria-label": "Predicted vs actual hit rate" });
-    for (let k = 0; k <= steps; k++) {
-      const v = round(ylo + k / 10, 2);
-      s.append(sv("line", { x1: l, x2: W - r, y1: Y(v), y2: Y(v), class: "vm-grid" }));
-      s.append(svgText(l - 6, Y(v) + 3.5, Math.round(v * 100) + "%", "vm-tick", "end"));
-    }
-    [0.3, 0.4, 0.5, 0.6, 0.7, 0.8].filter(v => v >= lo + 0.02 && v <= hi + 1e-9)
-      .forEach(v => s.append(svgText(X(v), H - 6, Math.round(v * 100) + "%", "vm-tick", "middle")));
-    const d0 = Math.max(lo, ylo), d1 = Math.min(hi, yhi);   // predicted = actual, inside both ranges
-    if (d1 > d0) s.append(sv("line", { x1: X(d0), y1: Y(d0), x2: X(d1), y2: Y(d1), class: "vm-diag" }));
-    if (pts.length > 1) s.append(sv("polyline", { points: pts.map(bk => X(bk.pred) + "," + Y(bk.actual)).join(" "), class: "vm-line" }));
-    pts.forEach(bk => {
-      const rad = Math.min(9, 3 + Math.sqrt(bk.n));
-      s.append(sv("circle", { cx: X(bk.pred), cy: Y(bk.actual), r: rad, class: "vm-pt" }));
-      s.append(svgText(X(bk.pred), Y(bk.actual) - rad - 4, String(bk.n), "vm-n", "middle"));
-    });
-    return s;
-  }
-  function segRows(list, kind, strip) {
-    return h("div", { class: "vm-rows" }, list.map(sg => h("div", { class: "vm-r" },
-      h("span", { class: "lbl" }, h("span", { text: strip(String(sg.label || "").trim()) })),
-      h("b", { class: kind, text: pct0(sg.raw) + " · " + sg.hits + "/" + sg.n }))));
-  }
-  /** A model that can be read by sport (an older cached vici-model.js can't: then there is no switch, only All). */
-  const bySportOk = m => !!(m && Array.isArray(m.sports) && m.track && m.track.bySport && m.bySport && root.ViciModel && root.ViciModel.SPORT_ORDER);
-  /** The sports on the switch: Angus's four, then any other sport Vici has picked. */
-  function sportsOf(m) {
-    if (!bySportOk(m)) return [];
-    const order = root.ViciModel.SPORT_ORDER;
-    return order.concat(m.sports.filter(x => order.indexOf(x) < 0));
-  }
-  /** The sport the Model panel shows (remembered on this device), "All" unless one is picked. */
-  function modelSport(m) {
-    const v = lsGet(LS.sport);
-    return v && sportsOf(m).indexOf(v) >= 0 ? v : "All";
-  }
-  function paintModels() {
-    S.modelHosts.forEach(c => { if (c.isConnected) renderModelView(c); else S.modelHosts.delete(c); });
-    if (S.panel === "model" && S.dom) { const b = S.dom.panel.querySelector(".vm-host"); if (b) renderModelView(b); }
-  }
-  function renderModelView(box) {
-    // the view is rebuilt on every data change (the app syncs every minute): keep the keyboard focus on the switch
-    const ae = HAS_DOM ? document.activeElement : null;
-    const keep = ae && box.contains(ae) && ae.closest && ae.closest(".vm-sw") ? ae.textContent : null;
-    box.textContent = "";
-    const VM = root.ViciModel;
-    if (!VM) { box.append(h("div", { class: "vm-empty", text: "Model unavailable" })); return; }
-    const m = getModel();
-    if (!m) { box.append(h("div", { class: "vm-empty", text: "Model unavailable" })); return; }
-    // Vici's predictions (the Vici % on its cards) against the actual results, for all picks or one sport; Angus plays
-    // only what Vici picks
-    const sport = modelSport(m), one = sport !== "All";
-    const sm = VM.summary(m, one ? sport : undefined);
-    const tr = (one ? m.track && m.track.bySport && m.track.bySport[sport] : m.track) || { n: 0, buckets: [] };
-    const strip = lbl => (one && lbl.indexOf(sport + " ") === 0 ? lbl.slice(sport.length + 1) : lbl);
-    const kpi = (k, v, sub) => h("div", { class: "vm-k" }, h("span", { class: "k", text: k }), h("b", { text: v }), h("small", { text: sub }));
-    const wrap = h("div", { class: "vm" });
-    const sw = h("div", { class: "vm-sw", role: "group", "aria-label": "Sport" }, ["All"].concat(sportsOf(m)).map(v => h("button", {
-      type: "button", "aria-pressed": v === sport ? "true" : "false", text: v,
-      onclick: () => {
-        if (v === modelSport(m)) return;
-        if (v === "All") lsDel(LS.sport); else lsSet(LS.sport, v);
-        paintModels();   // every open Model view (Stats page and chat panel) follows the switch
-      }
-    })));
-    if (sportsOf(m).length) wrap.append(sw);
-    wrap.append(h("div", { class: "vm-kpis" },
-      kpi("Predicted", sm.predicted == null ? "—" : pct0(sm.predicted), "avg Vici %"),
-      kpi("Actual", sm.rate == null ? "—" : pct0(sm.rate), sm.graded ? sm.hits + "–" + sm.misses : "hit rate"),
-      kpi("Picks", String(sm.graded), sm.pending + " pending")));
-    const sec = (title, node) => h("section", { class: "vm-sec" }, h("h3", { text: title }), node);
-    wrap.append(sec("Predicted vs actual", tr.n ? calChart(tr) : h("div", { class: "vm-empty", text: one ? "No graded " + sport + " picks yet" : "No graded picks yet" })));
-    const own = (one ? m.bySport && m.bySport[sport] : m) || {};
-    const trust = (own.trust || []).slice(0, 4), fade = (own.fade || []).slice(0, 4);
-    if (trust.length) wrap.append(sec("Trust", segRows(trust, "good", strip)));
-    if (fade.length) wrap.append(sec("Fade", segRows(fade, "bad", strip)));
-    if (!trust.length && !fade.length) wrap.append(sec("Segments", h("div", { class: "vm-empty", text: "Not enough yet" })));
-    // factor lifts are learned across every sport: they show with All only
-    const facs = one ? [] : (m.factors || []).slice(0, 6);
-    if (facs.length) {
-      wrap.append(sec("Factors", h("div", { class: "vm-rows" }, facs.map(f => h("div", { class: "vm-r" },
-        h("span", { class: "lbl" }, h("span", { text: f.label }), h("small", { text: f.verdict })),
-        h("b", { class: f.verdict === "helps" ? "good" : f.verdict === "hurts" ? "bad" : "", text: (f.lift >= 0 ? "+" : "−") + Math.abs(f.lift).toFixed(1) + " pts ±" + (f.liftSE || 0).toFixed(1) }))))));
-    }
-    box.append(wrap);
-    if (box._swRO) { box._swRO.disconnect(); box._swRO = null; }
-    if (!sw.isConnected) return;
-    centreSport(sw);
-    // The Stats tab's view is built while the tab is hidden (0 wide), so it centres again each time it is shown
-    if (typeof ResizeObserver === "function") {
-      let shown = sw.clientWidth > 0;
-      box._swRO = new ResizeObserver(() => {
-        if (!sw.isConnected) { if (box._swRO) box._swRO.disconnect(); box._swRO = null; return; }
-        const now = sw.clientWidth > 0;
-        if (now && !shown) centreSport(sw);
-        shown = now;
-      });
-      box._swRO.observe(sw);
-    }
-    if (keep) { const b = Array.from(sw.querySelectorAll("button")).find(x => x.textContent === keep); if (b) b.focus({ preventScroll: true }); }
-  }
-  /** The chosen sport stays in view when the switch is wider than the screen (a fifth sport, a 320px phone). */
-  function centreSport(sw) {
-    const on = sw.querySelector('[aria-pressed="true"]');
-    if (!on || !(sw.clientWidth > 0) || sw.scrollWidth <= sw.clientWidth + 1) return;
-    const l = on.offsetLeft;   // .vm-sw is positioned: offsets are within it
-    if (l < sw.scrollLeft || l + on.offsetWidth > sw.scrollLeft + sw.clientWidth) sw.scrollLeft = Math.max(0, l - (sw.clientWidth - on.offsetWidth) / 2);
-  }
+  /** The Model panel is gone (Angus, 2026-11-18, "Remove this" about the Stats tab's Model panel; it was also behind the chat's
+   *  wordmark). The learning stays: Vici % on the cards, the journal, the vici_model tool and the prompt's Learning section.
+   *  Kept for app builds that still call it: it leaves the box empty and hides its Stats section. */
   function renderModel(container) {
     if (!HAS_DOM || !container) return;
-    S.modelHosts.add(container);
-    if (container.classList) container.classList.add("vm-host");
-    renderModelView(container);
+    container.textContent = "";
+    const sec = container.closest ? container.closest("#p-model") : null;
+    if (sec) sec.hidden = true;
   }
 
   function onDataChange() {
@@ -2583,7 +2464,6 @@
     checkLogged();
     refreshHeader();
     refreshCards();
-    paintModels();
   }
   async function maybeGrade(force) {
     const D = root.ViciData;
@@ -2599,8 +2479,7 @@
   // ---------------------------------------------------------------- sheet: build, open, close
   function buildDom() {
     const stat = h("span", { class: "vc-stat" });
-    const brand = h("button", { type: "button", class: "vc-brand", "aria-label": "Model", title: "Model", onclick: () => showPanel("model") },
-      h("span", { class: "vc-bi" }, h("span", { class: "vc-word", text: "Vici" }), stat));
+    const brand = h("div", { class: "vc-brand" }, h("span", { class: "vc-bi" }, h("span", { class: "vc-word", text: "Vici" }), stat));
     const bNew = iconBtn("new", "New chat", newChat);
     const bHist = iconBtn("history", "History", () => showPanel("history"));
     const bSet = iconBtn("settings", "Settings", () => showPanel("settings"));
@@ -2746,6 +2625,7 @@
     if (!HAS_DOM) return api;
     if (S.inited) return api;
     S.inited = true;
+    lsDel(LS.sport);
     loadSlip();
     document.addEventListener("click", e => {
       const t = e.target && e.target.closest ? e.target.closest(".act-chat") : null;

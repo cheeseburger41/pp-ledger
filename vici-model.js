@@ -42,6 +42,7 @@
   const RESID_MIN = 10, RESID_K = 30;
   const P_MIN = 0.30, P_MAX = 0.85;
   const PAY_K = 4;                       // prior weight, in entries, of the standard multiplier (and of the pooled ratio per size)
+  const LINKED_NOTE = /\blinked\b/i;      // how the chat marks a logged slip of linked legs (notes "Vici: … · linked")
   const PAY_LO = 0.25, PAY_HI = 2.5;     // a To Win outside this share of the standard is a typo or a promo, not PrizePicks' pricing
   const KELLY_LO = 0.25, KELLY_HI = 0.5, KELLY_RAMP = 200;   // share of the full Kelly stake, by graded picks
   const STAKE_CAP = 0.05;                // never more than 5% of the Balance on one slip
@@ -534,15 +535,19 @@
 
   // ---------- payouts, profit and stakes ----------
   /** What PrizePicks actually pays Angus on Power entries: To Win ÷ stake against the standard multiplier, from his ledger.
-   *  Left out: bonus entries, slips the chat logged with a goblin or demon leg (their payout differs by design), any share
+   *  Left out: bonus entries, entries whose notes mention a goblin or demon leg (their payout differs by design: the chat
+   *  notes "Vici: … goblin/demon", the Log form "Goblin: <player> <stat>" or "Demon: …"), any share
    *  outside [0.25, 2.5], and a won entry without To Win whose payout is just the app's own standard fill-in (or flagged as
    *  estimated): that is the app's guess, not PrizePicks'. Each size is shrunk toward the pooled share, and the pooled share
-   *  toward the standard, with PAY_K entries' weight. */
+   *  toward the standard, with PAY_K entries' weight.
+   *  Linked slips (legs that hit together, which PrizePicks can pay less for; the chat marks them "linked" in the notes)
+   *  are their own class: they stay out of the usual payouts, and `linked.share` is what they paid as a share of the usual
+   *  payout of their size, shrunk toward 1 (no cut) with PAY_K entries' weight and never above 1. */
   function fitPayouts(ledger) {
-    const rows = [];
+    const rows = [], links = [];
     for (const e of toList(ledger, "entries")) {
       if (String(e.type || "").toLowerCase() !== "power" || e.bonus === true) continue;
-      if (/^\s*Vici:.*goblin\/demon/.test(String(e.notes || ""))) continue;
+      if (/\b(goblin|demon)s?\b/i.test(String(e.notes || ""))) continue;
       const picks = Array.isArray(e.picks) ? e.picks : [];
       const n = picks.length, std = POWER[n], stake = toNum(e.stake);
       if (!std || !(stake > 0)) continue;
@@ -553,17 +558,19 @@
       }
       if (!(full > 0)) continue;
       const r = full / (stake * std);
-      if (r >= PAY_LO && r <= PAY_HI) rows.push({ n, r });
+      if (r >= PAY_LO && r <= PAY_HI) (LINKED_NOTE.test(String(e.notes || "")) ? links : rows).push({ n, r });
     }
     const N = rows.length, ratio = (sum(rows, x => x.r) + PAY_K) / (N + PAY_K);
-    const bySize = {};
+    const bySize = {}, usual = {};
     for (const n of [2, 3, 4, 5, 6]) {
       const g = rows.filter(x => x.n === n);
       const r = (sum(g, x => x.r) + PAY_K * ratio) / (g.length + PAY_K);
       const mult = Math.round(POWER[n] * r * 100) / 100;
+      usual[n] = r;
       bySize[n] = { n: g.length, mult, standard: POWER[n], be: Math.pow(1 / mult, 1 / n) };
     }
-    return { n: N, ratio, bySize };
+    const share = Math.min(1, (sum(links, x => x.r / usual[x.n]) + PAY_K) / (links.length + PAY_K));
+    return { n: N, ratio, bySize, linked: { n: links.length, share: Math.round(share * 1000) / 1000 } };
   }
   /** What Vici's own slips made: entries Angus logged from the chat (notes start "Vici:"), bonus entries left out. A Power
    *  entry with a missed leg counts as lost even before its payout is set. expectedRoi: the EV the chat put in the notes,
@@ -605,15 +612,23 @@
     const n = isNum(c.n) ? c.n : 0;
     return KELLY_LO + (KELLY_HI - KELLY_LO) * Math.min(1, n / KELLY_RAMP);
   }
-  /** The multiplier Angus usually gets on an n-pick Power slip (the standard one until his entries say otherwise). */
-  function payout(model, n) {
-    const b = model && model.payouts && model.payouts.bySize ? model.payouts.bySize[n] : null;
-    return b && isNum(b.mult) && b.mult > 1 ? b.mult : POWER[n] || null;
+  /** The multiplier Angus usually gets on an n-pick Power slip (the standard one until his entries say otherwise).
+   *  linked === true: for a slip of linked legs, that payout times what his linked slips have paid of it (1 until he
+   *  has logged some). */
+  function payout(model, n, linked) {
+    const P = model && model.payouts ? model.payouts : null;
+    const b = P && P.bySize ? P.bySize[n] : null;
+    const mult = b && isNum(b.mult) && b.mult > 1 ? b.mult : POWER[n] || null;
+    if (!mult || linked !== true) return mult;
+    const sh = P && P.linked ? P.linked.share : null;
+    const cut = isNum(sh) && sh > 0 && sh < 1 ? Math.round(mult * sh * 100) / 100 : mult;
+    return cut > 1 ? cut : mult;
   }
   /** One n-pick Power slip with chance `hit`: what it pays, its EV per $1, per-leg break-even, the stake as a share of the
-   *  Balance (fractional Kelly, capped at 5%) and the expected log growth of the Balance at that stake. */
-  function slipPlan(model, n, hit) {
-    const mult = payout(model, n);
+   *  Balance (fractional Kelly, capped at 5%) and the expected log growth of the Balance at that stake. linked === true
+   *  prices it as a slip of linked legs (payout). */
+  function slipPlan(model, n, hit, linked) {
+    const mult = payout(model, n, linked);
     if (!mult || !isNum(hit)) return null;
     const full = kelly(hit, mult);
     const stake = Math.min(STAKE_CAP, kellyScale(model) * full);
@@ -634,6 +649,7 @@
     { key: "l10", label: "L10 hit rate", kind: "sd", get: r => rateOf(fget(r, "l10")) },
     { key: "l5", label: "L5 hit rate", kind: "sd", get: r => rateOf(fget(r, "l5")) },
     { key: "gapPct", label: "Projection gap", kind: "sd", get: r => toNum(fget(r, "gapPct")) },
+    { key: "marketGapPct", label: "Softer than market", kind: "sd", get: r => toNum(fget(r, "marketGapPct")) },
     { key: "oppRankPct", label: "Soft defense", kind: "sd", get: r => toNum(fget(r, "oppRankPct")) },
     { key: "home", label: "Home", kind: "bool", get: r => (r.home == null ? null : r.home ? 1 : 0) },
     { key: "b2b", label: "Back-to-back", kind: "bool", get: r => { const v = fget(r, "b2b"); return typeof v === "boolean" ? (v ? 1 : 0) : null; } },
@@ -880,7 +896,8 @@
     const mx = x => (Math.round(x * 100) / 100) + "x";
     const tail = P && P.n
       ? "Payouts he gets (from " + P.n + " Power entries; standard 3/5/10/20/37.5x; est. = under 3 entries of that size, scaled by his other sizes) and break-even per leg: " +
-        [2, 3, 4, 5, 6].map(n => { const b = P.bySize[n]; return "Power" + n + " " + mx(b.mult) + (b.n < 3 ? " est." : "") + " " + (b.be * 100).toFixed(1) + "%"; }).join(", ") + "."
+        [2, 3, 4, 5, 6].map(n => { const b = P.bySize[n]; return "Power" + n + " " + mx(b.mult) + (b.n < 3 ? " est." : "") + " " + (b.be * 100).toFixed(1) + "%"; }).join(", ") + "." +
+        (P.linked && P.linked.n && P.linked.share < 1 ? " Linked slips have paid " + Math.round(P.linked.share * 100) + "% of that (" + P.linked.n + " logged)." : "")
       : "Payouts: the standard 3/5/10/20/37.5x until his Power entries show what he gets. Break-even per leg: " +
         [2, 3, 4, 5, 6].map(n => "Power" + n + " " + (breakEven(n, "power") * 100).toFixed(1) + "%").join(", ") + ".";
     const lines = [head].concat(mid, [tail]);
@@ -966,7 +983,8 @@
       breakEven: m.breakEven || null,
       // what PrizePicks pays him per Power size (learned from his entries) and the stake rule
       payouts: m.payouts ? { from_entries: m.payouts.n, by_size: Object.keys(m.payouts.bySize || {}).reduce((o, k) => {
-        const b = m.payouts.bySize[k]; o[k] = { pays: b.mult, standard: b.standard, n: b.n, be: b.be }; return o; }, {}) } : null,
+        const b = m.payouts.bySize[k]; o[k] = { pays: b.mult, standard: b.standard, n: b.n, be: b.be }; return o; }, {}),
+        linked_slips: m.payouts.linked && m.payouts.linked.n ? { n: m.payouts.linked.n, share_of_usual: m.payouts.linked.share } : null } : null,
       stake_rule: { kelly_share: kellyScale(m), cap: STAKE_CAP },
       your_slips: m.profit && (m.profit.n || m.profit.open) ? m.profit : null
     };

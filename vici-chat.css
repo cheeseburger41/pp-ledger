@@ -241,9 +241,6 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 .vc-kform { display: flex; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
 .vc-kform .vc-in { flex: 1; }
 .vc-kform + .vc-err { padding-top: 8px; }
-.vc-seg { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
-.vc-seg button { min-height: 38px; padding: 0 16px; border: 0; border-radius: 9px; background: transparent; font-size: 13.5px; font-weight: 500; color: var(--ink-2); }
-.vc-seg button[aria-pressed="true"] { background: var(--accent-grad); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
 
 /* ---------- footer: slip tray + composer ---------- */
 .vc-foot { flex: none; display: grid; gap: 8px; padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-2);

@@ -4,7 +4,7 @@
 // ever written by install, so an open never mixes two releases. launch.js checks for a release on each open and return, and
 // moves onto it under the still V when it installs in time; otherwise it shows from the next open.
 // A new file the app loads at start belongs in SHELL, or it is fetched (and kept) the first time it's asked for.
-const CACHE = "ledger-v25";
+const CACHE = "ledger-v26";
 const FONTS = "vici-fonts"; // not versioned, so an app update never makes a cold launch wait on Google Fonts
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./vici-model.js", "./vici-data.js", "./vici-chat.js", "./vici-chat.css", "./vendor/anthropic-sdk.mjs"];
 const abs = u => new URL(u, self.registration.scope).href;
@@ -15,7 +15,9 @@ self.addEventListener("install", e => {
   // A file that's gone from the site (404) is left out rather than blocking every future update; any other failure
   // (offline, a server error, the app closed mid-download) fails the install and the next open tries again.
   e.waitUntil(Promise.all(SHELL.map(u => fetch(new Request(u, { cache: "reload" })).then(res => {
-    if (res.ok && !res.redirected) return [abs(u), res];
+    // Read a copy of each answer as it arrives: Chromium gives an installing worker only a few requests in flight and an
+    // unread answer still counts, so waiting for all of them before reading any never finished there.
+    if (res.ok && !res.redirected) return res.clone().arrayBuffer().then(() => [abs(u), res]);
     if (res.status === 404 && !PAGES.has(abs(u))) return null;
     throw new Error(u + " " + res.status);
   }))).then(files => caches.open(CACHE).then(c => Promise.all(files.filter(Boolean).map(([k, res]) => c.put(k, res)))))

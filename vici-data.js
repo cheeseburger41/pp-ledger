@@ -1233,6 +1233,8 @@
     const side = canonSide(raw.side); if (!side) return { error: "side must be over/under" };
     let prob = toNum(raw.prob != null ? raw.prob : raw.probability);
     if (prob !== undefined && prob > 1 && prob <= 100) prob /= 100;
+    let vici = toNum(raw.vici);   // the Vici % shown on the card (prob after the model's adjustment): the Model panel's "predicted"
+    if (vici !== undefined && vici > 1 && vici <= 100) vici /= 100;
     const gtRaw = raw.gameTime != null ? raw.gameTime : raw.game_time;
     const dayOnly = typeof gtRaw === "string" && /^\s*\d{4}-\d{2}-\d{2}\s*$/.test(gtRaw);   // a day, not a start time:
     const gameTime = dayOnly ? null : isoOrNull(gtRaw);                                     // never read as UTC midnight
@@ -1252,6 +1254,7 @@
       eventId: idOk(ev) ? String(ev) : null, gameTime, date,
       stat, line, side, lineType: lt === "goblin" || lt === "demon" ? lt : "standard",
       prob: prob !== undefined && prob > 0 && prob < 1 ? Math.round(prob * 1000) / 1000 : null,
+      vici: vici !== undefined && vici > 0 && vici < 1 ? Math.round(vici * 1000) / 1000 : null,
       tier: tier === "A" || tier === "B" || tier === "C" ? tier : "B",
       features: normFeatures(raw.features),
       reasons: cleanStr(raw.reasons != null ? raw.reasons : raw.reason, 300),
@@ -1276,7 +1279,7 @@
         ids.push(dup.id);
         if ((dup.result || "pending") === "pending") {
           const patch = {};
-          for (const k of ["prob", "tier", "lineType", "reasons", "features", "eventId", "athleteId", "gameTime", "team", "opponent", "home", "league"]) {
+          for (const k of ["prob", "vici", "tier", "lineType", "reasons", "features", "eventId", "athleteId", "gameTime", "team", "opponent", "home", "league"]) {
             if (p[k] != null && JSON.stringify(p[k]) !== JSON.stringify(dup[k])) patch[k] = p[k];
           }
           if (Object.keys(patch).length) { queue({ op: "update", id: dup.id, doc: patch }); changed = true; }
@@ -1291,7 +1294,7 @@
     return ids;
   }
   const PATCHABLE = ["result", "actual", "gradedAt", "gradedBy", "eventId", "athleteId", "gameTime", "date", "team", "opponent", "home", "league",
-    "prob", "tier", "lineType", "features", "reasons", "line", "side", "stat", "player"];
+    "prob", "vici", "tier", "lineType", "features", "reasons", "line", "side", "stat", "player"];
   function sanitizePatch(patch) {
     const doc = {};
     for (const k of PATCHABLE) if (Object.prototype.hasOwnProperty.call(patch, k)) doc[k] = patch[k];
@@ -1487,7 +1490,54 @@
     }
     return null;
   }
+  /** Grade from the player's own ESPN game log (site.web.api) when the box score or scoreboard (site.api) can't be
+   *  loaded: from a phone, ESPN's CDN refuses some site.api requests. NBA / NFL / CFB only (a soccer log can't tell
+   *  extra time). Returns a grade, null (try again later) or undefined (the log can't decide either). */
+  const LOG_GRADED = new Set(["NBA", "NFL", "CFB", "WNBA", "CBB"]);
+  async function gradeFromLog(p, sport, league, eventId, now) {
+    if (!LOG_GRADED.has(sport)) return undefined;
+    const extra = {};
+    let aid = p.athleteId && idOk(p.athleteId) ? String(p.athleteId) : null;
+    if (!aid) {
+      const hits = await findPlayer({ name: p.player, sport }).catch(() => []);
+      const h = hits.filter(x => nameScore(p.player, x.name) >= 2);
+      if (h.length !== 1) return undefined;   // not found, or two players fit the name
+      aid = String(h[0].athleteId);
+      extra.athleteId = aid;
+    }
+    const g = await gamelogRows(sport, league, aid).catch(() => undefined);
+    if (g === undefined) return undefined;
+    const oppOk = r => !p.opponent || !r.opp || teamMatch(p.opponent, { abbr: r.opp });
+    let rows = eventId ? g.rows.filter(r => r.eventId === eventId) : g.rows.filter(r => r.date === p.date && oppOk(r));
+    if (rows.length > 1) return undefined;   // a doubleheader-like clash: can't tell which game
+    const r = rows[0];
+    if (!r) {
+      // no row: the log isn't updated yet, or he didn't play. Only call it a DNP well after the game.
+      const ref = Date.parse(p.gameTime) || Date.parse((p.date || "") + "T20:00:00Z");
+      return isFinite(ref) && now - ref > POSTPONED_VOID ? { result: "void", actual: null, extra } : null;
+    }
+    if (!eventId) extra.eventId = r.eventId;
+    if (r.dnp || !r.stats) return { result: "void", actual: null, extra };
+    if (!/^[WLT]\b/.test(String(r.result || ""))) return null;   // a game log row without W/L/T isn't final yet
+    const line = toNum(p.line), side = canonSide(p.side);
+    const v = statValue(sport, p.stat, r.stats);
+    if (line === undefined || !side || v === undefined) return null;
+    if (fantasyTooClose(sport, p.stat, line, v)) return { manual: "fantasy score near the line", extra };
+    const actual = round2(v);
+    return { result: Math.abs(actual - line) < 1e-9 ? "push" : (actual > line) === (side === "over") ? "hit" : "miss", actual, extra };
+  }
   async function gradeOne(p, now, today) {
+    try {
+      return await gradeFromBox(p, now, today);
+    } catch (e) {
+      if (!e || e.code !== "espn_unreachable") throw e;
+      const sport = canonSport(p.sport);
+      const g = await gradeFromLog(p, sport, DEFAULT_LEAGUE[sport], p.eventId && idOk(p.eventId) ? String(p.eventId) : null, now);
+      if (g === undefined) throw e;
+      return g;
+    }
+  }
+  async function gradeFromBox(p, now, today) {
     const sport = canonSport(p.sport);
     if (!sport) return null;
     let league = sport === "Soccer" ? (p.league && isSoccerSlug(p.league) ? p.league : null) : DEFAULT_LEAGUE[sport];

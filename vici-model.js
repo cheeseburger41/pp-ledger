@@ -1,11 +1,10 @@
 /* vici-model.js — Vici learning engine (window.ViciModel).
  *
  * Pure functions: no DOM, no network, no randomness, no clock (time only via build({now})).
- * Learns from two separate sources:
- *   "bot" = graded journal picks (ai-picks.json; hit/miss only, push/void/pending excluded)
- *   "you" = graded ledger legs   (ledger.json;   hit/miss only, push/pending excluded)
+ * Learns only from Vici's own graded picks (ai-picks.json; hit/miss only, push/void/pending excluded). Angus plays
+ * only what Vici recommends (his call, 2026-11-17), so his own ledger legs are not a source.
  *
- *   ViciModel.build({journal, ledger, now}) -> Model
+ *   ViciModel.build({journal, now}) -> Model   (model.track = what Vici predicted, Vici %, vs the actual results)
  *   ViciModel.adjust(model, rawProb, {sport, stat, side, tier, features}) -> {p, parts, note}
  *   ViciModel.breakEven(n, type) / edge(p, n, type) / promptBlock(model) / summary(model) / compact(model)
  *
@@ -269,23 +268,13 @@
     const st = canonStat(sport, p.stat);
     return {
       sport, statKey: st.key, statLabel: st.label, side: canonSide(p.side), y,
-      prob: null, cal: null, tier: null, home: null, lineType: "standard", f: null
+      prob: null, vici: null, cal: null, tier: null, home: null, lineType: "standard", f: null
     };
   }
-  function ledgerRows(ledger) {
-    const entries = toList(ledger, "entries").slice().sort((a, b) =>
-      cmpStr(s0(a.date), s0(b.date)) || cmpStr(s0(a.createdAt), s0(b.createdAt)) || cmpStr(s0(a.id), s0(b.id)));
-    const rows = [], excluded = { push: 0, void: 0, pending: 0 };
-    for (const e of entries) {
-      const picks = Array.isArray(e.picks) ? e.picks : [];
-      for (const p of picks) {
-        if (!p || typeof p !== "object") continue;
-        const res = canonResult(p.result);
-        if (res !== "hit" && res !== "miss") { excluded[res]++; continue; }
-        rows.push(baseRow(p, canonSport(p.sport), res === "hit" ? 1 : 0));
-      }
-    }
-    return { rows, excluded };
+  function unitProb(v) {
+    let x = toNum(v);
+    if (x != null && x > 1 && x <= 100) x /= 100;
+    return x != null && x > 0 && x < 1 ? x : null;
   }
   function journalRows(journal) {
     const picks = toList(journal, "picks").slice().sort((a, b) =>
@@ -295,10 +284,9 @@
       const res = canonResult(p.result);
       if (res !== "hit" && res !== "miss") { excluded[res]++; continue; }
       const r = baseRow(p, canonSport(p.sport), res === "hit" ? 1 : 0);
-      let prob = toNum(p.prob);
-      if (prob != null && prob > 1 && prob <= 100) prob /= 100;
-      r.prob = prob != null && prob > 0 && prob < 1 ? prob : null;
+      r.prob = unitProb(p.prob);
       if (r.prob == null) excluded.noProb++;
+      r.vici = unitProb(p.vici);   // the Vici % Angus saw on the card (journaled since 2026-11-17); older picks fall back to prob
       const tier = String(p.tier == null ? "" : p.tier).trim().toUpperCase();
       r.tier = tier === "A" || tier === "B" || tier === "C" ? tier : null;
       r.home = typeof p.home === "boolean" ? p.home : null;
@@ -341,7 +329,7 @@
   }
   const sideWord = s => (s === "over" ? "over" : s === "under" ? "under" : "");
   function analyzeSource(source, rows, excluded) {
-    const all = makeSeg(source, "all", "all", source === "bot" ? "Bot picks" : "Your legs", {}, rows, 0.5, G_STRENGTH);
+    const all = makeSeg(source, "all", "all", "Bot picks", {}, rows, 0.5, G_STRENGTH);
     const segments = [];
     for (const [sport, sRows] of groupBy(rows, r => r.sport)) {
       const sp = makeSeg(source, "sport", sport, sport, { sport, stat: null, statLabel: null, side: null }, sRows, all.post, K);
@@ -444,6 +432,25 @@
     const c = model && model.calibration;
     const a = c && isNum(c.a) ? c.a : 0, b = c && isNum(c.b) ? c.b : 1;
     return sigmoid(a + b * logit(clamp(p, 0.01, 0.99)));
+  }
+
+  // ---------- predicted vs actual (what Angus sees) ----------
+  // Vici % is adjust()'s output, clamped to [P_MIN, P_MAX], so it can sit below 50%: the track has its own lowest bucket
+  const TRACK_BUCKETS = [{ label: "<50", lo: 0, hi: 0.5 }].concat(BUCKETS.map((B, i) => (i ? B : { label: B.label, lo: 0.5, hi: B.hi })));
+  /** Vici's prediction as shown on the card (Vici %, else its raw prob) against the graded result. */
+  function fitTrack(rows) {
+    const P = rows.map(r => ({ p: r.vici != null ? r.vici : r.prob, y: r.y })).filter(r => r.p != null);
+    const n = P.length, hits = sum(P, r => r.y);
+    const pred = n ? sum(P, r => r.p) / n : null, actual = n ? hits / n : null;
+    const buckets = TRACK_BUCKETS.map(B => {
+      const g = P.filter(r => r.p >= B.lo && r.p < B.hi);
+      return {
+        label: B.label, n: g.length,
+        pred: g.length ? sum(g, r => r.p) / g.length : null,
+        actual: g.length ? sum(g, r => r.y) / g.length : null
+      };
+    });
+    return { n, hits, misses: n - hits, pred, actual, gap: n ? actual - pred : null, buckets };
   }
 
   // ---------- factor model ----------
@@ -565,20 +572,17 @@
     return v;
   }
 
-  /** Build the learning model. journal: JournalPick[] (or the ai-picks.json object), ledger: Entry[] (or ledger.json). */
+  /** Build the learning model from Vici's journal. journal: JournalPick[] (or the ai-picks.json object). */
   function build(opts) {
     const o = opts || {};
     const nowMs = o.now == null ? null : o.now instanceof Date ? o.now.getTime() : toNum(o.now);
-    const J = journalRows(o.journal), L = ledgerRows(o.ledger);
+    const J = journalRows(o.journal);
     const calibration = fitCalibration(J.rows);
     const bot = analyzeSource("bot", J.rows, J.excluded);
-    const you = analyzeSource("you", L.rows, L.excluded);
+    const track = fitTrack(J.rows);
     const fit = fitFactors(J.rows);
-    const cands = [];
-    for (const src of [bot, you]) {
-      cands.push(...src.segments);
-      for (const k of Object.keys(src.by)) for (const s of src.by[k]) if (s.n < 0.9 * src.n) cands.push(s);
-    }
+    const cands = bot.segments.slice();
+    for (const k of Object.keys(bot.by)) for (const s of bot.by[k]) if (s.n < 0.9 * bot.n) cands.push(s);
     const be = { power: {}, flex: {} };
     for (const n of [2, 3, 4, 5, 6]) { be.power[n] = breakEven(n, "power"); if (FLEX[n]) be.flex[n] = breakEven(n, "flex"); }
     return roundDeep({
@@ -586,7 +590,7 @@
       builtAt: nowMs == null ? null : new Date(nowMs).toISOString(),
       params: { k: K, globalStrength: G_STRENGTH, thin: THIN, calMin: CAL_MIN, factorMin: FACTOR_MIN, lambda: LAMBDA, residK: RESID_K, residMin: RESID_MIN, clamp: [P_MIN, P_MAX] },
       breakEven: be,
-      bot, you, calibration,
+      bot, track, calibration,
       factors: fit.factors,
       factorN: fit.n,
       trust: pickTop(cands, "trust", 5),
@@ -623,9 +627,6 @@
     if (model && model.calibration && model.calibration.n > 0 && Math.abs(cal - raw) >= 0.005) bits.push("calib " + pts(cal - raw));
     if (seg && Math.abs(segAdj) >= 0.005) bits.push(seg.label + " " + pts(segAdj) + " (n=" + seg.nP + ")");
     if (p !== unclamped) bits.push("capped");
-    const youSegs = (model && model.you && Array.isArray(model.you.segments)) ? model.you.segments : [];
-    const ys = youSegs.find(x => x.key === keys[0] && (x.verdict === "trust" || x.verdict === "fade"));
-    if (ys) bits.push("you " + ys.verdict + " " + Math.round(ys.raw * 100) + "% (" + ys.hits + "/" + ys.n + ")");
     const botN = model && model.bot ? model.bot.n || 0 : 0;
     const note = bits.length ? bits.join(" · ") : botN ? "as is" : "no history";
     return {
@@ -641,14 +642,14 @@
   // ---------- text outputs ----------
   const pct = x => (isNum(x) ? Math.round(x * 100) + "%" : "—");
   function segLine(kind, s) {
-    const who = s.source === "bot" ? "bot picks" : "your legs";
-    return kind + " (" + who + "): " + s.label.trim() + " " + pct(s.raw) + " (" + s.hits + "/" + s.n + ").";
+    return kind + ": " + s.label.trim() + " " + pct(s.raw) + " (" + s.hits + "/" + s.n + ").";
   }
   /** Compact plain text (≤ 1,200 chars) the bot reads before answering. */
   function promptBlock(model) {
     const m = model || build({});
-    const bot = m.bot || { n: 0 }, you = m.you || { n: 0 }, cal = m.calibration || { n: 0, verdict: "—" };
-    const head = "Graded: bot " + bot.n + (bot.n ? " (" + pct(bot.raw) + ")" : "") + ", you " + you.n + " legs" + (you.n ? " (" + pct(you.raw) + ")" : "") + ".";
+    const bot = m.bot || { n: 0 }, tr = m.track || { n: 0 }, cal = m.calibration || { n: 0, verdict: "—" };
+    const head = "Your graded picks: " + bot.n + (bot.n ? ", " + pct(bot.raw) + " hit" : "") +
+      (tr.n ? "; Vici % averaged " + pct(tr.pred) + " on " + tr.n + " of them" : "") + ".";
     const mid = [];
     if (cal.verdict === "over" || cal.verdict === "under") {
       const use60 = cal.n60 >= 10 && isNum(cal.gap60) && Math.sign(cal.gap60) === Math.sign(cal.gap) && Math.abs(cal.gap60) >= Math.abs(cal.gap);
@@ -673,32 +674,34 @@
     while (lines.join("\n").length > 1200 && lines.length > 2) lines.splice(lines.length - 2, 1);
     return lines.join("\n");
   }
-  /** Short numbers for the chat header. Rates are fractions (0..1) or null when nothing is graded. */
+  /** Short numbers for the Model panel. Rates are fractions (0..1) or null when nothing is graded. */
   function summary(model) {
     const m = model || {};
-    const bot = m.bot || { n: 0 }, you = m.you || { n: 0 };
+    const bot = m.bot || { n: 0 }, tr = m.track || { n: 0 };
     return {
-      graded: (bot.n || 0) + (you.n || 0),
-      botN: bot.n || 0, youN: you.n || 0,
-      botRate: bot.n ? bot.raw : null, youRate: you.n ? you.raw : null,
+      graded: bot.n || 0, hits: bot.hits || 0, misses: bot.n ? bot.n - bot.hits : 0,
+      pending: (bot.excluded && bot.excluded.pending) || 0,
+      rate: bot.n ? bot.raw : null,
+      predicted: tr.n ? tr.pred : null, actual: tr.n ? tr.actual : null, trackN: tr.n || 0,
       calib: (m.calibration && m.calibration.verdict) || "—"
     };
   }
   /** Trimmed model for the `vici_model` tool (small JSON). */
   function compact(model) {
     const m = model || build({});
-    const segOut = s => ({ src: s.source, seg: s.label.trim(), n: s.n, hits: s.hits, raw: s.raw, post: s.post, lo80: s.lo80, hi80: s.hi80, verdict: s.verdict });
+    const segOut = s => ({ seg: s.label.trim(), n: s.n, hits: s.hits, raw: s.raw, post: s.post, lo80: s.lo80, hi80: s.hi80, verdict: s.verdict });
     const top = src => (src && src.segments ? src.segments.filter(s => s.n >= THIN).slice(0, 12).map(segOut) : []);
     const c = m.calibration || {};
     return {
       builtAt: m.builtAt || null,
       bot: m.bot ? { n: m.bot.n, hits: m.bot.hits, raw: m.bot.raw, post: m.bot.post } : null,
-      you: m.you ? { n: m.you.n, hits: m.you.hits, raw: m.you.raw, post: m.you.post } : null,
+      predicted_vs_actual: m.track ? { n: m.track.n, predicted: m.track.pred, actual: m.track.actual,
+        buckets: (m.track.buckets || []).filter(b => b.n).map(b => ({ b: b.label, n: b.n, pred: b.pred, actual: b.actual })) } : null,
       calibration: { n: c.n, a: c.a, b: c.b, verdict: c.verdict, gapPts: isNum(c.gap) ? Math.round(c.gap * 1000) / 10 : null, brier: c.brier,
         buckets: (c.buckets || []).filter(b => b.n).map(b => ({ b: b.label, n: b.n, pred: b.pred, actual: b.actual })) },
       trust: (m.trust || []).map(segOut), fade: (m.fade || []).map(segOut),
       factors: (m.factors || []).map(f => ({ f: f.label, n: f.n, liftPts: Math.round(f.lift * 10) / 10, sePts: Math.round(f.liftSE * 10) / 10, verdict: f.verdict })),
-      segments: { bot: top(m.bot), you: top(m.you) },
+      segments: top(m.bot),
       breakEven: m.breakEven || null
     };
   }

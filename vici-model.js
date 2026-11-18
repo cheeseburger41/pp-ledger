@@ -21,9 +21,11 @@
  *   - Factors: L2 (lambda=1) logistic regression on standardized features, n >= 40, SEs from the inverse Hessian.
  *   - Profit (Angus, 2026-11-18: "Train the algorithm to help me gain the most profits"): payouts are learned from his
  *     Power entries (To Win / stake against the standard multiplier, shrunk toward the standard with 4 entries' weight,
- *     each size toward the pooled ratio). A slip's stake is a fraction of the Kelly stake: 1/4 while Vici's
- *     probabilities are unproven, rising to 1/2 over its first 200 graded picks unless it has run too confident, and
- *     never more than 5% of the Balance. Slips rank by the expected log growth of the Balance at that stake.
+ *     each size toward the pooled ratio). Slips carry the expected log growth of the Balance at their stake.
+ *   - Risk (Angus, 2026-11-18: "Make sure risk is generally minimised across picks"; SAFE_STAKES): a slip's stake is a
+ *     quarter of the Kelly stake whatever the record, never more than 3% of the Balance, and a day's entries together
+ *     never more than 10% of the Balance he started that day with (dayLimit). With SAFE_STAKES off: 1/4 Kelly rising
+ *     to 1/2 over the first 200 graded picks unless Vici has run too confident, 5% a slip, no day limit.
  */
 (function (root) {
   "use strict";
@@ -44,8 +46,10 @@
   const PAY_K = 4;                       // prior weight, in entries, of the standard multiplier (and of the pooled ratio per size)
   const LINKED_NOTE = /\blinked\b/i;      // how the chat marks a logged slip of linked legs (notes "Vici: … · linked")
   const PAY_LO = 0.25, PAY_HI = 2.5;     // a To Win outside this share of the standard is a typo or a promo, not PrizePicks' pricing
-  const KELLY_LO = 0.25, KELLY_HI = 0.5, KELLY_RAMP = 200;   // share of the full Kelly stake, by graded picks
-  const STAKE_CAP = 0.05;                // never more than 5% of the Balance on one slip
+  const SAFE_STAKES = true;              // Angus, 2026-11-18: "Make sure risk is generally minimised across picks"
+  const KELLY_LO = 0.25, KELLY_HI = SAFE_STAKES ? 0.25 : 0.5, KELLY_RAMP = 200;   // share of the full Kelly stake, by graded picks
+  const STAKE_CAP = SAFE_STAKES ? 0.03 : 0.05;   // never more than this share of the Balance on one slip
+  const DAY_CAP = SAFE_STAKES ? 0.1 : null;      // never more than this share of the day's starting Balance on one day's entries
   const BUCKETS = [
     { label: "50-55", lo: 0, hi: 0.55 },     // lowest bucket also holds anything under 50%
     { label: "55-60", lo: 0.55, hi: 0.60 },
@@ -604,8 +608,9 @@
     if (f >= 1) return -Infinity;
     return hit * Math.log(1 + f * (mult - 1)) + (1 - hit) * Math.log(1 - f);
   }
-  /** Share of the full Kelly stake: 1/4 while Vici's probabilities are unproven, up to 1/2 over its first 200 graded picks,
-   *  back to 1/4 whenever its probabilities have run too confident. */
+  /** Share of the full Kelly stake: KELLY_LO while Vici's probabilities are unproven, up to KELLY_HI over its first
+   *  KELLY_RAMP graded picks, back to KELLY_LO whenever its probabilities have run too confident. With SAFE_STAKES the
+   *  two are the same: a quarter, always. */
   function kellyScale(model) {
     const c = (model && model.calibration) || {};
     if (c.verdict === "over") return KELLY_LO;
@@ -625,14 +630,31 @@
     return cut > 1 ? cut : mult;
   }
   /** One n-pick Power slip with chance `hit`: what it pays, its EV per $1, per-leg break-even, the stake as a share of the
-   *  Balance (fractional Kelly, capped at 5%) and the expected log growth of the Balance at that stake. linked === true
-   *  prices it as a slip of linked legs (payout). */
+   *  Balance (fractional Kelly, capped at STAKE_CAP) and the expected log growth of the Balance at that stake.
+   *  linked === true prices it as a slip of linked legs (payout). */
   function slipPlan(model, n, hit, linked) {
     const mult = payout(model, n, linked);
     if (!mult || !isNum(hit)) return null;
     const full = kelly(hit, mult);
     const stake = Math.min(STAKE_CAP, kellyScale(model) * full);
     return { n, mult, standard: POWER[n], be: Math.pow(1 / mult, 1 / n), hit, ev: hit * mult - 1, kelly: full, stake, growth: growth(hit, mult, stake) };
+  }
+  /** The day limit: a day's entries together take at most DAY_CAP of the Balance he started that day with. balance: the
+   *  Balance now (stakes leave it when an entry is placed); ledger: his entries; today: "YYYY-MM-DD", the date entries
+   *  carry. Returns dollars {start, limit, staked, left}; null without a day limit, a Balance or a date. Every entry
+   *  of the day counts with its stake, settled or not (a win doesn't buy more room), and bonus entries count nothing. */
+  function dayLimit(balance, ledger, today) {
+    if (DAY_CAP == null || !isNum(balance) || typeof today !== "string" || !today) return null;
+    let staked = 0, back = 0;
+    for (const e of Array.isArray(ledger) ? ledger : []) {
+      if (!e || typeof e !== "object" || String(e.date || "") !== today) continue;
+      const st = toNum(e.stake), pay = toNum(e.payout);
+      if (st != null && st > 0) staked += st;
+      if (pay != null && pay > 0) back += pay;
+    }
+    const r2 = x => Math.round(x * 100) / 100;
+    const start = Math.max(0, balance + staked - back), limit = DAY_CAP * start;
+    return { start: r2(start), limit: r2(limit), staked: r2(staked), left: r2(Math.max(0, limit - staked)) };
   }
 
   // ---------- factor model ----------
@@ -790,7 +812,7 @@
       version: 1,
       builtAt: nowMs == null ? null : new Date(nowMs).toISOString(),
       params: { k: K, globalStrength: G_STRENGTH, thin: THIN, calMin: CAL_MIN, factorMin: FACTOR_MIN, lambda: LAMBDA, residK: RESID_K, residMin: RESID_MIN, clamp: [P_MIN, P_MAX],
-        payK: PAY_K, kelly: [KELLY_LO, KELLY_HI, KELLY_RAMP], stakeCap: STAKE_CAP },
+        payK: PAY_K, kelly: [KELLY_LO, KELLY_HI, KELLY_RAMP], stakeCap: STAKE_CAP, dayCap: DAY_CAP },
       breakEven: be, payouts, profit,
       bot, track, calibration,
       factors: fit.factors,
@@ -985,7 +1007,7 @@
       payouts: m.payouts ? { from_entries: m.payouts.n, by_size: Object.keys(m.payouts.bySize || {}).reduce((o, k) => {
         const b = m.payouts.bySize[k]; o[k] = { pays: b.mult, standard: b.standard, n: b.n, be: b.be }; return o; }, {}),
         linked_slips: m.payouts.linked && m.payouts.linked.n ? { n: m.payouts.linked.n, share_of_usual: m.payouts.linked.share } : null } : null,
-      stake_rule: { kelly_share: kellyScale(m), cap: STAKE_CAP },
+      stake_rule: { kelly_share: kellyScale(m), cap: STAKE_CAP, day_cap: DAY_CAP },
       your_slips: m.profit && (m.profit.n || m.profit.open) ? m.profit : null
     };
   }
@@ -994,7 +1016,8 @@
     version: 1,
     POWER, FLEX,
     breakEven, edge, build, adjust, promptBlock, summary, compact,
-    payout, slipPlan, kelly, growth, kellyScale,
+    payout, slipPlan, kelly, growth, kellyScale, dayLimit,
+    stakeRule: { kelly: [KELLY_LO, KELLY_HI, KELLY_RAMP], cap: STAKE_CAP, dayCap: DAY_CAP },
     calibrated, canonStat, canonSport, canonSide, SPORT_ORDER, sportSort,
     util: { logit, sigmoid, invert, inv2, betaPost, verdictOf, fitPayouts, fitProfit }
   };

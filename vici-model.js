@@ -775,7 +775,7 @@
     while (lines.join("\n").length > 1200 && lines.length > 2) lines.splice(lines.length - 2, 1);
     return lines.join("\n");
   }
-  /** Short numbers for the Model panel, for all picks or one sport ("NBA"). Rates are fractions (0..1) or null when
+  /** Headline numbers (the grade_picks result), for all picks or one sport ("NBA"). Rates are fractions (0..1) or null when
    *  nothing is graded. */
   function summary(model, sport) {
     const m = model || {};

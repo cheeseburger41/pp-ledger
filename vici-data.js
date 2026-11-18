@@ -1233,7 +1233,7 @@
     const side = canonSide(raw.side); if (!side) return { error: "side must be over/under" };
     let prob = toNum(raw.prob != null ? raw.prob : raw.probability);
     if (prob !== undefined && prob > 1 && prob <= 100) prob /= 100;
-    let vici = toNum(raw.vici);   // the Vici % shown on the card (prob after the model's adjustment): the Model panel's "predicted"
+    let vici = toNum(raw.vici);   // the Vici % shown on the card (prob after the model's adjustment): model.track's "predicted"
     if (vici !== undefined && vici > 1 && vici <= 100) vici /= 100;
     const gtRaw = raw.gameTime != null ? raw.gameTime : raw.game_time;
     const dayOnly = typeof gtRaw === "string" && /^\s*\d{4}-\d{2}-\d{2}\s*$/.test(gtRaw);   // a day, not a start time:

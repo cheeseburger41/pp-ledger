@@ -33,7 +33,7 @@
   const TZ = "America/Los_Angeles";
   const LS = {
     key: "ppl.anthropicKey", depth: "ppl.chatDepth", cur: "ppl.chatCurrent", slip: "ppl.chatSlip",
-    usage: "ppl.usage", usageOut: "ppl.usageOutbox"
+    usage: "ppl.usage", usageOut: "ppl.usageOutbox", sport: "ppl.modelSport"
   };
   const BETA_FALLBACK = "server-side-fallback-2026-07-01";
   const BETA_BINDING = "thinking-binding-controls-2026-08-01";
@@ -70,7 +70,7 @@
     "- espn_injuries: injury report by sport or team.",
     "- weather: kickoff forecast for outdoor games.",
     "- ledger: Angus's own entries (summary, open, recent).",
-    "- vici_model: the full learning model (segments, calibration, factor lifts).",
+    "- vici_model: the full learning model (segments, calibration, factor lifts), or one sport's own model when you pass sport.",
     "- suggest_picks: journals your recommended picks and shows them to Angus as cards. Required for every recommended pick (see below).",
     "- grade_picks: grades your finished picks against ESPN box scores.",
     "Server tools: web_search and web_fetch. Any reliable source is fine, not just ESPN: league and team sites, beat reporters, official injury reports, Rotowire, Basketball-Reference, Pro Football Reference, FBref, StatMuse and the like. Use them for news, injuries, confirmed lineups, PrizePicks lines, defensive matchup data and anything the ESPN tools don't return.",
@@ -99,9 +99,9 @@
     "# Probability, tiers and learning",
     "For every leg, set prob = your honest probability that the pick hits at that exact line and side (a push is not a hit). Be calibrated: most solid props land between 0.55 and 0.68, and anything above 0.72 needs overwhelming evidence.",
     "Tier: A = form, matchup and role all agree and there is no availability risk. B = a good case with one soft spot. C = marginal; only as a filler.",
-    "The app turns prob into Vici %: it recalibrates your probabilities against your graded history and shifts them by how your picks in that sport, stat and side have actually done. suggest_picks returns vici_pct and edge_pts for each pick; trust those over your raw prob.",
+    "The app turns prob into Vici %: it recalibrates your probabilities against your graded history in that sport (a sport with few graded picks borrows from the others) and shifts them by how your picks in that sport, stat and side have actually done. suggest_picks returns vici_pct and edge_pts for each pick; trust those over your raw prob.",
     "Read the Learning section every turn and act on it:",
-    "- Calibration \"too confident\" means your probabilities run high: lower them by about that much. \"Too cautious\" means you can raise them.",
+    "- Calibration and the By sport line show how your past probabilities compared with the results (\"too confident\": they ran high; \"too cautious\": low; \"calibrated\": on target). The app already corrects for this in Vici %, so keep prob your honest estimate from today's research and don't subtract the lean yourself; treat a \"too confident\" lean in the pick's sport as a reason to re-check soft legs. Each sport's own lean is on the By sport line; a sport with no lean shown there (too few picks, or not listed) follows the overall Calibration line.",
     "- Trust segments: lean in when the research also supports the leg. Fade segments: demand extra evidence or skip. Every Learning line is your own record.",
     "- Factor lines show which signals have actually predicted hits (+) or misled (-). Weight them accordingly.",
     "- Samples under about 10 picks are noise. Don't overreact to them.",
@@ -117,14 +117,14 @@
     "- oppRankPct: the opponent's defense against this stat, 0 = toughest, 1 = softest.",
     "- restDays, b2b, minutesTrend (up, flat or down), injuryFlag (short, e.g. \"Q ankle\" or \"teammate out: Suggs\"), and weather for outdoor football.",
     "Use null for a feature you don't know; never guess one.",
-    "Default slips are Power. Never assume Flex unless he asks for it. Two props on the same player (points and rebounds) are allowed. Avoid pairing legs that need opposite game scripts.",
+    "Default slips are Power. Never assume Flex unless he asks for it. Every PrizePicks lineup needs players from at least two different teams (Angus's rule): never build a slip from one team. Two props on the same player (points and rebounds) are allowed, but that slip still needs a player from another team. Avoid pairing legs that need opposite game scripts.",
     "",
     "# Slips and stakes",
-    "Build a slip only from legs that clear its break-even. Its chance to hit is the product of the Vici %. Prefer Power 2 or 3 with the strongest legs; go bigger only when every leg clears comfortably. Name it in one line, e.g. \"Power 2: Bane points + Wagner PRA, 39% to hit, pays 3x\".",
+    "Build a slip only from legs that clear its break-even, with players from at least two teams. Its chance to hit is the product of the Vici %. Prefer Power 2 or 3 with the strongest legs; go bigger only when every leg clears comfortably. Name it in one line, e.g. \"Power 2: Bane points + Wagner PRA, 39% to hit, pays 3x\".",
     "Stakes: unless he sets one, suggest at most about 5% of Balance per entry. No chasing losses, no \"lock\" talk. One short line, never a lecture. Always say Balance, never bankroll.",
     "",
     "# His record and grading",
-    "Use grade_picks when he asks how your picks did, or when pending picks are from games that are over. Use ledger for questions about his entries, results, PnL or open exposure. For \"what have you learned\", call vici_model and give the 2 to 4 findings that change how you pick, with numbers; say plainly when samples are still small.",
+    "Use grade_picks when he asks how your picks did, or when pending picks are from games that are over. Use ledger for questions about his entries, results, PnL or open exposure. For \"what have you learned\", call vici_model and give the 2 to 4 findings that change how you pick, with numbers; say plainly when samples are still small. When he asks about one sport, pass that sport.",
     "",
     "# Style",
     "He reads on a phone and wants few words.",
@@ -158,7 +158,7 @@
   const PICK = objSchema({
     sport: SPORT,
     league: str("ESPN league slug: nba, nfl, college-football, eng.1, uefa.champions ..."),
-    player: str(), athleteId: str("ESPN athlete id"), team: str("Player's team abbreviation"),
+    player: str(), athleteId: str("ESPN athlete id"), team: str("Player's team abbreviation as on the ESPN scoreboard, e.g. DAL or GS, never a placeholder (a lineup needs players from two or more teams)"),
     opponent: str("Opponent abbreviation"), home: { type: "boolean" },
     eventId: str("ESPN event id"), gameTime: str("Start time, ISO 8601 with Z or an offset (the start from espn_scoreboard). A pick needs gameTime or eventId."),
     stat: str("PrizePicks stat label, e.g. Points, Pts+Rebs+Asts, Pass Yards, Shots On Target"),
@@ -169,14 +169,14 @@
     tier: { type: "string", enum: ["A", "B", "C"] },
     reasons: str("At most 200 characters, decisive reason first, numbers over adjectives"),
     features: FEATURES
-  }, ["sport", "player", "stat", "line", "line_source", "side", "prob", "tier", "reasons"]);
+  }, ["sport", "player", "team", "stat", "line", "line_source", "side", "prob", "tier", "reasons"]);
 
   const CLIENT_TOOLS = [
     tool("espn_scoreboard",
       "Games for one sport on one day (default today, Pacific time): ESPN event ids, start times (ISO), state pre/in/post, scores, team abbreviations, venue and whether it is indoors. Call first to get the slate. Soccer: pass a league slug (eng.1, esp.1, ita.1, ger.1, fra.1, usa.1, uefa.champions, uefa.europa, uefa.nations, fifa.world, fifa.worldq.uefa ...) or omit it to scan the common leagues.",
       { sport: SPORT, league: str("ESPN league slug"), date: str("YYYY-MM-DD, Pacific time. Omit for today.") }, ["sport"]),
     tool("espn_find_player",
-      "Find a player by name: ESPN athlete id, team abbreviation, league and sport. Use before espn_gamelog.",
+      "Find a player by name: ESPN athlete id, team name, league and sport. Use before espn_gamelog. For a pick's team, use the abbreviation from espn_scoreboard.",
       { name: str(), sport: SPORT }, ["name"]),
     tool("espn_gamelog",
       "A player's recent games with box-score stats, most recent first: date, opponent, home, result, minutes, stats. Pass stat (PrizePicks label, e.g. \"Points\", \"Pts+Rebs+Asts\", \"Receiving Yards\", \"Shots On Target\"), line and side to also get vs_line: the stat in each game and exact hit counts against that line for the last 5 and 10 games, plus averages, computed by the app.",
@@ -199,10 +199,10 @@
       "Angus's own Vici ledger. summary: Balance, record, PnL, ROI and open exposure. open: open entries with their picks. recent: the last 15 settled entries with results.",
       { view: { type: "string", enum: ["summary", "open", "recent"] } }, ["view"]),
     tool("vici_model",
-      "The app's learning model, built only from your graded picks: what you predicted (Vici %) vs the actual results, hit rates by segment with shrinkage and 80% intervals, trust and fade segments, calibration of your probabilities (buckets, Brier score, verdict) and factor lifts.",
-      {}, []),
+      "The app's learning model, built only from your graded picks: what you predicted (Vici %) vs the actual results, hit rates by segment with shrinkage and 80% intervals, trust and fade segments, calibration of your probabilities (buckets, Brier score, verdict) and factor lifts. Without sport: everything, with a by_sport summary. With sport: that sport's own record, calibration, trust, fade and segments.",
+      { sport: { type: "string", enum: ["NBA", "NFL", "CFB", "Soccer"], description: "Only this sport's model" } }, []),
     tool("suggest_picks",
-      "Journal the picks you recommend and show them to Angus as cards he can add to a slip and log. Call it once per answer with every recommended pick (at most " + MAX_PICKS + "). Returns, for each pick, its journal id, vici_pct (your prob after the app's learned calibration and segment adjustment) and edge_pts against the Power 2 break-even (57.7%); edge_pts is null for goblin and demon legs (their payout differs).",
+      "Journal the picks you recommend and show them to Angus as cards he can add to a slip and log. Call it once per answer with every recommended pick (at most " + MAX_PICKS + "). Returns, for each pick, its journal id, vici_pct (your prob after the app's learned calibration and segment adjustment) and edge_pts against the Power 2 break-even (57.7%); edge_pts is null for goblin and demon legs (their payout differs). When every pick in the call is from one team, the first result carries lineup_note: those picks can't make a lineup on their own.",
       { picks: { type: "array", items: PICK, maxItems: MAX_PICKS } }, ["picks"]),
     tool("grade_picks",
       "Grade your pending picks whose games are over, from ESPN box scores. Returns what was graded and the updated record.",
@@ -493,6 +493,47 @@
   }
   const defaultLeague = sport => ({ NBA: "nba", NFL: "nfl", CFB: "college-football" })[sport] || null;
   const normName = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z ]/g, "").trim();
+  // ---- PrizePicks lineups need players from at least two teams (Angus's rule, 2026-11-18)
+  const NO_TEAM = /^(n\/?a|unk(nown)?|tbd|none|null|\?+|-+)$/i;
+  const TEAM_ABBR = new Map();   // "NBA|golden state warriors" -> "GS": full names espn_scoreboard gave an abbreviation for
+  const sportKey = s => String(s || "").trim().toUpperCase();
+  /** A pick's team as the app compares it: whitespace collapsed, a full name the scoreboard abbreviated turned into that
+   *  abbreviation, and a placeholder ("N/A", "?") treated as unknown (null). */
+  function teamName(sport, team) {
+    const t = String(team == null ? "" : team).replace(/\s+/g, " ").trim();
+    if (!t || NO_TEAM.test(t)) return null;
+    return TEAM_ABBR.get(sportKey(sport) + "|" + normName(t)) || t;
+  }
+  /** Same team under another spelling: case, punctuation, or a common abbreviation ESPN writes differently (GSW = GS). */
+  function sameTeam(a, b) {
+    if (a.toUpperCase() === b.toUpperCase()) return true;
+    const na = normName(a);
+    if (na && na === normName(b)) return true;
+    const D = root.ViciData;
+    return !!(D && typeof D.teamMatch === "function" && D.teamMatch(a, { abbr: b }));
+  }
+  function learnTeams(sport, games) {
+    for (const g of Array.isArray(games) ? games : []) for (const t of [g && g.home, g && g.away]) {
+      if (t && t.abbr && t.name && normName(t.name)) {
+        TEAM_ABBR.set(sportKey(sport) + "|" + normName(t.name), String(t.abbr).trim());
+        if (TEAM_ABBR.size > 600) TEAM_ABBR.delete(TEAM_ABBR.keys().next().value);
+      }
+    }
+  }
+  /** True when 2+ picks surely come from one team, so they can't make a lineup on their own: every pick is the same
+   *  athlete, or every pick's team is known and the same, or (with a team missing) every pick is the same player by name.
+   *  Picks from different sports, or with two different known teams, never are. */
+  function oneTeam(picks) {
+    if (!picks || picks.length < 2) return false;
+    if (new Set(picks.map(p => sportKey(p.sport))).size > 1) return false;
+    const ids = picks.map(p => (p.athleteId ? String(p.athleteId).trim() : ""));
+    if (ids.every(Boolean) && new Set(ids).size === 1) return true;
+    const teams = picks.map(p => teamName(p.sport, p.team)), known = teams.filter(Boolean);
+    if (known.some(t => !sameTeam(t, known[0]))) return false;
+    if (known.length === teams.length) return true;
+    const names = picks.map(p => normName(p.player));
+    return !!names[0] && new Set(names).size === 1;
+  }
 
   function cleanFeatures(f) {
     f = f && typeof f === "object" ? f : {};
@@ -531,6 +572,7 @@
   const IMPL = {
     async espn_scoreboard(i) {
       const r = await need("scoreboard").scoreboard({ sport: i.sport, league: i.league || undefined, date: i.date || undefined });
+      learnTeams(i.sport, r);
       return Array.isArray(r) ? r.slice(0, 40) : r;
     },
     async espn_find_player(i) {
@@ -565,9 +607,9 @@
       return need("weather").weather({ city: i.city || undefined, lat: isNum(i.lat) ? i.lat : undefined, lon: isNum(i.lon) ? i.lon : undefined, time: i.time });
     },
     async ledger(i) { return ledgerView(i.view); },
-    async vici_model() {
+    async vici_model(i) {
       if (!root.ViciModel) throw new Error("Learning model unavailable");
-      return root.ViciModel.compact(getModel());
+      return root.ViciModel.compact(getModel(), i && i.sport ? i.sport : undefined);
     },
     async suggest_picks(i, ctx) {
       const VM = root.ViciModel;
@@ -583,6 +625,8 @@
         const player = plain(p.player, 60), stat = plain(p.stat, 48);
         if (!err && (!player || URLISH.test(player))) err = "picks[" + k + "].player must be the player's name";
         if (!err && (!stat || URLISH.test(stat))) err = "picks[" + k + "].stat must be a PrizePicks stat label";
+        const team = teamName(p.sport, p.team);
+        if (!err && (!team || URLISH.test(team) || team.length > 40)) err = "picks[" + k + "].team must be the team abbreviation from espn_scoreboard (e.g. DAL)";
         // The game is what grading checks against, so it is never guessed: a start time with Z or an offset, a day
         // (YYYY-MM-DD), or the ESPN event id. A missing or local-only time used to become "today" and could grade the
         // pick against the team's previous game.
@@ -598,7 +642,7 @@
         const jp = {
           id: uid("p"), createdAt: now.toISOString(), convId: ctx && ctx.conv ? ctx.conv.id : null,
           sport: p.sport, league: p.league || defaultLeague(p.sport), player,
-          athleteId: p.athleteId ? String(p.athleteId) : null, team: p.team || null, opponent: p.opponent || null,
+          athleteId: p.athleteId ? String(p.athleteId) : null, team, opponent: p.opponent || null,
           home: typeof p.home === "boolean" ? p.home : null, eventId,
           // with only an event id the day is unknown: today is just the earliest it can be due (grading uses the id)
           gameTime, date: when ? when.date : ymdPT(now),
@@ -636,6 +680,10 @@
         S.model = null;
       }
       for (let k = 0; k < out.length; k++) if (!out[k]) out[k] = { error: "missing pick" };
+      if (oneTeam(save) && out[at[0]]) {
+        const tm = save[0].team ? String(save[0].team).toUpperCase() : save[0].player;
+        out[at[0]].lineup_note = "Every pick here is from one team (" + tm + "). A PrizePicks lineup needs players from at least two teams: pair them with a leg from another team, or say so.";
+      }
       return out;
     },
     async grade_picks() {
@@ -707,7 +755,7 @@
       case "espn_injuries": return "ESPN · injuries" + (i.team ? " " + short(i.team, 8) : "");
       case "weather": return "Weather" + (i.city ? " · " + short(i.city, 24) : "");
       case "ledger": return "Ledger";
-      case "vici_model": return "Model";
+      case "vici_model": return "Model" + (i.sport ? " · " + short(i.sport, 8) : "");
       case "suggest_picks": return "Saving picks";
       case "grade_picks": return "Grading";
       default: return "Working";
@@ -832,7 +880,7 @@
     conv: null, busy: false, stopped: false, ac: null, act: null, group: null, nodes: new Map(),
     atts: [], slip: new Map(), expanded: new Set(), panel: null, forgetArmed: false,
     model: null, names: {}, lastGrade: 0, modelHosts: new Set(), client: null, clientKey: null, sdkP: null,
-    beat: 0, picked: null, logged: null
+    beat: 0, logged: null
   };
 
   const getKey = () => (lsGet(LS.key) || "").trim();
@@ -1433,9 +1481,11 @@
     const alt = isAltLine(p.lineType);   // goblin / demon: no edge against the standard break-even (older results had one)
     const edge = alt ? null : isNum(r.edge_pts) ? r.edge_pts : vp != null ? (vp - BE2) * 100 : null;
     const side = sideOf(p.side);
-    const pick = { id, sport: p.sport, player: String(p.player || ""), stat: String(p.stat || ""), line: Number(p.line), side, p: vp,
-      lineType: alt ? p.lineType : "standard" };
     const jp = journalById(id);
+    // the slip checks the two-team rule with these
+    const team = teamName(p.sport, (jp && jp.team) || p.team), aid = (jp && jp.athleteId) || p.athleteId;
+    const pick = { id, sport: p.sport, player: String(p.player || ""), team, athleteId: aid ? String(aid) : null, stat: String(p.stat || ""),
+      line: Number(p.line), side, p: vp, lineType: alt ? p.lineType : "standard" };
     const graded = jp && resultOf(jp) !== "pending";
     const card = h("article", { class: "vc-card" + (S.slip.has(id) ? " sel" : "") + (graded ? " graded" : ""), "data-id": id, "data-edge": isNum(edge) ? String(edge) : "",
       "data-alt": alt ? "1" : null });
@@ -1625,6 +1675,20 @@
     S.slip = new Map((Array.isArray(arr) ? arr : []).filter(p => p && p.id).map(p => [p.id, p]));
   }
   function saveSlip() { lsSet(LS.slip, JSON.stringify(Array.from(S.slip.values()))); }
+  /** The slip's picks. One saved before the two-team rule has no team or athlete id: they come from the journal. */
+  function slipPicks() {
+    const picks = Array.from(S.slip.values());
+    let fixed = false;
+    for (const p of picks) {
+      if (p.team && p.athleteId) continue;
+      const jp = journalById(p.id);
+      if (!jp) continue;
+      if (!p.team && jp.team) { p.team = teamName(p.sport, jp.team); fixed = fixed || !!p.team; }
+      if (!p.athleteId && jp.athleteId) { p.athleteId = String(jp.athleteId); fixed = true; }
+    }
+    if (fixed) saveSlip();
+    return picks;
+  }
   function toggleSlip(pick) {
     if (S.slip.has(pick.id)) S.slip.delete(pick.id);
     else {
@@ -1643,14 +1707,20 @@
       const b = card.querySelector(".vc-add");
       if (b) { b.setAttribute("aria-pressed", on ? "true" : "false"); b.textContent = on ? "✓ Slip" : "+ Slip"; }
     });
-    const picks = Array.from(S.slip.values());
+    const picks = slipPicks();
     const n = picks.length;
     box.textContent = "";
     if (!n || !getKey()) { box.hidden = true; return; }
     box.hidden = false;
     let title, sub = "";
+    const same = oneTeam(picks);
     if (n === 1) title = "Add 1 more";
     else if (n > 6) title = "Max 6";
+    else if (same) {
+      // PrizePicks won't take a lineup from one team (two props on one player included)
+      title = "Needs 2 teams";
+      sub = n >= 6 ? "swap one for another team" : "add another team";
+    }
     else if (picks.some(p => isAltLine(p.lineType))) {
       // a goblin or demon leg changes the multiplier: the standard Xx and its break-even would be wrong
       title = "Power " + n;
@@ -1666,12 +1736,12 @@
       h("span", { class: "vc-sn", text: String(n) }),
       h("div", { class: "vc-st", title: picks.map(p => p.player).join(" · ") }, h("b", { text: title }), h("small", { text: sub || names })),
       h("div", { class: "vc-odds", title: "Combined Vici odds" }, h("b", { text: comb == null ? "—" : Math.round(comb * 100) + "%" })),
-      h("button", { type: "button", class: "vc-log", text: "Log", disabled: n < 2 || n > 6 ? true : null, onclick: logSlip }),
+      h("button", { type: "button", class: "vc-log", text: "Log", disabled: n < 2 || n > 6 || same ? true : null, onclick: logSlip }),
       iconBtn("close", "Clear slip", () => { S.slip.clear(); saveSlip(); refreshSlip(); }, "vc-sx"));
   }
   function logSlip() {
-    const picks = Array.from(S.slip.values());
-    if (picks.length < 2 || picks.length > 6) return;
+    const picks = slipPicks();
+    if (picks.length < 2 || picks.length > 6 || oneTeam(picks)) return;
     const comb = picks.every(p => isNum(p.p)) ? picks.reduce((a, p) => a * p.p, 1) : null;
     const draft = {
       date: ymdPT(new Date()), type: "power",
@@ -1709,16 +1779,84 @@
 
   // ---------------------------------------------------------------- send + agent loop
   /** A chat stops being "current" when it's from an earlier day (Pacific) or its last request sent more than LONG_CHAT
-   *  input tokens: every message re-sends the whole chat, so the next one starts a new chat (the old one stays in
-   *  History). A chat Angus reopened from History on purpose keeps going across days, but not past LONG_CHAT.
-   *  The day rule needs a real break (STALE_GAP): a chat still going at midnight keeps its context. */
+   *  input tokens: every message re-sends the whole chat, so the next one starts a new chat (a long one stays in History;
+   *  an earlier day's is deleted, see purgeOld). The day rule needs a real break (STALE_GAP): a chat still going at
+   *  midnight keeps its context. */
   const STALE_GAP = 4 * 3600 * 1000;
   function stale(c, now) {
     if (!c || !c.messages || !c.messages.length) return false;
     if (isNum(c.ctx) && c.ctx > LONG_CHAT) return true;
-    if (S.picked === c.id) return false;
+    return staleDay(c, now);
+  }
+  /** Its last message was on an earlier day (Pacific) and more than STALE_GAP ago. */
+  function staleDay(c, now) {
+    if (!c || !c.messages || !c.messages.length) return false;
     const t = Date.parse(c.updatedAt || c.createdAt), n = now ? new Date(now) : new Date();
     return isFinite(t) && ymdPT(new Date(t)) < ymdPT(n) && n.getTime() - t > STALE_GAP;
+  }
+  /** Old chats are deleted after midnight (Angus's rule, 2026-11-17): History only holds today's chats (Pacific). The
+   *  exception is a chat still going at midnight: the current one (on screen or to be reopened) while a reply runs or
+   *  within STALE_GAP of its last message. It goes at the first check after that. Picks journaled from any
+   *  chat, and what Vici learned from them, stay. Runs at launch, when the sheet or History opens, when the app comes
+   *  back to the foreground, and at midnight PT. Resolves to how many chats were deleted. */
+  let purging = null, midnightT = 0;
+  function keepPastMidnight(meta, now) {
+    const mine = !!S.conv && S.conv.id === meta.id;
+    if (mine && S.busy) return true;
+    if (!mine && meta.id !== lsGet(LS.cur)) return false;
+    const c = mine ? S.conv : meta, t = Date.parse(c.updatedAt || c.createdAt);
+    return isFinite(t) && now - t <= STALE_GAP;
+  }
+  function purgeOld(now, quiet) {
+    if (dead) return Promise.resolve(0);
+    if (purging) return purging;
+    const n = isNum(now) ? now : Date.now();
+    const today = ymdPT(new Date(n));
+    const run = saveChain.then(() => db.list()).then(async rows => {
+      let gone = 0;
+      for (const r of rows) {
+        const t = Date.parse(r.updatedAt || r.createdAt);
+        if (isFinite(t) && ymdPT(new Date(t)) >= today) continue;
+        if (dead || keepPastMidnight(r, n)) continue;
+        await db.del(r.id);
+        gone++;
+        if (lsGet(LS.cur) === r.id) lsDel(LS.cur);
+        if (S.conv && S.conv.id === r.id && !S.busy) {
+          S.conv = null; S.expanded.clear();
+          if (S.open) renderAll();
+        }
+      }
+      return gone;
+    }).catch(() => 0).then(gone => {
+      if (purging === run) purging = null;
+      if (gone && !quiet && S.panel === "history" && S.dom) showPanel("history");
+      return gone;
+    });
+    purging = run;
+    return run;
+  }
+  /** The next midnight in Pacific time after `now` (ms), DST-safe: the first second whose PT date is a later day. */
+  function nextMidnightPT(now) {
+    const today = ymdPT(new Date(now));
+    let lo = now, hi = now + 26 * 3600 * 1000;
+    while (hi - lo > 1000) { const mid = Math.floor((lo + hi) / 2); if (ymdPT(new Date(mid)) > today) hi = mid; else lo = mid; }
+    return hi;
+  }
+  function armMidnight() {
+    if (!HAS_DOM || dead) return;
+    clearTimeout(midnightT);
+    const now = Date.now();
+    // a few seconds past midnight; a backgrounded phone may run it late, so coming back to the app checks too
+    midnightT = setTimeout(() => { midnightT = 0; newDay(); armMidnight(); }, Math.max(1000, nextMidnightPT(now) - now + 3000));
+  }
+  /** Midnight passed, or the app came back to the foreground: an earlier day's chat left on screen gives way to a new
+   *  one, then old chats are deleted. */
+  function newDay() {
+    if (S.open && !S.busy && S.conv && staleDay(S.conv)) {
+      S.conv = null; S.expanded.clear(); lsDel(LS.cur);
+      renderAll();
+    }
+    return purgeOld();
   }
   /** A reply that paused (pause_turn) and was never continued (Stop, an error, the step limit, the app closed) ends the
    *  chat in an assistant turn that is still open, usually with a server_tool_use that has no result yet. The API only
@@ -1774,7 +1912,7 @@
     if (S.busy || (!text && !atts.length)) return;
     if (!getKey()) { renderAll(); return; }
     if (S.conv && stale(S.conv)) { S.conv = null; lsDel(LS.cur); renderAll(); }
-    if (!S.conv) { S.conv = newConv(); S.picked = null; }
+    if (!S.conv) S.conv = newConv();
     const c = S.conv;
     repairHistory(c);
     if (dropPaused(c)) renderAll();
@@ -1990,8 +2128,9 @@
     dead = true;
     stop();
     clearTimeout(usage.timer);
+    clearTimeout(midnightT);
     Object.keys(LS).forEach(k => lsDel(LS[k]));
-    S.conv = null; S.client = null; S.clientKey = null; S.logged = null; S.picked = null;
+    S.conv = null; S.client = null; S.clientKey = null; S.logged = null;
     S.slip.clear();
     try { const J = root.ViciData && root.ViciData.journal; if (J && typeof J.forget === "function") J.forget(); } catch (e) { /* ignore */ }
     try { await saveChain; } catch (e) { /* ignore */ }
@@ -2102,8 +2241,9 @@
     S.dom.panel.textContent = "";
   }
   async function historyPanel(body) {
+    await purgeOld(undefined, true);
     const rows = await db.list();
-    if (S.panel !== "history") return;
+    if (S.panel !== "history" || !body.isConnected) return;
     if (!rows.length) { body.append(h("p", { class: "vc-none", text: "No chats yet" })); return; }
     const list = h("div", { class: "vc-hist" });
     rows.slice(0, KEEP_CHATS).forEach(m => {
@@ -2164,7 +2304,6 @@
     if (!c) return;
     if (repairHistory(c)) saveConv(c);
     S.conv = c;
-    S.picked = c.id;   // reopened on purpose: it continues even if it's from an earlier day (see stale())
     S.expanded.clear();
     lsSet(LS.cur, id);
     hidePanel();
@@ -2173,7 +2312,6 @@
   function newChat() {
     if (S.busy) return;
     S.conv = null;
-    S.picked = null;
     S.expanded.clear();
     lsDel(LS.cur);
     hidePanel();
@@ -2186,7 +2324,8 @@
     if (!id) return;
     const c = await db.get(id);
     if (!c || S.conv) return;
-    // yesterday's chat (or one past LONG_CHAT) isn't reopened: the sheet starts empty, the chat stays in History
+    // yesterday's chat (or one past LONG_CHAT) isn't reopened: the sheet starts empty. A long one stays in History; an
+    // earlier day's is deleted by purgeOld
     if (stale(c)) { lsDel(LS.cur); return; }
     if (repairHistory(c)) saveConv(c);
     S.conv = c;
@@ -2239,39 +2378,95 @@
     });
     return s;
   }
-  function segRows(list, kind) {
+  function segRows(list, kind, strip) {
     return h("div", { class: "vm-rows" }, list.map(sg => h("div", { class: "vm-r" },
-      h("span", { class: "lbl" }, h("span", { text: String(sg.label || "").trim() })),
+      h("span", { class: "lbl" }, h("span", { text: strip(String(sg.label || "").trim()) })),
       h("b", { class: kind, text: pct0(sg.raw) + " · " + sg.hits + "/" + sg.n }))));
   }
+  /** A model that can be read by sport (an older cached vici-model.js can't: then there is no switch, only All). */
+  const bySportOk = m => !!(m && Array.isArray(m.sports) && m.track && m.track.bySport && m.bySport && root.ViciModel && root.ViciModel.SPORT_ORDER);
+  /** The sports on the switch: Angus's four, then any other sport Vici has picked. */
+  function sportsOf(m) {
+    if (!bySportOk(m)) return [];
+    const order = root.ViciModel.SPORT_ORDER;
+    return order.concat(m.sports.filter(x => order.indexOf(x) < 0));
+  }
+  /** The sport the Model panel shows (remembered on this device), "All" unless one is picked. */
+  function modelSport(m) {
+    const v = lsGet(LS.sport);
+    return v && sportsOf(m).indexOf(v) >= 0 ? v : "All";
+  }
+  function paintModels() {
+    S.modelHosts.forEach(c => { if (c.isConnected) renderModelView(c); else S.modelHosts.delete(c); });
+    if (S.panel === "model" && S.dom) { const b = S.dom.panel.querySelector(".vm-host"); if (b) renderModelView(b); }
+  }
   function renderModelView(box) {
+    // the view is rebuilt on every data change (the app syncs every minute): keep the keyboard focus on the switch
+    const ae = HAS_DOM ? document.activeElement : null;
+    const keep = ae && box.contains(ae) && ae.closest && ae.closest(".vm-sw") ? ae.textContent : null;
     box.textContent = "";
     const VM = root.ViciModel;
     if (!VM) { box.append(h("div", { class: "vm-empty", text: "Model unavailable" })); return; }
     const m = getModel();
     if (!m) { box.append(h("div", { class: "vm-empty", text: "Model unavailable" })); return; }
-    // Vici's predictions (the Vici % on its cards) against the actual results; Angus plays only what Vici picks
-    const sm = VM.summary(m);
-    const tr = m.track || { n: 0, buckets: [] };
+    // Vici's predictions (the Vici % on its cards) against the actual results, for all picks or one sport; Angus plays
+    // only what Vici picks
+    const sport = modelSport(m), one = sport !== "All";
+    const sm = VM.summary(m, one ? sport : undefined);
+    const tr = (one ? m.track && m.track.bySport && m.track.bySport[sport] : m.track) || { n: 0, buckets: [] };
+    const strip = lbl => (one && lbl.indexOf(sport + " ") === 0 ? lbl.slice(sport.length + 1) : lbl);
     const kpi = (k, v, sub) => h("div", { class: "vm-k" }, h("span", { class: "k", text: k }), h("b", { text: v }), h("small", { text: sub }));
     const wrap = h("div", { class: "vm" });
+    const sw = h("div", { class: "vm-sw", role: "group", "aria-label": "Sport" }, ["All"].concat(sportsOf(m)).map(v => h("button", {
+      type: "button", "aria-pressed": v === sport ? "true" : "false", text: v,
+      onclick: () => {
+        if (v === modelSport(m)) return;
+        if (v === "All") lsDel(LS.sport); else lsSet(LS.sport, v);
+        paintModels();   // every open Model view (Stats page and chat panel) follows the switch
+      }
+    })));
+    if (sportsOf(m).length) wrap.append(sw);
     wrap.append(h("div", { class: "vm-kpis" },
       kpi("Predicted", sm.predicted == null ? "—" : pct0(sm.predicted), "avg Vici %"),
       kpi("Actual", sm.rate == null ? "—" : pct0(sm.rate), sm.graded ? sm.hits + "–" + sm.misses : "hit rate"),
       kpi("Picks", String(sm.graded), sm.pending + " pending")));
     const sec = (title, node) => h("section", { class: "vm-sec" }, h("h3", { text: title }), node);
-    wrap.append(sec("Predicted vs actual", tr.n ? calChart(tr) : h("div", { class: "vm-empty", text: "No graded picks yet" })));
-    const trust = (m.trust || []).slice(0, 4), fade = (m.fade || []).slice(0, 4);
-    if (trust.length) wrap.append(sec("Trust", segRows(trust, "good")));
-    if (fade.length) wrap.append(sec("Fade", segRows(fade, "bad")));
+    wrap.append(sec("Predicted vs actual", tr.n ? calChart(tr) : h("div", { class: "vm-empty", text: one ? "No graded " + sport + " picks yet" : "No graded picks yet" })));
+    const own = (one ? m.bySport && m.bySport[sport] : m) || {};
+    const trust = (own.trust || []).slice(0, 4), fade = (own.fade || []).slice(0, 4);
+    if (trust.length) wrap.append(sec("Trust", segRows(trust, "good", strip)));
+    if (fade.length) wrap.append(sec("Fade", segRows(fade, "bad", strip)));
     if (!trust.length && !fade.length) wrap.append(sec("Segments", h("div", { class: "vm-empty", text: "Not enough yet" })));
-    const facs = (m.factors || []).slice(0, 6);
+    // factor lifts are learned across every sport: they show with All only
+    const facs = one ? [] : (m.factors || []).slice(0, 6);
     if (facs.length) {
       wrap.append(sec("Factors", h("div", { class: "vm-rows" }, facs.map(f => h("div", { class: "vm-r" },
         h("span", { class: "lbl" }, h("span", { text: f.label }), h("small", { text: f.verdict })),
         h("b", { class: f.verdict === "helps" ? "good" : f.verdict === "hurts" ? "bad" : "", text: (f.lift >= 0 ? "+" : "−") + Math.abs(f.lift).toFixed(1) + " pts ±" + (f.liftSE || 0).toFixed(1) }))))));
     }
     box.append(wrap);
+    if (box._swRO) { box._swRO.disconnect(); box._swRO = null; }
+    if (!sw.isConnected) return;
+    centreSport(sw);
+    // The Stats tab's view is built while the tab is hidden (0 wide), so it centres again each time it is shown
+    if (typeof ResizeObserver === "function") {
+      let shown = sw.clientWidth > 0;
+      box._swRO = new ResizeObserver(() => {
+        if (!sw.isConnected) { if (box._swRO) box._swRO.disconnect(); box._swRO = null; return; }
+        const now = sw.clientWidth > 0;
+        if (now && !shown) centreSport(sw);
+        shown = now;
+      });
+      box._swRO.observe(sw);
+    }
+    if (keep) { const b = Array.from(sw.querySelectorAll("button")).find(x => x.textContent === keep); if (b) b.focus({ preventScroll: true }); }
+  }
+  /** The chosen sport stays in view when the switch is wider than the screen (a fifth sport, a 320px phone). */
+  function centreSport(sw) {
+    const on = sw.querySelector('[aria-pressed="true"]');
+    if (!on || !(sw.clientWidth > 0) || sw.scrollWidth <= sw.clientWidth + 1) return;
+    const l = on.offsetLeft;   // .vm-sw is positioned: offsets are within it
+    if (l < sw.scrollLeft || l + on.offsetWidth > sw.scrollLeft + sw.clientWidth) sw.scrollLeft = Math.max(0, l - (sw.clientWidth - on.offsetWidth) / 2);
   }
   function renderModel(container) {
     if (!HAS_DOM || !container) return;
@@ -2285,8 +2480,7 @@
     checkLogged();
     refreshHeader();
     refreshCards();
-    S.modelHosts.forEach(c => { if (c.isConnected) renderModelView(c); else S.modelHosts.delete(c); });
-    if (S.panel === "model" && S.dom) { const b = S.dom.panel.querySelector(".vm-host"); if (b) renderModelView(b); }
+    paintModels();
   }
   async function maybeGrade(force) {
     const D = root.ViciData;
@@ -2408,8 +2602,8 @@
       try {
         if (!(history.state && history.state.vchat)) { history.pushState(Object.assign({}, history.state || {}, { vchat: 1 }), ""); S.pushed = true; }
       } catch (e) { S.pushed = false; }
-      if (!S.busy && S.conv && stale(S.conv)) { S.conv = null; S.picked = null; S.expanded.clear(); lsDel(LS.cur); }
-      if (!S.busy) loadCurrent().then(() => { if (S.open && !S.busy) renderAll(); refreshHeader(); });
+      if (!S.busy && S.conv && stale(S.conv)) { S.conv = null; S.expanded.clear(); lsDel(LS.cur); }
+      if (!S.busy) loadCurrent().then(() => { if (S.open && !S.busy) renderAll(); refreshHeader(); purgeOld(); });
       else refreshHeader();
       maybeGrade(false);
     }
@@ -2466,6 +2660,13 @@
     }
     setTimeout(() => maybeGrade(false), 6000);
     usage.schedule(4000);
+    setTimeout(() => purgeOld(), 2500);
+    armMidnight();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      newDay();
+      armMidnight();   // timers sleep while the phone does
+    });
     return api;
   }
 
@@ -2475,7 +2676,8 @@
     isOpen: () => S.open,
     MODEL, SYSTEM_PROMPT, TOOLS, PROMPT_SIG,
     _test: { echoContent, fitJSON, usageOf, mapError, contextBlock, validate, toolLabel, ledgerView, cleanFeatures, vsLine, buildParams, usage, repairHistory, gameWhen, contextSize,
-      dropPaused, stale, refusalLabel, CFG, LONG_CHAT }
+      dropPaused, stale, refusalLabel, CFG, LONG_CHAT, purgeOld, nextMidnightPT, oneTeam, teamName,
+      reloadSlip: () => { loadSlip(); refreshSlip(); } }
   };
   if (root && HAS_DOM) root.ViciChat = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

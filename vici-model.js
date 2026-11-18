@@ -6,12 +6,16 @@
  *
  *   ViciModel.build({journal, now}) -> Model   (model.track = what Vici predicted, Vici %, vs the actual results)
  *   ViciModel.adjust(model, rawProb, {sport, stat, side, tier, features}) -> {p, parts, note}
- *   ViciModel.breakEven(n, type) / edge(p, n, type) / promptBlock(model) / summary(model) / compact(model)
+ *   ViciModel.breakEven(n, type) / edge(p, n, type) / promptBlock(model)
+ *   ViciModel.summary(model, sport?) / compact(model, sport?) / calibrated(model, p, sport?)   (sport: "NBA"; omitted = all)
  *
  * Statistics:
  *   - Hit rates: nested Beta shrinkage. global ~ Beta(10,10) + data; sport, sport|stat, sport|stat|side each use
  *     Beta(k*m, k*(1-m)) with m = parent's posterior mean, k = 15. 80% interval = normal approx to the Beta.
- *   - Calibration: logit(p*) = a + b*logit(p), MAP by damped Newton, priors a~N(0,.35^2), b~N(1,.25^2).
+ *   - Calibration by sport: logit(p*) = (a+da_s) + (b+db_s)*logit(p), one joint MAP fit by damped Newton, priors
+ *     a~N(0,.35^2), b~N(1,.25^2) (the pooled fit, used for a sport with no picks), da_s~N(0,.25^2), db_s~N(0,.15^2).
+ *   - Each sport also gets its own segments, trust/fade, predicted-vs-actual track and pending count (model.bySport,
+ *     bot.bySport, track.bySport, bot.pendingBy, calibration.bySport; model.sports lists them in display order).
  *   - Factors: L2 (lambda=1) logistic regression on standardized features, n >= 40, SEs from the inverse Hessian.
  */
 (function (root) {
@@ -26,6 +30,7 @@
   const THIN = 10;              // n below this → "thin"
   const CAL_MIN = 15;           // calibration verdict needs this many graded bot picks
   const CAL_SA = 0.35, CAL_SB = 0.25;
+  const CAL_SAS = 0.25, CAL_SBS = 0.15;  // how far one sport's calibration may sit from the pooled one (prior SDs)
   const FACTOR_MIN = 40, LAMBDA = 1, LAMBDA0 = 1e-3;
   const RESID_MIN = 10, RESID_K = 30;
   const P_MIN = 0.30, P_MAX = 0.85;
@@ -279,11 +284,16 @@
   function journalRows(journal) {
     const picks = toList(journal, "picks").slice().sort((a, b) =>
       cmpStr(s0(a.createdAt), s0(b.createdAt)) || cmpStr(s0(a.id), s0(b.id)) || cmpStr(s0(a.player), s0(b.player)));
-    const rows = [], excluded = { push: 0, void: 0, pending: 0, noProb: 0 };
+    const rows = [], excluded = { push: 0, void: 0, pending: 0, noProb: 0 }, pendingBy = {};
     for (const p of picks) {
       const res = canonResult(p.result);
-      if (res !== "hit" && res !== "miss") { excluded[res]++; continue; }
+      if (res !== "hit" && res !== "miss") {
+        excluded[res]++;
+        if (res === "pending") { const sp = canonSport(p.sport); pendingBy[sp] = (pendingBy[sp] || 0) + 1; }
+        continue;
+      }
       const r = baseRow(p, canonSport(p.sport), res === "hit" ? 1 : 0);
+      r.i = rows.length;   // row id: segments over the very same picks are told apart by their row sets
       r.prob = unitProb(p.prob);
       if (r.prob == null) excluded.noProb++;
       r.vici = unitProb(p.vici);   // the Vici % Angus saw on the card (journaled since 2026-11-17); older picks fall back to prob
@@ -295,7 +305,13 @@
       r.f = p.features && typeof p.features === "object" && !Array.isArray(p.features) ? p.features : null;
       rows.push(r);
     }
-    return { rows, excluded };
+    return { rows, excluded, pendingBy };
+  }
+  /** Sports in display order: Angus's four first, then any other sport alphabetically. */
+  const SPORT_ORDER = ["NBA", "NFL", "CFB", "Soccer"];
+  function sportSort(a, b) {
+    const i = SPORT_ORDER.indexOf(a), j = SPORT_ORDER.indexOf(b);
+    return (i < 0 ? 99 : i) - (j < 0 ? 99 : j) || cmpStr(a, b);
   }
 
   // ---------- segments ----------
@@ -316,6 +332,8 @@
       n, hits, raw: n ? hits / n : null, prior: priorMean, post: b.post, lo80: b.lo80, hi80: b.hi80,
       verdict: verdictOf(n, b.post, b.lo80, b.hi80)
     });
+    // which picks it holds (not enumerable: never copied into the built model or its JSON)
+    Object.defineProperty(seg, "_rows", { value: rows.map(r => r.i).join(","), enumerable: false });
     if (source === "bot") {
       const P = rows.filter(r => r.prob != null);
       seg.nP = P.length;
@@ -328,12 +346,27 @@
     return seg;
   }
   const sideWord = s => (s === "over" ? "over" : s === "under" ? "under" : "");
+  /** Flat (non-nested) segments of `rows`: side, and for the bot also tier, home/away and line type. With a sport they
+   *  sit under that sport (key "NBA|tier:A", label "NBA Tier A", shrunk toward the sport); without one, under all picks. */
+  function flatSegs(source, rows, prior, sport) {
+    const flat = (level, keyFn, labelFn) => groupBy(rows, keyFn).map(([k, g]) =>
+      makeSeg(source, level, (sport ? sport + "|" : "") + level + ":" + k, (sport ? sport + " " : "") + labelFn(k), sport ? { sport } : {}, g, prior, K))
+      .sort((a, b) => b.n - a.n || cmpStr(a.key, b.key));
+    const by = { side: flat("bySide", r => r.side, k => (k === "over" ? "Over" : "Under")) };
+    if (source === "bot") {
+      by.tier = flat("tier", r => r.tier, k => "Tier " + k);
+      by.home = flat("home", r => (r.home == null ? null : r.home ? "home" : "away"), k => (k === "home" ? "Home" : "Away"));
+      by.lineType = flat("lineType", r => r.lineType, k => k.charAt(0).toUpperCase() + k.slice(1));
+    }
+    return by;
+  }
   function analyzeSource(source, rows, excluded) {
     const all = makeSeg(source, "all", "all", "Bot picks", {}, rows, 0.5, G_STRENGTH);
-    const segments = [];
+    const segments = [], bySport = {};
     for (const [sport, sRows] of groupBy(rows, r => r.sport)) {
       const sp = makeSeg(source, "sport", sport, sport, { sport, stat: null, statLabel: null, side: null }, sRows, all.post, K);
       segments.push(sp);
+      bySport[sport] = flatSegs(source, sRows, sp.post, sport);
       for (const [statKey, tRows] of groupBy(sRows, r => r.statKey)) {
         const statLabel = tRows[0].statLabel;
         const st = makeSeg(source, "stat", sport + "|" + statKey, sport + " " + statLabel,
@@ -347,90 +380,125 @@
     }
     const LV = { sport: 0, stat: 1, side: 2 };
     segments.sort((a, b) => LV[a.level] - LV[b.level] || b.n - a.n || cmpStr(a.key, b.key));
-    const flat = (level, keyFn, labelFn) => groupBy(rows, keyFn).map(([k, g]) =>
-      makeSeg(source, level, level + ":" + k, labelFn(k), {}, g, all.post, K)).sort((a, b) => b.n - a.n || cmpStr(a.key, b.key));
-    const by = { side: flat("bySide", r => r.side, k => (k === "over" ? "Over" : "Under")) };
-    if (source === "bot") {
-      by.tier = flat("tier", r => r.tier, k => "Tier " + k);
-      by.home = flat("home", r => (r.home == null ? null : r.home ? "home" : "away"), k => (k === "home" ? "Home" : "Away"));
-      by.lineType = flat("lineType", r => r.lineType, k => k.charAt(0).toUpperCase() + k.slice(1));
-    }
     return {
       source, n: all.n, hits: all.hits, misses: all.n - all.hits, raw: all.raw, post: all.post, lo80: all.lo80, hi80: all.hi80,
-      verdict: all.verdict, excluded, segments, by
+      verdict: all.verdict, excluded, segments, by: flatSegs(source, rows, all.post, null), bySport
     };
   }
 
   // ---------- calibration ----------
+  /** Hierarchical logistic recalibration, one joint MAP fit:
+   *    logit(cal) = (a + da[s]) + (b + db[s]) · logit(prob)
+   *  a ~ N(0, SA²) and b ~ N(1, SB²) are the pooled calibration (used for a sport with no history); each sport's offsets
+   *  da[s] ~ N(0, SAS²), db[s] ~ N(0, SBS²) let it drift from the pool only as far as its own picks support. A sport with a
+   *  handful of picks therefore borrows the pooled fit and a sport with many gets its own. Sets r.cal on every row. */
   function fitCalibration(rows) {
     const P = rows.filter(r => r.prob != null);
     const n = P.length;
-    const xs = P.map(r => logit(clamp(r.prob, 0.01, 0.99))), ys = P.map(r => r.y);
-    const ia = 1 / (CAL_SA * CAL_SA), ib = 1 / (CAL_SB * CAL_SB);
-    const lp = (a, b) => -0.5 * ia * a * a - 0.5 * ib * (b - 1) * (b - 1) + sum(xs, (x, i) => { const e = a + b * x; return ys[i] * e - softplus(e); });
-    const hess = (a, b) => {
-      let haa = ia, hab = 0, hbb = ib;
-      for (let i = 0; i < n; i++) { const mu = sigmoid(a + b * xs[i]), w = mu * (1 - mu); haa += w; hab += w * xs[i]; hbb += w * xs[i] * xs[i]; }
-      return [[haa, hab], [hab, hbb]];
+    const sports = Array.from(new Set(P.map(r => r.sport))).sort(cmpStr);
+    const S = sports.length, D = 2 + 2 * S;
+    const sIdx = new Map(sports.map((sp, i) => [sp, i]));
+    const xs = P.map(r => logit(clamp(r.prob, 0.01, 0.99))), ys = P.map(r => r.y), ss = P.map(r => sIdx.get(r.sport));
+    const prec = [1 / (CAL_SA * CAL_SA), 1 / (CAL_SB * CAL_SB)];
+    for (let k = 0; k < S; k++) prec.push(1 / (CAL_SAS * CAL_SAS));
+    for (let k = 0; k < S; k++) prec.push(1 / (CAL_SBS * CAL_SBS));
+    const mu0 = prec.map((_, j) => (j === 1 ? 1 : 0));
+    // row i touches 4 parameters: a, b, da[s], db[s] with weights 1, x, 1, x
+    const idx = i => [0, 1, 2 + ss[i], 2 + S + ss[i]];
+    const val = i => [1, xs[i], 1, xs[i]];
+    const eta = (th, i) => th[0] + th[2 + ss[i]] + (th[1] + th[2 + S + ss[i]]) * xs[i];
+    const lp = th => -0.5 * sum(prec, (q, j) => q * (th[j] - mu0[j]) * (th[j] - mu0[j])) +
+      sum(xs, (x, i) => { const e = eta(th, i); return ys[i] * e - softplus(e); });
+    const hess = th => {
+      const H = prec.map((q, j) => prec.map((_, k) => (j === k ? q : 0)));
+      for (let i = 0; i < n; i++) {
+        const m = sigmoid(eta(th, i)), w = m * (1 - m), I = idx(i), V = val(i);
+        for (let u = 0; u < 4; u++) for (let v = 0; v < 4; v++) H[I[u]][I[v]] += w * V[u] * V[v];
+      }
+      return H;
     };
-    let a = 0, b = 1, cur = lp(a, b), ok = true;
+    let th = mu0.slice(), cur = lp(th), ok = true;
     for (let it = 0; it < 100 && n; it++) {
-      let ga = -ia * a, gb = -ib * (b - 1);
-      for (let i = 0; i < n; i++) { const r = ys[i] - sigmoid(a + b * xs[i]); ga += r; gb += r * xs[i]; }
-      const Hi = inv2(hess(a, b));
+      const g = prec.map((q, j) => -q * (th[j] - mu0[j]));
+      for (let i = 0; i < n; i++) {
+        const r = ys[i] - sigmoid(eta(th, i)), I = idx(i), V = val(i);
+        for (let u = 0; u < 4; u++) g[I[u]] += r * V[u];
+      }
+      const Hi = invert(hess(th));
       if (!Hi) { ok = false; break; }
-      const da = Hi[0][0] * ga + Hi[0][1] * gb, db = Hi[1][0] * ga + Hi[1][1] * gb;
-      let t = 1, na = a, nb = b, nl = cur;
+      const step = matVec(Hi, g);
+      let t = 1, nt = th, nl = cur;
       while (t > 1e-8) {
-        na = a + t * da; nb = b + t * db; nl = lp(na, nb);
+        nt = th.map((v, j) => v + t * step[j]); nl = lp(nt);
         if (isNum(nl) && nl >= cur - 1e-12) break;
         t /= 2;
       }
       if (!(t > 1e-8)) break;
-      const moved = Math.abs(na - a) + Math.abs(nb - b);
-      a = na; b = nb; cur = nl;
+      const moved = sum(nt, (v, j) => Math.abs(v - th[j]));
+      th = nt; cur = nl;
       if (moved < 1e-11) break;
     }
-    if (!ok || !isNum(a) || !isNum(b)) { a = 0; b = 1; }
-    const cov = inv2(hess(a, b)) || [[CAL_SA * CAL_SA, 0], [0, CAL_SB * CAL_SB]];
-    for (const r of rows) r.cal = r.prob == null ? null : sigmoid(a + b * logit(clamp(r.prob, 0.01, 0.99)));
+    if (!ok || !th.every(isNum)) th = mu0.slice();
+    const cov = invert(hess(th)) || prec.map((q, j) => prec.map((_, k) => (j === k ? 1 / q : 0)));
+    for (const r of rows) r.cal = null;
+    P.forEach((r, i) => { r.cal = sigmoid(eta(th, i)); });
 
-    const buckets = BUCKETS.map(B => {
-      const g = P.filter(r => r.prob >= B.lo && r.prob < B.hi);
+    // diagnostics for a set of rows (all of them, or one sport's): the calibration curve, Brier, and the gap
+    // mean(raw) - mean(calibrated) (positive → bot too confident) with its SD by the delta method on the posterior
+    function stats(ids) {
+      const G = ids.map(i => P[i]), m = G.length;
+      const buckets = BUCKETS.map(B => {
+        const g = G.filter(r => r.prob >= B.lo && r.prob < B.hi);
+        return {
+          label: B.label, lo: B.lo, hi: Math.min(B.hi, 1), n: g.length,
+          pred: g.length ? sum(g, r => r.prob) / g.length : null,
+          cal: g.length ? sum(g, r => r.cal) / g.length : null,
+          actual: g.length ? sum(g, r => r.y) / g.length : null
+        };
+      });
+      const brier = m ? sum(G, r => (r.prob - r.y) ** 2) / m : null;
+      const brierCal = m ? sum(G, r => (r.cal - r.y) ** 2) / m : null;
+      let gap = null, gapSD = null, gap60 = null;
+      const G60 = G.filter(r => r.prob >= 0.6);
+      if (m) {
+        gap = sum(G, r => r.prob - r.cal) / m;
+        const grad = new Array(D).fill(0);
+        for (const i of ids) {
+          const c = P[i].cal, w = c * (1 - c) / m, I = idx(i), V = val(i);
+          for (let u = 0; u < 4; u++) grad[I[u]] += w * V[u];
+        }
+        gapSD = Math.sqrt(Math.max(0, sum(grad, (gj, j) => gj * sum(grad, (gk, k) => cov[j][k] * gk))));
+        if (G60.length) gap60 = sum(G60, r => r.prob - r.cal) / G60.length;
+      }
+      let verdict = "—";
+      if (m >= CAL_MIN) {
+        const z = gapSD > 0 ? gap / gapSD : 0;
+        // direction must be ≥80% likely under the posterior (|z| ≥ 0.84) and ≥1.5 pts after shrinkage
+        verdict = gap >= 0.015 && z >= 0.8416 ? "over" : gap <= -0.015 && z <= -0.8416 ? "under" : "well";
+      }
       return {
-        label: B.label, lo: B.lo, hi: Math.min(B.hi, 1), n: g.length,
-        pred: g.length ? sum(g, r => r.prob) / g.length : null,
-        cal: g.length ? sum(g, r => r.cal) / g.length : null,
-        actual: g.length ? sum(g, r => r.y) / g.length : null
+        n: m, buckets, brier, brierCal, brier0: 0.25, skill: brier == null ? null : 1 - brier / 0.25,
+        gap, gapSD, gap60, n60: G60.length, verdict
       };
+    }
+    const all = stats(P.map((_, i) => i));
+    const bySport = {};
+    sports.forEach((sp, k) => {
+      const ia = 2 + k, ib = 2 + S + k;
+      bySport[sp] = Object.assign({
+        a: th[0] + th[ia], b: th[1] + th[ib],
+        sdA: Math.sqrt(Math.max(0, cov[0][0] + 2 * cov[0][ia] + cov[ia][ia])),
+        sdB: Math.sqrt(Math.max(0, cov[1][1] + 2 * cov[1][ib] + cov[ib][ib]))
+      }, stats(P.map((_, i) => i).filter(i => ss[i] === k)));
     });
-    const brier = n ? sum(P, r => (r.prob - r.y) ** 2) / n : null;
-    const brierCal = n ? sum(P, r => (r.cal - r.y) ** 2) / n : null;
-    // gap = mean(raw) - mean(calibrated): positive → bot too confident. SD by the delta method on the posterior.
-    let gap = null, gapSD = null, gap60 = null;
-    const P60 = P.filter(r => r.prob >= 0.6);
-    if (n) {
-      gap = sum(P, r => r.prob - r.cal) / n;
-      const ga = sum(P, r => r.cal * (1 - r.cal)) / n;
-      const gb = sum(P, r => r.cal * (1 - r.cal) * logit(clamp(r.prob, 0.01, 0.99))) / n;
-      gapSD = Math.sqrt(Math.max(0, ga * ga * cov[0][0] + 2 * ga * gb * cov[0][1] + gb * gb * cov[1][1]));
-      if (P60.length) gap60 = sum(P60, r => r.prob - r.cal) / P60.length;
-    }
-    let verdict = "—";
-    if (n >= CAL_MIN) {
-      const z = gapSD > 0 ? gap / gapSD : 0;
-      // direction must be ≥80% likely under the posterior (|z| ≥ 0.84) and ≥1.5 pts after shrinkage
-      verdict = gap >= 0.015 && z >= 0.8416 ? "over" : gap <= -0.015 && z <= -0.8416 ? "under" : "well";
-    }
-    return {
-      n, a, b, sdA: Math.sqrt(cov[0][0]), sdB: Math.sqrt(cov[1][1]), identity: n === 0,
-      buckets, brier, brierCal, brier0: 0.25, skill: brier == null ? null : 1 - brier / 0.25,
-      gap, gapSD, gap60, n60: P60.length, verdict
-    };
+    return Object.assign({ n, a: th[0], b: th[1], sdA: Math.sqrt(cov[0][0]), sdB: Math.sqrt(cov[1][1]), identity: n === 0 }, all, { bySport });
   }
-  function calibrated(model, p) {
+  /** The calibrated probability for a sport (its own fit when it has history, else the pooled one). */
+  function calibrated(model, p, sport) {
     const c = model && model.calibration;
-    const a = c && isNum(c.a) ? c.a : 0, b = c && isNum(c.b) ? c.b : 1;
+    const own = c && c.bySport && sport != null ? c.bySport[canonSport(sport)] : null;
+    const src = own && isNum(own.a) && isNum(own.b) ? own : c;
+    const a = src && isNum(src.a) ? src.a : 0, b = src && isNum(src.b) ? src.b : 1;
     return sigmoid(a + b * logit(clamp(p, 0.01, 0.99)));
   }
 
@@ -558,8 +626,10 @@
       : (a, b) => a.hi80 - b.hi80 || a.post - b.post || cmpStr(a.source + a.key, b.source + b.key));
     const out = [];
     for (const s of list) {
-      // skip a segment that repeats the same picks as one already chosen (parent/child with identical n)
-      if (out.some(o => o.source === s.source && o.n === s.n && (isAncestor(o, s) || isAncestor(s, o)))) continue;
+      // skip a segment that repeats the same picks as one already chosen: a parent/child with identical n, or any two
+      // segments over the very same picks (e.g. "Soccer Shots On Target over" and "Soccer Over" when that is all of it)
+      if (out.some(o => o.source === s.source && ((o._rows != null && o._rows === s._rows) ||
+        (o.n === s.n && (isAncestor(o, s) || isAncestor(s, o)))))) continue;
       out.push(s);
       if (out.length >= limit) break;
     }
@@ -579,10 +649,25 @@
     const J = journalRows(o.journal);
     const calibration = fitCalibration(J.rows);
     const bot = analyzeSource("bot", J.rows, J.excluded);
+    bot.pendingBy = J.pendingBy;
     const track = fitTrack(J.rows);
+    track.bySport = {};
+    for (const [sp, g] of groupBy(J.rows, r => r.sport)) track.bySport[sp] = fitTrack(g);
     const fit = fitFactors(J.rows);
     const cands = bot.segments.slice();
     for (const k of Object.keys(bot.by)) for (const s of bot.by[k]) if (s.n < 0.9 * bot.n) cands.push(s);
+    // each sport's own trust/fade: its stat and side segments and its flat ones, leaving out any that is (nearly) the
+    // whole sport, which its record already shows
+    const bySport = {};
+    for (const seg of bot.segments) {
+      if (seg.level !== "sport") continue;
+      const sp = seg.sport, own = [];
+      for (const s of bot.segments) if (s.sport === sp && s.level !== "sport" && s.n < 0.9 * seg.n) own.push(s);
+      const flats = bot.bySport[sp] || {};
+      for (const k of Object.keys(flats)) for (const s of flats[k]) if (s.n < 0.9 * seg.n) own.push(s);
+      bySport[sp] = { trust: pickTop(own, "trust", 5), fade: pickTop(own, "fade", 5) };
+    }
+    const sports = Object.keys(bySport).concat(Object.keys(J.pendingBy)).filter((x, i, a) => a.indexOf(x) === i).sort(sportSort);
     const be = { power: {}, flex: {} };
     for (const n of [2, 3, 4, 5, 6]) { be.power[n] = breakEven(n, "power"); if (FLEX[n]) be.flex[n] = breakEven(n, "flex"); }
     return roundDeep({
@@ -594,21 +679,22 @@
       factors: fit.factors,
       factorN: fit.n,
       trust: pickTop(cands, "trust", 5),
-      fade: pickTop(cands, "fade", 5)
+      fade: pickTop(cands, "fade", 5),
+      sports, bySport
     });
   }
 
   // ---------- adjust ----------
   const pts = x => { const v = Math.round(x * 100); return (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v); };
-  /** Vici %: calibrated raw prob + shrunk residual of the most specific bot segment with ≥10 graded picks, clamped. */
+  /** Vici %: raw prob through its sport's calibration + shrunk residual of the most specific bot segment with ≥10 graded picks, clamped. */
   function adjust(model, rawProb, ctx) {
     const c = ctx || {};
     let raw = toNum(rawProb);
     if (raw != null && raw > 1 && raw <= 100) raw /= 100;
     const noRaw = raw == null || !(raw > 0 && raw < 1);
     if (noRaw) raw = 0.5;
-    const cal = calibrated(model, raw);
     const sport = canonSport(c.sport), st = canonStat(sport, c.stat), side = canonSide(c.side);
+    const cal = calibrated(model, raw, sport);
     const segs = (model && model.bot && Array.isArray(model.bot.segments)) ? model.bot.segments : [];
     const keys = [];
     if (side) keys.push(sport + "|" + st.key + "|" + side);
@@ -651,15 +737,30 @@
     const head = "Your graded picks: " + bot.n + (bot.n ? ", " + pct(bot.raw) + " hit" : "") +
       (tr.n ? "; Vici % averaged " + pct(tr.pred) + " on " + tr.n + " of them" : "") + ".";
     const mid = [];
+    const graded = (bot.segments || []).filter(s => s.level === "sport" && s.n).sort((a, b) => b.n - a.n || sportSort(a.sport, b.sport));
+    if (graded.length > 1) {
+      // each sport's own record, its average Vici %, and its own calibration when that has a clear lean
+      mid.push("By sport: " + graded.map(s => {
+        const t = m.track && m.track.bySport ? m.track.bySport[s.sport] : null;
+        const c = cal.bySport ? cal.bySport[s.sport] : null;
+        let txt = s.sport + " " + s.hits + "/" + s.n + " (" + pct(s.raw) + ")";
+        if (t && t.n) txt += ", Vici % " + pct(t.pred);
+        if (c && (c.verdict === "over" || c.verdict === "under")) txt += ", " + Math.max(1, Math.round(Math.abs(c.gap) * 100)) + " pts too " + (c.verdict === "over" ? "confident" : "cautious");
+        else if (c && c.verdict === "well" && isNum(c.gapSD) && c.gapSD <= 0.03) txt += ", calibrated";   // as sure as the pooled line
+        return txt;
+      }).join("; ") + ".");
+    }
+    // with several sports this is the pooled lean; each sport's own is on the By sport line
+    const calHead = graded.length > 1 ? "Calibration, all sports: " : graded.length === 1 ? "Calibration (" + graded[0].sport + " picks only): " : "Calibration: ";
     if (cal.verdict === "over" || cal.verdict === "under") {
       const use60 = cal.n60 >= 10 && isNum(cal.gap60) && Math.sign(cal.gap60) === Math.sign(cal.gap) && Math.abs(cal.gap60) >= Math.abs(cal.gap);
       const g = use60 ? cal.gap60 : cal.gap;
       const p = Math.max(1, Math.round(Math.abs(g) * 100));
-      mid.push("Calibration: bot runs " + p + " pts too " + (cal.verdict === "over" ? "confident" : "cautious") + (use60 ? " above 60%" : "") + " (n=" + cal.n + ").");
+      mid.push(calHead + "bot runs " + p + " pts too " + (cal.verdict === "over" ? "confident" : "cautious") + (use60 ? " above 60%" : "") + " (n=" + cal.n + ").");
     } else if (cal.verdict === "well") {
-      mid.push("Calibration: " + (cal.gapSD <= 0.03 ? "well calibrated" : "no clear bias yet") + " (n=" + cal.n + ", Brier " + (isNum(cal.brier) ? cal.brier.toFixed(3) : "—") + " vs 0.250).");
+      mid.push(calHead + (cal.gapSD <= 0.03 ? "well calibrated" : "no clear bias yet") + " (n=" + cal.n + ", Brier " + (isNum(cal.brier) ? cal.brier.toFixed(3) : "—") + " vs 0.250).");
     } else if (cal.n > 0) {
-      mid.push("Calibration: too few graded bot picks (n=" + cal.n + ").");
+      mid.push(calHead + "too few graded bot picks (n=" + cal.n + ").");
     }
     const trust = (m.trust || []).slice(0, 3), fade = (m.fade || []).slice(0, 3);
     for (const s of trust) mid.push(segLine("Trust", s));
@@ -674,9 +775,25 @@
     while (lines.join("\n").length > 1200 && lines.length > 2) lines.splice(lines.length - 2, 1);
     return lines.join("\n");
   }
-  /** Short numbers for the Model panel. Rates are fractions (0..1) or null when nothing is graded. */
-  function summary(model) {
+  /** Short numbers for the Model panel, for all picks or one sport ("NBA"). Rates are fractions (0..1) or null when
+   *  nothing is graded. */
+  function summary(model, sport) {
     const m = model || {};
+    const sp = sport == null || sport === "" || String(sport).toLowerCase() === "all" ? null : canonSport(sport);
+    if (sp) {
+      const bot = m.bot || {};
+      const seg = (bot.segments || []).find(s => s.level === "sport" && s.key === sp);
+      const tr = (m.track && m.track.bySport && m.track.bySport[sp]) || { n: 0 };
+      const c = m.calibration && m.calibration.bySport ? m.calibration.bySport[sp] : null;
+      const n = seg ? seg.n : 0, hits = seg ? seg.hits : 0;
+      return {
+        graded: n, hits, misses: n - hits,
+        pending: (bot.pendingBy && bot.pendingBy[sp]) || 0,
+        rate: n ? seg.raw : null,
+        predicted: tr.n ? tr.pred : null, actual: tr.n ? tr.actual : null, trackN: tr.n || 0,
+        calib: (c && c.verdict) || "—"
+      };
+    }
     const bot = m.bot || { n: 0 }, tr = m.track || { n: 0 };
     return {
       graded: bot.n || 0, hits: bot.hits || 0, misses: bot.n ? bot.n - bot.hits : 0,
@@ -686,19 +803,51 @@
       calib: (m.calibration && m.calibration.verdict) || "—"
     };
   }
-  /** Trimmed model for the `vici_model` tool (small JSON). */
-  function compact(model) {
+  /** Trimmed model for the `vici_model` tool (small JSON): all sports, or one sport's own model. */
+  function compact(model, sport) {
     const m = model || build({});
     const segOut = s => ({ seg: s.label.trim(), n: s.n, hits: s.hits, raw: s.raw, post: s.post, lo80: s.lo80, hi80: s.hi80, verdict: s.verdict });
     const top = src => (src && src.segments ? src.segments.filter(s => s.n >= THIN).slice(0, 12).map(segOut) : []);
+    const trackOut = t => (t ? { n: t.n, predicted: t.pred, actual: t.actual,
+      buckets: (t.buckets || []).filter(b => b.n).map(b => ({ b: b.label, n: b.n, pred: b.pred, actual: b.actual })) } : null);
+    const calOut = (c, pooled) => Object.assign({ n: c.n },
+      // all sports: a, b are the pooled fit, which only a sport with no graded picks uses; each sport has its own
+      pooled ? { pooled_a: c.a, pooled_b: c.b, note: "pooled_a/b apply only to a sport with no graded picks; each sport's own fit is in by_sport" } : { a: c.a, b: c.b },
+      { verdict: c.verdict, gapPts: isNum(c.gap) ? Math.round(c.gap * 1000) / 10 : null, brier: c.brier,
+        buckets: (c.buckets || []).filter(b => b.n).map(b => ({ b: b.label, n: b.n, pred: b.pred, actual: b.actual })) });
     const c = m.calibration || {};
+    const sp = sport == null || sport === "" || String(sport).toLowerCase() === "all" ? null : canonSport(sport);
+    if (sp) {
+      const bot = m.bot || {};
+      const seg = (bot.segments || []).find(s => s.level === "sport" && s.key === sp);
+      const mine = (m.bySport && m.bySport[sp]) || { trust: [], fade: [] };
+      const flats = (bot.bySport && bot.bySport[sp]) || {};
+      const segs = (bot.segments || []).filter(s => s.sport === sp && s.level !== "sport")
+        .concat(...Object.keys(flats).map(k => flats[k])).filter(s => s.n >= THIN).sort((a, b) => b.n - a.n || cmpStr(a.key, b.key));
+      const cs = c.bySport && c.bySport[sp];
+      return {
+        sport: sp, builtAt: m.builtAt || null,
+        bot: seg ? { n: seg.n, hits: seg.hits, raw: seg.raw, post: seg.post, lo80: seg.lo80, hi80: seg.hi80 } : { n: 0 },
+        pending: (bot.pendingBy && bot.pendingBy[sp]) || 0,
+        predicted_vs_actual: trackOut(m.track && m.track.bySport ? m.track.bySport[sp] : null),
+        calibration: cs ? calOut(cs) : { n: 0, note: "no graded " + sp + " picks with a prob yet: the pooled calibration applies" },
+        trust: mine.trust.map(segOut), fade: mine.fade.map(segOut),
+        segments: segs.slice(0, 12).map(segOut),
+        breakEven: m.breakEven || null
+      };
+    }
+    const bySp = {};
+    for (const s of ((m.bot && m.bot.segments) || []).filter(x => x.level === "sport")) {
+      const t = m.track && m.track.bySport ? m.track.bySport[s.sport] : null, cs = c.bySport ? c.bySport[s.sport] : null;
+      bySp[s.sport] = { n: s.n, hits: s.hits, raw: s.raw, predicted: t && t.n ? t.pred : null, calib: cs ? cs.verdict : "—",
+        gapPts: cs && isNum(cs.gap) ? Math.round(cs.gap * 1000) / 10 : null, a: cs ? cs.a : null, b: cs ? cs.b : null };
+    }
     return {
       builtAt: m.builtAt || null,
       bot: m.bot ? { n: m.bot.n, hits: m.bot.hits, raw: m.bot.raw, post: m.bot.post } : null,
-      predicted_vs_actual: m.track ? { n: m.track.n, predicted: m.track.pred, actual: m.track.actual,
-        buckets: (m.track.buckets || []).filter(b => b.n).map(b => ({ b: b.label, n: b.n, pred: b.pred, actual: b.actual })) } : null,
-      calibration: { n: c.n, a: c.a, b: c.b, verdict: c.verdict, gapPts: isNum(c.gap) ? Math.round(c.gap * 1000) / 10 : null, brier: c.brier,
-        buckets: (c.buckets || []).filter(b => b.n).map(b => ({ b: b.label, n: b.n, pred: b.pred, actual: b.actual })) },
+      by_sport: bySp,
+      predicted_vs_actual: trackOut(m.track),
+      calibration: calOut(c, true),
       trust: (m.trust || []).map(segOut), fade: (m.fade || []).map(segOut),
       factors: (m.factors || []).map(f => ({ f: f.label, n: f.n, liftPts: Math.round(f.lift * 10) / 10, sePts: Math.round(f.liftSE * 10) / 10, verdict: f.verdict })),
       segments: top(m.bot),
@@ -710,7 +859,7 @@
     version: 1,
     POWER, FLEX,
     breakEven, edge, build, adjust, promptBlock, summary, compact,
-    calibrated, canonStat, canonSport, canonSide,
+    calibrated, canonStat, canonSport, canonSide, SPORT_ORDER, sportSort,
     util: { logit, sigmoid, invert, inv2, betaPost, verdictOf }
   };
   if (root) root.ViciModel = api;

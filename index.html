@@ -391,11 +391,19 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
 .cal-v { font-size: 11px; font-weight: 500; letter-spacing: 0; line-height: 1; justify-self: end; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .cal-cell.up .cal-v { color: var(--good); } .cal-cell.down .cal-v { color: var(--bad); } .cal-cell.flat .cal-v { color: var(--ink-2); }
 @media (min-width: 701px) { .cal-grid { gap: 6px; } .cal-cell { aspect-ratio: auto; min-height: 76px; padding: 8px 10px; } .cal-v { font-size: 14px; } .cal-d { font-size: 12px; } .cal-title b { font-size: 16px; } }
-.panel.fold > h2, .panel.fold > .panel-head { cursor: pointer; user-select: none; -webkit-user-select: none; }
-.panel.fold h2::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 12px; vertical-align: 3px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(-45deg); transition: transform .2s; }
-.panel.fold.open h2::after { transform: rotate(45deg); vertical-align: 5px; }
-.panel.fold:not(.open) > :not(h2):not(.panel-head) { display: none; }
-.panel.fold:not(.open) > h2, .panel.fold:not(.open) > .panel-head h2 { margin-bottom: 0; }
+/* Open risk: always open; each player is a card with the number of open picks, tap to open it (Angus, 2026-11-18) */
+.pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.pcard { display: grid; gap: 6px; align-content: start; text-align: left; min-width: 0; border: 1px solid var(--line-2); border-radius: 8px; padding: 12px; background: var(--bg); color: var(--ink); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pcard:hover { border-color: var(--ink-3); }
+.pcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pcard.open { grid-column: 1 / -1; box-shadow: inset 0 0 0 1.5px var(--ink); }
+.pcard .pn { font-weight: 600; font-size: 14px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.pcard.open .pn { display: block; }
+.pcard .pc { display: flex; align-items: baseline; gap: 6px; }
+.pcard .pc b { font-family: var(--f-display); font-weight: 300; font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+.pcard .pc span { font-size: 12px; color: var(--ink-2); }
+.pcard .pd { display: grid; gap: 8px; padding-top: 8px; margin-top: 2px; border-top: 1px solid var(--line-2); }
+.pcard .pm { display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--f-mono); font-size: 12px; color: var(--ink-2); }
 .brand p, .panel .hint, .panel-head .hint { display: none; }
 .panel h2 { margin-bottom: 10px; }
 .panel-head h2 { margin-bottom: 0; }
@@ -509,9 +517,6 @@ tr.det[hidden] { display: none !important; }
 .install { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: space-between; background: var(--accent-soft); color: var(--ink); border-radius: var(--r); padding: 12px 14px; font-size: 13.5px; }
 .install p { margin: 0; min-width: 0; flex: 1 1 220px; }
 .install .btns { display: flex; gap: 6px; }
-
-/* v8.8 (2026-11-18, Angus: "Remove this"): the Model panel that vici.py inserts stays out of Stats until the picks thread drops it from vici.py. */
-#p-model { display: none !important; }
 /* Vici Chat entry points in the app (append to app-extra.css). Phone: a round "ask" button at the right of the app bar.
    Desktop: the "Ask Vici" button in the header actions uses the app's own .btn. */
 .ab-ask { display: none; }
@@ -668,10 +673,6 @@ html.vl-motion .kpi { position: relative; }
         <div class="scen" id="scen"></div>
         <div id="expo"></div>
       </div>
-    </section>
-    <section class="panel span-12" id="p-model" data-tabs="stats">
-      <h2>Model</h2>
-      <div id="model-box"></div>
     </section>
     <section class="panel span-6" id="p-format" data-tabs="stats">
       <h2>PnL by format</h2>
@@ -992,6 +993,7 @@ html.vl-motion .kpi { position: relative; }
   }
 
   // ---------- Open risk ----------
+  // Open risk (Angus, 2026-11-18): always open; each player is a card with the number of open picks, tap a card to open it.
   function drawRisk(openAll, bank) {
     const sc = $("#scen"), ex = $("#expo");
     const stake = openAll.reduce((a, e) => a + (Number(e.stake) || 0), 0);
@@ -1011,24 +1013,28 @@ html.vl-motion .kpi { position: relative; }
     for (const e of openAll) for (const p of e.picks || []) {
       if (p.result && p.result !== "pending") continue;
       const key = (p.player || "?").trim().toLowerCase();
-      const r = m.get(key) || { name: (p.player || "?").trim(), sport: p.sport, picks: new Set(), entries: new Set(), staked: 0, riding: 0 };
-      r.picks.add(`${p.side === "under" ? "Less" : "More"} ${p.line ?? ""} ${p.stat || ""}`.trim());
+      const r = m.get(key) || { key, name: (p.player || "?").trim(), sport: p.sport || e.sport || "", legs: 0, picks: new Map(), entries: new Set(), staked: 0, riding: 0 };
+      const t = `${p.side === "under" ? "Less" : "More"} ${p.line ?? ""} ${p.stat || ""}`.trim();
+      r.legs += 1; r.picks.set(t, (r.picks.get(t) || 0) + 1);
       if (!r.entries.has(e.id)) { r.entries.add(e.id); r.staked += Number(e.stake) || 0; r.riding += maxPay(e); }
       m.set(key, r);
     }
-    const rows = [...m.values()].sort((a, b) => b.riding - a.riding || b.entries.size - a.entries.size || a.name.localeCompare(b.name));
-    const shown = state.expoAll ? rows : rows.slice(0, 8);
-    const table = el("table", { class: "expo" },
-      el("thead", {}, el("tr", {}, el("th", { text: "Player" }), el("th", { text: "Open picks" }), el("th", { class: "r", text: "Entries" }), el("th", { class: "r", text: "Staked" }), el("th", { class: "r", text: "Payout tied to them" }))),
-      el("tbody", {}, shown.map(r => el("tr", {},
-        el("td", { class: "nw" }, el("div", { style: "font-weight:600", text: r.name }), r.entries.size > 1 ? el("span", { class: "badge", text: `In ${r.entries.size} entries` }) : el("div", { class: "tag", text: r.sport || "" })),
-        el("td", {}, el("div", { class: "picks" }, [...r.picks].map(t => el("span", { class: "pk pending" }, el("span", { class: "dot" }), t)))),
-        el("td", { class: "r mono", text: String(r.entries.size) }),
-        el("td", { class: "r mono", "data-l": "Staked", text: money(r.staked) }),
-        el("td", { class: "r mono", "data-l": "Payout tied", text: money(r.riding) })))));
-    const kids = [el("div", { class: "tbl-wrap inset" }, table)];
-    if (rows.length > 8) kids.push(el("button", { type: "button", class: "btn ghost more", text: state.expoAll ? "Show the top 8" : `Show all ${rows.length} players`, onclick: () => { state.expoAll = !state.expoAll; drawRisk(openAll, bank); } }));
-    ex.replaceChildren(...kids);
+    const rows = [...m.values()].sort((a, b) => b.legs - a.legs || b.riding - a.riding || a.name.localeCompare(b.name));
+    const open = drawRisk.open || (drawRisk.open = new Set());
+    const act = document.activeElement, keep = act && act.classList && act.classList.contains("pcard") && ex.contains(act) ? act.getAttribute("data-k") : null;
+    ex.replaceChildren(el("div", { class: "pcards" }, rows.map(r => {
+      const on = open.has(r.key);
+      const c = el("button", { type: "button", class: "pcard" + (on ? " open" : ""), "aria-expanded": String(on), "data-k": r.key },
+        el("div", { class: "pn", text: r.name }),
+        el("div", { class: "pc" }, el("b", { text: String(r.legs) }), el("span", { text: (r.legs === 1 ? "pick" : "picks") + (r.sport ? " · " + r.sport : "") })),
+        on ? el("div", { class: "pd" },
+          el("div", { class: "picks" }, [...r.picks].map(([t, n]) => el("span", { class: "pk pending" }, el("span", { class: "dot" }), t + (n > 1 ? ` ×${n}` : "")))),
+          el("div", { class: "pm" }, el("span", { text: `${r.entries.size} ${r.entries.size === 1 ? "entry" : "entries"}` }), el("span", { text: `${money(r.staked)} staked` }), el("span", { text: `${money(r.riding)} to win` }))) : null);
+      c.addEventListener("click", () => { if (open.has(r.key)) open.delete(r.key); else open.add(r.key); drawRisk.focus = r.key; drawRisk(openAll, bank); });
+      return c;
+    })));
+    const want = drawRisk.focus || keep; drawRisk.focus = null;
+    if (want) for (const f of ex.querySelectorAll(".pcard")) if (f.getAttribute("data-k") === want) { f.focus({ preventScroll: true }); break; }
   }
 
   // ---------- Diverging PnL bars ----------
@@ -1672,21 +1678,9 @@ html.vl-motion .kpi { position: relative; }
   else startSync();
 })();
 </script>
-<script>
-// Open risk stays folded until tapped; the choice is remembered on this device.
-{
-  const fold = (id) => { const p = document.getElementById(id); if (!p) return; const head = p.querySelector(".panel-head") || p.querySelector("h2"); if (!head) return;
-    const key = "vici-fold-" + id; let open = false; try { open = localStorage.getItem(key) === "1"; } catch (e) {}
-    p.classList.add("fold"); p.classList.toggle("open", open); head.setAttribute("role", "button"); head.tabIndex = 0; head.setAttribute("aria-expanded", String(open));
-    const toggle = () => { const o = !p.classList.contains("open"); p.classList.toggle("open", o); head.setAttribute("aria-expanded", String(o)); try { localStorage.setItem(key, o ? "1" : "0"); } catch (e) {} };
-    head.addEventListener("click", toggle); head.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }); };
-  fold("p-risk");
-}
-</script>
 <script src="vici-model.js" defer></script>
 <script src="vici-data.js" defer></script>
 <script src="vici-chat.js" defer></script>
-<script>document.addEventListener("DOMContentLoaded", function () { var b = document.getElementById("model-box"); if (b && window.ViciChat) window.ViciChat.renderModel(b); });</script>
 <!-- vici-launch -->
 <script>
 // Vici launch: the splash (same picture as the iOS launch screen) gets a platinum sheen across the V and opens up, then the app bar,

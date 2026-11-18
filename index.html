@@ -369,7 +369,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
 .cal-title { display: grid; justify-items: center; gap: 3px; text-align: center; min-width: 0; }
 .cal-title b { font-family: var(--f-display); font-weight: 400; font-size: 15px; letter-spacing: .12em; text-transform: uppercase; }
 .cal-tot { font-size: 12px; color: var(--ink-2); }
-.cal-tot.pos { color: var(--good); } .cal-tot.neg { color: var(--bad); }
+.cal-tot .pos { color: var(--good); } .cal-tot .neg { color: var(--bad); } .cal-tot strong, .dayhead span strong { font-weight: 500; }
 .cal-nav { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-size: 22px; line-height: 1; display: grid; place-items: center; padding: 0 0 2px; }
 .cal-nav:hover { border-color: var(--ink-3); color: var(--ink); }
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
@@ -486,8 +486,9 @@ tr.det[hidden] { display: none !important; }
 
    THE SYSTEM
    Rules      three tokens. --ed-rule (ink 18% on black, ~#303031): section rules, control outlines, the weekday rule, th, dialog header/footer.
-              --ed-rule-2 (ink 14%, ~#262627): row and grid rules. --ed-rule-in (ink 40%, ~#646465, 3.4:1): input underlines (the one place a rule
-              is the whole affordance, so it clears the 3:1 non-text floor) and the sport chart's label ticks. The platinum gradient is drawn as a rule
+              --ed-rule-2 (ink 14%, ~#262627): row and grid rules. --ed-rule-in (ink 40%, ~#646465, 3.4:1): input underlines, control edges (pills, chips,
+              month arrows, the Ask pill, the checkbox, the meter track; since v30) and the day list's scrollbar: wherever a rule is the whole
+              affordance, so it clears the 3:1 non-text floor. The sport chart's label ticks are hidden since v30. The platinum gradient is drawn as a rule
               once, under the Balance hero. Hover is one wash, white 3.5%.
    Panels     transparent, no border/radius/shadow, one --ed-rule top rule, padding 20px 0 4px; page gap 30px (phone) / 32px, grid 32px 44px.
    Labels     two voices. Section h2: Jost 400 11.5px, .3em, caps, ink-2. Micro labels (.kpi .k, .sc .k, th, label.f, .cal-wd, .pickrow.hdr,
@@ -560,12 +561,12 @@ tr.det[hidden] { display: none !important; }
 .fbar { gap: 10px 36px; }
 .filters { gap: 6px; }
 .filters .lbl { margin-right: 6px; }
-.chip { background: transparent; border: 1px solid var(--ed-rule); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 500; color: var(--ink-2); box-shadow: none; }
+.chip { background: transparent; border: 1px solid var(--ed-rule-in); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 500; color: var(--ink-2); box-shadow: none; }
 .chip:hover { border-color: var(--ink-3); color: var(--ink); }
 .chip[aria-pressed="true"] { background: var(--accent-grad); border-color: transparent; color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.55); }
 
 /* ---------- Buttons: hairline pills; the primary stays platinum ---------- */
-.btn { background: transparent; border: 1px solid var(--ed-rule); border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 500; color: var(--ink); box-shadow: none; }
+.btn { background: transparent; border: 1px solid var(--ed-rule-in); border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 500; color: var(--ink); box-shadow: none; }
 .btn:hover { border-color: var(--ink-3); }
 .btn.primary { background: var(--accent-grad); border-color: transparent; color: var(--on-accent); font-weight: 500; padding: 9px 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,.55); }
 .btn.ghost { border-color: transparent; color: var(--ink-2); }
@@ -573,7 +574,7 @@ tr.det[hidden] { display: none !important; }
 .btn.danger { color: var(--bad); }
 .btn.sm { padding: 5px 12px; font-size: 13px; }
 .btn.icon { width: 40px; height: 40px; }
-.cal-nav { width: 32px; height: 32px; border-color: var(--ed-rule); color: var(--ink-2); font-size: 20px; }
+.cal-nav { width: 32px; height: 32px; border-color: var(--ed-rule-in); color: var(--ink-2); font-size: 20px; }
 
 /* ---------- Inputs: a hairline under the value, nothing around it ---------- */
 .in { background: transparent; border: 0; border-bottom: 1px solid var(--ed-rule-in); border-radius: 0; padding: 8px 0; font-family: var(--f-body); font-size: 15px; color: var(--ink); }
@@ -600,7 +601,7 @@ label.check { font-size: 13px; color: var(--ink-2); gap: 10px; }
 .scen { gap: 26px; }
 .sc { border: 0; border-radius: 0; background: transparent; padding: 0; gap: 10px; }
 .sc .s { font-size: 13px; color: var(--ink-2); }
-.meter { height: 2px; border-radius: 0; background: var(--ed-rule); margin: 8px 0 2px; }
+.meter { height: 2px; border-radius: 0; background: var(--ed-rule-in); margin: 8px 0 2px; }
 .meter i { border-radius: 0; }
 .pcards { gap: 18px 28px; }
 .pcard { border: 0; border-top: 1px solid transparent; border-radius: 0; background: transparent; padding: 10px 0 4px; gap: 10px; }
@@ -641,7 +642,7 @@ label.check { font-size: 13px; color: var(--ink-2); gap: 10px; }
 .psum { font-size: 13px; color: var(--ink-2); white-space: normal; overflow: visible; text-overflow: clip; } /* every pick is named: a 6-pick slip wraps to a second line instead of ending in "…" (the picks are the entry) */
 .psum span { white-space: nowrap; } /* the dot is the span's ::before, so a line breaks after a comma, never between a dot and its name */
 .psum .hit, .psum .miss, .psum .push, .psum .pending { color: var(--ink-2); }
-.psum span::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); margin-right: 5px; vertical-align: 1px; }
+.psum span::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); margin-right: 6px; vertical-align: 1px; }
 .psum .hit::before { background: var(--good); } .psum .miss::before { background: var(--bad); } .psum .push::before { background: var(--warn); }
 .psum .pending::before { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-3); }
 
@@ -650,7 +651,7 @@ label.check { font-size: 13px; color: var(--ink-2); gap: 10px; }
 .chart .val { font-size: 13px; font-weight: 500; letter-spacing: 0; fill: var(--ink); }
 .chart .catlbl { font-size: 13px; font-weight: 500; letter-spacing: 0; }
 #c-format rect, #c-sport rect { rx: 0; ry: 0; }
-#c-sport rect[height="2.5"] { fill: var(--ed-rule-in); } /* the tick under each sport label: the per-sport palette (--s1..--s4) keys to nothing else on these screens and read as link underlines, so it is a neutral hairline, kept rather than hidden */
+#c-sport rect[height="2.5"] { display: none; } /* the tick under each sport label: the per-sport palette (--s1..--s4) keys to nothing else on these screens; v27 kept it as a neutral hairline, the second review still read it as an underline, so v30 hides it */
 #c-curve text.val { paint-order: stroke fill; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; } /* the end value keeps a black halo, so it stays legible whatever crosses it */
 .tip { background: var(--bg); border-color: var(--ed-rule); border-radius: 2px; box-shadow: 0 16px 40px rgba(0,0,0,.6); font-size: 13px; }
 .tip .t { margin-bottom: 6px; }
@@ -725,11 +726,11 @@ dialog::backdrop { background: rgba(0,0,0,.78); }
 .connect .acct-meta b { font-size: 13px; }
 .connect .cacct .row-btns { gap: 8px 18px; }
 .connect .cbox .row { border-top: 1px solid var(--ed-rule); padding-top: 18px; }
-.connect .cbox .btn.ghost:not(.icon) { padding-left: 16px; padding-right: 16px; border-color: var(--ed-rule); color: var(--ink); } /* Change token, Close, Keep: a bare ink-2 word flush with the copy had nothing marking it as tappable */
+.connect .cbox .btn.ghost:not(.icon) { padding-left: 16px; padding-right: 16px; border-color: var(--ed-rule-in); color: var(--ink); } /* Change token, Close, Keep: a bare ink-2 word flush with the copy had nothing marking it as tappable */
 .connect .cbox .btn.ghost.danger { color: var(--bad); } /* Disconnect this device keeps its colour inside the pill */
 
 /* ---------- Ask bar (light touch), toasts, banners ---------- */
-button.askdock { background: color-mix(in srgb, var(--bg) 88%, transparent); border-color: var(--ed-rule); box-shadow: 0 10px 28px rgba(0,0,0,.5); } /* shorter than the first pass's 0 18px 44px .6, which darkened the dock gap that text scrolls through below 4.5:1 */
+button.askdock { background: color-mix(in srgb, var(--bg) 92%, transparent); border-color: var(--ed-rule-in); box-shadow: 0 10px 28px rgba(0,0,0,.5); } /* 92% so text scrolling under the pill no longer shows through its label; the shadow is shorter than the first pass's 0 18px 44px .6, which darkened the dock gap that text scrolls through below 4.5:1 */
 button.askdock:hover { border-color: var(--ink-3); }
 button.askdock .ad-t { font-size: 15px; }
 .toast { border-radius: 999px; padding: 10px 18px; font-size: 13px; font-weight: 500; }
@@ -779,6 +780,23 @@ button.askdock .ad-t { font-size: 15px; }
   .kpi:last-child .v { font-size: 24px; margin: 0; }
   .kpi:last-child .sub { margin: 0; } /* the sub follows its figure ("IN PLAY  $0.00  —"), as on every other cell of the board */
 }
+
+/* ---------- v8.14 polish (second review round, 2026-11-18; app v30, artifact v19) ----------
+   All minors. Controls (pills, chips, month arrows, the Ask pill, the checkbox, the meter track) draw their edge in --ed-rule-in,
+   the 3.4:1 hairline, so they clear WCAG 1.4.11 on every display; section and row rules stay at --ed-rule / --ed-rule-2.
+   The month total and the tapped day's total colour only the money (a <strong>, weight 500), not the counts beside it (platinum.py). */
+label.check input { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid var(--ed-rule-in); border-radius: 2px; background: transparent; display: grid; place-content: center; cursor: pointer; }
+label.check input::before { content: ""; width: 8px; height: 8px; background: var(--accent-grad); transform: scale(0); transition: transform .18s ease; }
+label.check input:checked::before { transform: scale(1); }
+label.check input:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { label.check input::before { transition: none; } }
+@media (min-width: 900px) {
+  .dual { grid-template-columns: minmax(0, 10fr) minmax(0, 14fr); } /* the day list takes a little more of the row than the calendar */
+  .pickrow { column-gap: 12px; } /* the Log form's pick grid breathes on wide screens */
+}
+@media (min-width: 801px) { #p-log th, #p-log tr.row > td { padding-left: 8px; padding-right: 8px; } } /* the day list's middle columns were cramped at 12px a side */
+@media (min-width: 601px) and (max-width: 880px) { .fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } } /* five fields across a tablet were too tight */
+@media (min-width: 1180px) { .kpi .sub { white-space: nowrap; } } /* KPI subtitles stay on one line where there is room */
 
 /* ---------- Standalone app ---------- */
 /* Black & platinum: the app bar is the page black in every mode */
@@ -848,6 +866,8 @@ html.vchat-open .askdock { opacity: 0; pointer-events: none; }
   .askdock { left: 12px; right: 12px; bottom: calc(var(--tab-h) + var(--dock-gap)); }
   .wrap { padding-bottom: calc(72px + var(--dock-space) + env(safe-area-inset-bottom, 0px)); }
   .toast { bottom: calc(88px + var(--dock-space) + env(safe-area-inset-bottom, 0px)); }
+  body::after { content: ""; position: fixed; left: 0; right: 0; bottom: var(--tab-h); height: calc(var(--dock-space) + 14px); z-index: 23; pointer-events: none; background: linear-gradient(to top, var(--bg), transparent); } /* v8.14: content fades out behind the Ask pill instead of scrolling past it in the dock gap; the launch shell uses body::before */
+  html.vchat-open body::after { display: none; }
 }
 @media (min-width: 701px) {
   .askdock { left: 0; right: 0; bottom: 22px; width: min(600px, calc(100vw - 48px)); margin: 0 auto; }
@@ -1328,7 +1348,7 @@ html.vl-motion .kpi { position: relative; }
     if (Math.abs(y(start) - y(pts[last].v)) >= 16) { const sl = sv("text", { x: W - m.r + 6, y: y(start) + 4 }); sl.textContent = "Start"; svg.append(sl); }  // not when the end value sits on it
     if (pts.length <= 40) pts.forEach((p, i) => { if (i !== last) svg.append(sv("circle", { cx: x(i), cy: y(p.v), r: 3, fill: "var(--panel)", stroke: col, "stroke-width": 1.5 })); });
     svg.append(sv("circle", { cx: x(last), cy: y(pts[last].v), r: 5, fill: col, stroke: "var(--panel)", "stroke-width": 2 }));
-    const endL = sv("text", { x: x(last) + 9, y: y(pts[last].v) + 4, class: "val", style: "font-weight:600" }); endL.textContent = money(pts[last].v); svg.append(endL);
+    const endL = sv("text", { x: x(last) + 9, y: y(pts[last].v) + 4, class: "val", style: "font-weight:500" }); endL.textContent = money(pts[last].v); svg.append(endL);
     const xl = (i, anchor) => { const t = sv("text", { x: x(i), y: H - 6, "text-anchor": anchor }); t.textContent = pts[i].date ? fmtDate(pts[i].date) : "Start"; svg.append(t); };
     xl(0, "start"); if (last > 0) xl(last, "end");
     const cross = sv("line", { y1: m.t, y2: m.t + ih, stroke: "var(--ink-3)", "stroke-width": 1, visibility: "hidden" }); const dot = sv("circle", { r: 4.5, fill: col, stroke: "var(--panel)", "stroke-width": 2, visibility: "hidden" }); svg.append(cross, dot);
@@ -1491,7 +1511,7 @@ html.vl-motion .kpi { position: relative; }
     const fmtCell = v => { if (!compact) return money0(v, true); const a = Math.abs(v), sgn = v > 0 ? "+" : v < 0 ? "−" : ""; return sgn + "$" + (a >= 1000 ? (a / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(a))); };
     const nav = (dir, label, text) => el("button", { class: "cal-nav", type: "button", "aria-label": label, text, onclick: () => { const nm = new Date(Y, M - 1 + dir, 1); cal.month = `${nm.getFullYear()}-${String(nm.getMonth() + 1).padStart(2, "0")}`; drawDaily(settled); drawLog(visible()); } });
     const head = el("div", { class: "cal-head" }, nav(-1, "Previous month", "‹"),
-      el("div", { class: "cal-title" }, el("b", { text: first.toLocaleDateString("en-US", { month: "long", year: "numeric" }) }), el("span", { class: "cal-tot num " + (tot > 0 ? "pos" : tot < 0 ? "neg" : ""), text: nSet ? `${money(tot, true)} · ${nSet - nPk} settled${nPk ? ` · ${nPk} packs` : ""}` : "—" })),
+      el("div", { class: "cal-title" }, el("b", { text: first.toLocaleDateString("en-US", { month: "long", year: "numeric" }) }), el("span", { class: "cal-tot num" }, nSet ? [el("strong", { class: tot > 0 ? "pos" : tot < 0 ? "neg" : null, text: money(tot, true) }), ` · ${nSet - nPk} settled${nPk ? ` · ${nPk} packs` : ""}`] : "—")),
       nav(1, "Next month", "›"));
     const grid = el("div", { class: "cal-grid", role: "grid", "aria-label": "Calendar of entries" });
     for (const w of ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]) grid.append(el("div", { class: "cal-wd", text: w }));
@@ -1562,7 +1582,8 @@ html.vl-motion .kpi { position: relative; }
     if (!rows.length) { head.replaceChildren(); body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "muted", style: "padding:22px 18px;text-align:center", text: state.loaded ? (state.entries.length ? "No entries this month." : "No entries yet. Log your first slip with + Log entry.") : "Loading…" }))); fitLog(); return; }
     const wrap = body.closest(".tbl-wrap"); if (wrap && fitLog.day !== cal.day) { const first = fitLog.day === undefined; fitLog.day = cal.day; wrap.scrollTop = 0; if (!first) fitLog.reveal(); }
     const set = rows.filter(e => pnl(e) != null), net = set.reduce((a, e) => a + pnl(e), 0), nOpen = rows.length - set.length;
-    head.replaceChildren(el("b", { text: fmtDate(cal.day) }), el("span", { class: "num" + (set.length ? (net > 0 ? " pos" : net < 0 ? " neg" : "") : ""), text: [set.length ? money(net, true) : null, set.length ? `${set.length} settled` : null, nOpen ? `${nOpen} open` : null].filter(Boolean).join(" · ") }));
+    const tail = [set.length ? `${set.length} settled` : null, nOpen ? `${nOpen} open` : null].filter(Boolean).join(" · ");
+    head.replaceChildren(el("b", { text: fmtDate(cal.day) }), el("span", { class: "num" }, set.length ? el("strong", { class: net > 0 ? "pos" : net < 0 ? "neg" : null, text: money(net, true) }) : null, set.length && tail ? ` · ${tail}` : tail));
     body.replaceChildren(...rows.flatMap(e => { const o = outcome(e), p = pnl(e), on0 = ui.logOpen.has(e.id);
       const sum = el("div", { class: "psum" }, isPack(e) ? "Card" : e.picks.flatMap((pk, i) => [i ? ", " : null, el("span", { class: pk.result || "pending", text: surname(pk) })]));
       const det = el("tr", { class: "det", hidden: !on0 }, el("td", { colspan: 7 }, el("div", { class: "det-in" },

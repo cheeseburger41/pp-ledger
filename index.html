@@ -479,6 +479,289 @@ tr.det[hidden] { display: none !important; }
   #p-log tr.det td { display: block; padding: 0; border: 0; }
 }
 
+/* Vici premium pass, direction "Editorial" (Angus, 2026-11-18): the finish. Variant A's typographic system, with B's rule tokens and
+   ruled rows, C's hero scale, calendar geometry and flush sheet buttons, and the defects the three judges found fixed.
+   No boxes: a hairline marks where a thing starts, rows sit on rules or on air, numbers are big and thin, labels are small tracked caps.
+   Appended last to the page's <style>. The shell (.appbar .tabbar #launch) and the chat (#vchat) belong to other threads: never selected here.
+
+   THE SYSTEM
+   Rules      three tokens. --ed-rule (ink 18% on black, ~#303031): section rules, control outlines, the weekday rule, th, dialog header/footer.
+              --ed-rule-2 (ink 14%, ~#262627): row and grid rules. --ed-rule-in (ink 36%, ~#5a5a5b, 2.9:1): input underlines only, the one
+              place a rule is the whole affordance. The platinum gradient is drawn as a rule once, under the Balance hero. Hover is one wash, white 3.5%.
+   Panels     transparent, no border/radius/shadow, one --ed-rule top rule, padding 20px 0 4px; page gap 30px (phone) / 32px, grid 32px 44px.
+   Labels     two voices. Section h2: Jost 400 11.5px, .3em, caps, ink-2. Micro labels (.kpi .k, .sc .k, th, label.f, .cal-wd, .pickrow.hdr,
+              .filters .lbl, the phone STAKE/PAYOUT/PNL): Inter 500 10.5px, .22em, caps, ink-3. Titles (month, day, dialog): Jost 500 15px .24em ink.
+   Numbers    Jost 300, tabular, -.01em (the page loads Jost 300/400/500 only, so A's "200" always rendered as 300): hero 54px on phones
+              (full width, the platinum rule 22px beneath) / 46px on desktop (hero column only, 24px beneath); board cells 34px / 32px;
+              Open risk 32px; player-card counts 30px; the phone board ends on a full-width "In play" line at 24px. Row figures JetBrains Mono.
+   Rows       records 11px 0 on air; the day list on --ed-rule-2 rules under each row, open slips on a rule between entries (phone rows 16px 0, desktop td 14px 12px); th is the
+              list's first rule and sticks on var(--bg); picks in a row are a coloured dot + a neutral name.
+   Calendar   gap 0, cells transparent, 48px tall on phones / 60px min on desktop; day numbers Jost 400 13/14px centred (past ink-2, days
+              with a result ink, future ink-3 at full opacity, today platinum 500); values mono 11/12.5px centred beneath; one unbroken
+              --ed-rule under the weekday row; the selected day a centred 24x2px platinum underline.
+   Controls   inputs transparent with a 1px --ed-rule-in underline (platinum on focus), 15px (16px on phones); buttons hairline pills
+              (1px --ed-rule, 999px, 8px 16px, 13px 500), the primary platinum, the ghost borderless ink-2 and flush left inside the sheet;
+              filter chips hairline pills (ink-2, 6px 14px / 8px 16px on phones, the phone row fading at its edges), the pressed chip
+              platinum; the Entry type seg is text tabs with a platinum underline; statuses are outlined pills (ring at 50% of their colour).
+   Ask bar    black glass (bg 88%) with a --ed-rule edge and a 15px prompt; its platinum go button untouched. */
+:root { --ed-rule: color-mix(in srgb, var(--ink) 18%, var(--bg)); --ed-rule-2: color-mix(in srgb, var(--ink) 14%, var(--bg)); --ed-rule-in: color-mix(in srgb, var(--ink) 36%, var(--bg)); --ed-wash: rgba(255,255,255,.035); --ed-track: .22em; }
+
+/* ---------- Air ---------- */
+.wrap { gap: 32px; }
+.grid { gap: 32px 44px; }
+
+/* ---------- Labels: a section voice and a micro voice ---------- */
+.panel h2 { font-family: var(--f-display); font-weight: 400; font-size: 11.5px; line-height: 1.3; letter-spacing: .3em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 20px; }
+.kpi .k, .sc .k, th, label.f, .fields .f, .pickrow.hdr, .filters .lbl, .cal-wd, .tag, #p-log tr.row td[data-l]::before, table.expo td[data-l]::before, .tip .t {
+  font-family: var(--f-body); font-weight: 500; font-size: 10.5px; line-height: 1.4; text-transform: uppercase; letter-spacing: var(--ed-track); color: var(--ink-3); }
+.fields .f { font-family: var(--f-body) !important; font-size: 10.5px !important; font-weight: 500 !important; letter-spacing: var(--ed-track) !important; color: var(--ink-3) !important; gap: 8px !important; } /* the Entry type cell carries inline label styles */
+.tag { letter-spacing: .14em; }
+.cal-title b, .dayhead b, .dlg header h3 { font-family: var(--f-display); font-weight: 500; font-size: 15px; letter-spacing: .24em; text-transform: uppercase; color: var(--ink); }
+
+/* ---------- Numbers: Jost 300, large, tabular ---------- */
+.kpi .v, .sc .v, .pcard .pc b { font-family: var(--f-display); font-weight: 300; font-size: 32px; line-height: 1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.pcard .pc b { font-size: 30px; }
+.kpi.hero .v { font-size: 46px; }
+
+/* ---------- Sections: a hairline where each starts, no surface ---------- */
+.panel { background: transparent; border: 0; border-top: 1px solid var(--ed-rule); border-radius: 0; box-shadow: none; padding: 20px 0 4px; }
+.panel-head { margin-bottom: 20px; align-items: baseline; }
+.panel-head h2 { margin-bottom: 0; }
+.panel-head + .risk { margin-top: 0 !important; }
+
+/* ---------- KPI board: a ruled row under the section hairline; the platinum rule sits under Balance only ---------- */
+.board { background: transparent; border: 0; border-top: 1px solid var(--ed-rule); border-radius: 0; box-shadow: none; overflow: visible; padding-top: 22px; gap: 0; }
+.kpi { padding: 0 16px 0 24px; border-left: 1px solid var(--ed-rule-2); }
+.kpi:first-child { border-left: 0; padding-left: 0; }
+.kpi:last-child { padding-right: 0; }
+.kpi .v { margin-top: 12px; }
+.kpi .sub { font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+.kpi.hero { background: transparent; box-shadow: none; position: relative; padding-bottom: 24px; }
+.kpi.hero::before { display: none; }
+.kpi.hero::after { content: ""; position: absolute; left: 0; right: 16px; bottom: 0; height: 1px; background: var(--accent-grad); opacity: .85; }
+@media (min-width: 901px) { .board { grid-template-columns: 1.5fr repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 900px) and (min-width: 701px) {
+  .kpi { padding-bottom: 24px; }
+  .kpi:nth-child(4) { border-left: 0; padding-left: 0; }
+  .kpi:nth-child(n+4) { border-top: 1px solid var(--ed-rule-2); padding-top: 22px; padding-bottom: 0; }
+  .kpi.hero::after { bottom: -1px; z-index: 1; }
+}
+
+/* ---------- Filters: hairline pills, the chosen one platinum ---------- */
+.fbar { gap: 10px 36px; }
+.filters { gap: 6px; }
+.filters .lbl { margin-right: 6px; }
+.chip { background: transparent; border: 1px solid var(--ed-rule); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 500; color: var(--ink-2); box-shadow: none; }
+.chip:hover { border-color: var(--ink-3); color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--accent-grad); border-color: transparent; color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.55); }
+
+/* ---------- Buttons: hairline pills; the primary stays platinum ---------- */
+.btn { background: transparent; border: 1px solid var(--ed-rule); border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 500; color: var(--ink); box-shadow: none; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent-grad); border-color: transparent; color: var(--on-accent); font-weight: 500; padding: 9px 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,.55); }
+.btn.ghost { border-color: transparent; color: var(--ink-2); }
+.btn.ghost:hover { color: var(--ink); background: transparent; }
+.btn.danger { color: var(--bad); }
+.btn.sm { padding: 5px 12px; font-size: 13px; }
+.btn.icon { width: 40px; height: 40px; }
+.cal-nav { width: 32px; height: 32px; border-color: var(--ed-rule); color: var(--ink-2); font-size: 20px; }
+
+/* ---------- Inputs: a hairline under the value, nothing around it ---------- */
+.in { background: transparent; border: 0; border-bottom: 1px solid var(--ed-rule-in); border-radius: 0; padding: 8px 0; font-family: var(--f-body); font-size: 15px; color: var(--ink); }
+.in:focus { border-bottom-color: var(--accent); box-shadow: 0 1px 0 var(--accent); outline: none; }
+.in::placeholder { color: var(--ink-3); opacity: 1; }
+select.in { appearance: none; -webkit-appearance: none; padding-right: 18px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2385888f' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 2px center / 10px 6px; }
+textarea.in { line-height: 1.45; resize: vertical; min-height: 58px; }
+label.f { gap: 8px; }
+.fields { gap: 18px 22px; }
+label.check { font-size: 13px; color: var(--ink-2); gap: 10px; }
+.seg { border: 0; border-radius: 0; background: transparent; gap: 18px; overflow: visible; }
+.seg button { padding: 8px 0 9px; font-family: var(--f-body); font-size: 15px; font-weight: 500; color: var(--ink-3); border-radius: 0; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--accent-grad) no-repeat 0 100% / 100% 1px; color: var(--ink); box-shadow: none; }
+
+/* ---------- Records: label, figure, note, on air ---------- */
+.rec { padding: 11px 0; border-bottom: 0; gap: 16px; }
+.rec .k { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.rec .v { font-size: 15px; }
+.rec .v small { font-size: 13px; margin-top: 2px; }
+
+/* ---------- Open risk: three figures, then the players ---------- */
+.risk { gap: 28px 40px; }
+.scen { gap: 26px; }
+.sc { border: 0; border-radius: 0; background: transparent; padding: 0; gap: 10px; }
+.sc .s { font-size: 13px; color: var(--ink-2); }
+.meter { height: 2px; border-radius: 0; background: var(--ed-rule); margin: 8px 0 2px; }
+.meter i { border-radius: 0; }
+.pcards { gap: 18px 28px; }
+.pcard { border: 0; border-top: 1px solid transparent; border-radius: 0; background: transparent; padding: 10px 0 4px; gap: 10px; }
+.pcard:hover { border-top-color: var(--ed-rule); }
+.pcard.open { border-top-color: var(--ink); box-shadow: none; }
+.pcard .pn { font-weight: 500; font-size: 15px; }
+.pcard .pc { gap: 8px; }
+.pcard .pc span { font-size: 13px; }
+.pcard .pd { border-top: 0; padding-top: 4px; gap: 10px; }
+.pcard .pm { font-size: 13px; }
+.empty { border: 0; border-radius: 0; min-height: 0; padding: 4px 0 14px; place-items: start; text-align: left; font-size: 13px; color: var(--ink-3); line-height: 1.5; }
+#open-list .empty { min-height: 0 !important; } /* the open list sets an inline 110px floor for the old dashed box */
+.empty b { font-family: var(--f-display); font-weight: 400; font-size: 15px; letter-spacing: .02em; color: var(--ink); margin-bottom: 4px; }
+
+/* ---------- Open entries: one line each; a rule between entries, none after the last ---------- */
+.slips.cmp { gap: 0; }
+.slip, .slip.cmp { border: 0; border-top: 1px solid var(--ed-rule-2); border-radius: 0; background: transparent; }
+.slip:hover { border-color: var(--ed-rule-2); }
+.slip.cmp:first-child { border-top: 0; }
+@media (min-width: 900px) { .slips.cmp { gap: 0 44px; } .slip.cmp:nth-child(2) { border-top: 0; } }
+.slip.cmp .sh { padding: 14px 0; border-radius: 0; column-gap: 16px; row-gap: 4px; }
+.slip.cmp .sh:hover { background: transparent; }
+.slip.cmp .sh:hover .chev { border-color: var(--ink); }
+.slip.cmp .sh .m, .slip .h .m { font-size: 15px; font-weight: 400; letter-spacing: .01em; }
+.slip.cmp .sh .sum { font-size: 15px; gap: 4px; }
+.slip.cmp .sh .sum .muted { font-size: 13px; }
+.slip.cmp .sb { padding: 2px 0 18px; }
+.slip ul { font-size: 13px; gap: 6px; }
+.slip .f { border-top: 0; padding-top: 6px; font-size: 13px; }
+.picks { gap: 4px 16px; }
+.pk { border: 0; border-radius: 0; background: transparent; padding: 2px 0; gap: 7px; font-size: 13px; }
+.pk .mg { font-size: 13px; }
+
+/* ---------- Statuses: outlined pills in their own colour; picks in a row: a coloured dot, a neutral name ---------- */
+.pill, .pill.won, .pill.lost, .pill.open, .pill.even, .pill.bonus { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 50%, transparent); border-radius: 999px; padding: 3px 10px; font-family: var(--f-body); font-size: 10.5px; font-weight: 500; letter-spacing: .14em; }
+.pill.won { color: var(--good); } .pill.lost { color: var(--bad); } .pill.open { color: var(--accent); } .pill.even { color: var(--warn); } .pill.bonus { color: var(--ink-2); }
+.tag { display: inline-block; margin-top: 3px; }
+.psum { font-size: 13px; color: var(--ink-2); }
+.psum .hit, .psum .miss, .psum .push, .psum .pending { color: var(--ink-2); }
+.psum span::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); margin-right: 5px; vertical-align: 1px; }
+.psum .hit::before { background: var(--good); } .psum .miss::before { background: var(--bad); } .psum .push::before { background: var(--warn); }
+.psum .pending::before { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-3); }
+
+/* ---------- Charts: square bars; the end value wears a halo (the base now omits its "Start" caption when the end value sits on it) ---------- */
+.chart text { font-size: 10.5px; letter-spacing: .04em; }
+.chart .val { font-size: 13px; font-weight: 500; letter-spacing: 0; fill: var(--ink); }
+.chart .catlbl { font-size: 13px; font-weight: 500; letter-spacing: 0; }
+#c-format rect, #c-sport rect { rx: 0; ry: 0; }
+#c-curve text.val { paint-order: stroke fill; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; } /* the end value keeps a black halo, so it stays legible whatever crosses it */
+.tip { background: var(--bg); border-color: var(--ed-rule); border-radius: 2px; box-shadow: 0 16px 40px rgba(0,0,0,.6); font-size: 13px; }
+.tip .t { margin-bottom: 6px; }
+
+/* ---------- Calendar: a printed month, no cells; numbers centred, the result centred beneath ---------- */
+.cal-head { margin-bottom: 16px; }
+.cal-title { gap: 6px; }
+.cal-tot { font-family: var(--f-mono); font-size: 13px; }
+.cal-grid { gap: 0; } /* no column gap, so the rule under the weekdays runs unbroken */
+.cal-wd { padding: 2px 0 10px; border-bottom: 1px solid var(--ed-rule); letter-spacing: .14em; text-indent: .14em; }
+.cal-cell, .cal-cell.up, .cal-cell.down, .cal-cell.flat, .cal-cell.blank { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.cal-cell { aspect-ratio: auto; min-height: 60px; padding: 10px 0 0; display: grid; align-content: start; justify-items: center; gap: 5px; }
+.cal-cell.future { opacity: 1; }
+.cal-d { font-family: var(--f-display); font-weight: 400; font-size: 14px; line-height: 1; color: var(--ink-2); }
+.cal-cell.up .cal-d, .cal-cell.down .cal-d, .cal-cell.flat .cal-d { color: var(--ink); }
+.cal-cell.future .cal-d { color: var(--ink-3); font-weight: 400; }
+.cal-cell.today .cal-d { color: var(--accent); font-weight: 500; }
+.cal-cell.sel { box-shadow: none; }
+.cal-cell.sel::after { content: ""; position: absolute; left: 50%; bottom: 7px; width: 24px; height: 2px; margin-left: -12px; background: var(--accent); }
+.cal-cell.sel .cal-d { color: var(--ink); }
+.cal-cell.has:hover { border-color: transparent; }
+.cal-cell.has:hover .cal-d { color: var(--ink); }
+.cal-o { top: 6px; right: 8px; width: 5px; height: 5px; }
+.cal-v, .cal-v.l5, .cal-v.long { justify-self: center; font-family: var(--f-mono); font-size: 12.5px; font-weight: 500; letter-spacing: 0; }
+
+/* ---------- The day's entries: a ruled list ---------- */
+.dual { margin-top: 0; }
+@media (min-width: 900px) { .dual { gap: 8px 44px; } }
+.dayhead { padding: 0 0 12px; }
+.dayhead span { font-size: 15px; }
+.tbl-wrap { margin: 6px 0 0; }
+th { padding: 0 12px 10px; border-bottom: 1px solid var(--ed-rule); }
+#p-log thead th { background: var(--bg); }
+td { padding: 14px 12px; border-bottom: 1px solid var(--ed-rule-2); }
+tr.row:hover td { background: var(--ed-wash); }
+th:first-child, td:first-child { padding-left: 0; } th:last-child, td:last-child { padding-right: 0; }
+#p-log tr.row > td:nth-child(2) > div:first-child { font-family: var(--f-display); font-weight: 400 !important; font-size: 15px; line-height: 1.2; }
+td.mono { font-size: 13px; }
+tr.det td { padding: 0 0 18px; border-bottom: 1px solid var(--ed-rule-2); }
+.det-in { gap: 10px; }
+.note { font-size: 13px; }
+
+/* ---------- Log entry form ---------- */
+dialog { background: var(--bg); border: 1px solid var(--ed-rule); border-radius: 2px; box-shadow: 0 40px 100px rgba(0,0,0,.7); }
+dialog::backdrop { background: rgba(0,0,0,.78); }
+.dlg header { padding: 18px 24px; border-bottom: 1px solid var(--ed-rule); }
+.dlg .body { padding: 22px 24px 26px; gap: 24px; }
+.dlg footer { padding: 14px 24px; border-top: 1px solid var(--ed-rule); }
+.pickrows { gap: 10px; }
+.pickrow.hdr { padding-bottom: 8px; border-bottom: 1px solid var(--ed-rule); }
+.pickrow .x { color: var(--ink-3); }
+.calc { background: transparent; border: 0; border-top: 1px solid var(--ed-rule-2); border-bottom: 1px solid var(--ed-rule-2); border-radius: 0; padding: 12px 0; gap: 8px 22px; font-size: 13px; color: var(--ink-2); }
+.calc b { font-size: 15px; font-weight: 500; }
+@media (max-width: 680px) {
+  .pickrow { border: 0; border-top: 1px solid var(--ed-rule); border-radius: 0; padding: 16px 0 4px; gap: 10px 18px; }
+  .pickrow .x { top: 14px; right: 0; }
+  .pickrow .player { width: calc(100% - 30px); }
+}
+
+/* ---------- Account / connect sheet: a page, not a card; its ghost buttons flush with the copy ----------
+   The app build appends its own .cbox / .install / .askdock rules after this file, so these carry one extra class. */
+.connect .cbox { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 0; gap: 20px; }
+.connect .cbox h2 { font-size: 32px; }
+.connect .cbox p { font-size: 13px; }
+.connect .cacct, .connect .cfields { border-top: 1px solid var(--ed-rule); padding-top: 20px; }
+.connect .cacct { gap: 16px; }
+.connect .acct-meta { font-size: 13px; gap: 8px; }
+.connect .acct-meta b { font-size: 13px; }
+.connect .cacct .row-btns { gap: 8px 18px; }
+.connect .cbox .row { border-top: 1px solid var(--ed-rule); padding-top: 18px; }
+.connect .cbox .btn.ghost:not(.icon) { padding-left: 0; padding-right: 0; }
+
+/* ---------- Ask bar (light touch), toasts, banners ---------- */
+button.askdock { background: color-mix(in srgb, var(--bg) 88%, transparent); border-color: var(--ed-rule); box-shadow: 0 18px 44px rgba(0,0,0,.6); }
+button.askdock:hover { border-color: var(--ink-3); }
+button.askdock .ad-t { font-size: 15px; }
+.toast { border-radius: 999px; padding: 10px 18px; font-size: 13px; font-weight: 500; }
+.wrap .banner { background: transparent; border-top: 1px solid var(--warn); border-radius: 0; padding: 12px 0 0; font-size: 13px; }
+.wrap .install { background: transparent; border-top: 1px solid var(--ed-rule); border-radius: 0; padding: 14px 0 0; font-size: 13px; }
+
+/* ---------- Phone ---------- */
+@media (max-width: 800px) {
+  #p-log .tbl-wrap { margin: 0; border-top: 1px solid var(--ed-rule); }
+  #p-log tr.row { padding: 16px 0; gap: 10px 14px; border-bottom: 1px solid var(--ed-rule-2); }
+  #p-log tr.row:hover { background: transparent; }
+  #p-log tr.row.open { border-bottom: 0; }
+  #p-log tr.row td[data-l]::before { margin-bottom: 5px; }
+  #p-log tr.row td.mono { font-size: 15px; }
+  #p-log tr.det { padding: 0 0 18px; border-bottom: 1px solid var(--ed-rule-2); }
+  #p-daily .cal-head { margin-bottom: 14px; }
+  #p-daily .dual { gap: 18px; margin-top: 8px; }
+  #p-daily .cal-cell { height: 48px; min-height: 0; padding: 7px 0 0; }
+  .cal-cell.sel::after { bottom: 5px; }
+}
+@media (max-width: 700px) {
+  .wrap { gap: 30px; padding-top: 22px; }
+  .grid { gap: 30px; }
+  /* The desktop header is empty in app mode (its wordmark and actions are hidden by the app); it takes no grid slot, so the chip row sits at the same height on every tab */
+  .top, .top .brand { display: contents; }
+  .panel { padding-top: 18px; }
+  /* The chip row scrolls; its ends dissolve instead of cutting a chip in half */
+  .fbar { -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 24px), transparent); }
+  .chip { padding: 8px 16px; }
+  .cal-d { font-size: 13px; }
+  .cal-v, .cal-v.l5, .cal-v.long { font-size: 11px; }
+  .in, .search, .seg button { font-size: 16px; }
+  #dlg { background: var(--bg); }
+  .dlg header { padding: 16px 20px; }
+  .dlg .body { padding: 20px 20px 28px; }
+  .dlg footer { padding: 12px 20px; }
+  /* The board: a full-width hero over its platinum rule, a 2x2 of figures, then In play as the closing line */
+  .board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 20px; padding-top: 22px; }
+  .kpi, .kpi:nth-child(odd), .kpi:nth-child(-n+2), .kpi:nth-child(n+4) { border: 0 !important; padding: 0; }
+  .kpi .v { font-size: 34px; }
+  .kpi.hero { grid-column: 1 / -1; padding-bottom: 22px; }
+  .kpi.hero .v { font-size: clamp(44px, 13.8vw, 54px); } /* 54px at 390px wide, 50px on a 360px phone */
+  .kpi.hero::after { right: 0; }
+  .kpi:last-child { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; border-top: 1px solid var(--ed-rule-2) !important; padding-top: 18px; margin-top: -6px; }
+  .kpi:last-child .v { font-size: 24px; margin: 0; }
+  .kpi:last-child .sub { margin: 0 0 0 auto; }
+}
+
 /* ---------- Standalone app ---------- */
 /* Black & platinum: the app bar is the page black in every mode */
 :root { --bar-bg: #050506; --bar-ink: #f2f2f3; --bar-ink-2: #9a9da4; --bar-accent: #d6d8dc; }
@@ -522,10 +805,9 @@ tr.det[hidden] { display: none !important; }
 .install .btns { display: flex; gap: 6px; }
 
 /* ---------- Ask bar ---------- */
-/* v8.10 (Angus chose "Chat C", 2026-11-18): one pill on every screen opens Vici Chat (app-tail.js setupAskDock). It replaces the app bar pill
-   and the desktop header button, which vici.py still inserts until the picks thread drops them. --tab-h is measured by the app. */
+/* v8.10 (Angus chose "Chat C", 2026-11-18): one pill on every screen opens Vici Chat (app-tail.js setupAskDock). It replaced the app bar pill
+   and the desktop header button; since v23 (6da98c3) vici.py inserts no Ask markup, so nothing is hidden here. --tab-h is measured by the app. */
 :root { --dock-h: 50px; --dock-gap: 18px; --dock-space: calc(var(--dock-h) + var(--dock-gap)); --tab-h: calc(60px + env(safe-area-inset-bottom, 0px)); }
-.ab-ask, .top .actions .btn.act-chat { display: none !important; }
 .askdock { position: fixed; z-index: 24; display: flex; align-items: center; gap: 10px; height: var(--dock-h); padding: 0 6px 0 18px; border: 1px solid var(--line); border-radius: 999px;
   background: color-mix(in srgb, var(--panel) 92%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(16px); backdrop-filter: saturate(1.4) blur(16px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, .55); color: var(--ink-3); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
@@ -537,6 +819,10 @@ tr.det[hidden] { display: none !important; }
 .askdock .ad-t { flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .askdock .ad-go { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent-grad); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
 .askdock .ad-go svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Log from a screenshot (v8.11): the row at the top of the Log entry form, shown only while the chat bridge exists */
+.shotrow { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.shotrow .note { flex: 1 1 180px; }
 .askdock.away { opacity: 0; transform: translateY(calc(100% + 40px)); pointer-events: none; }
 html.vchat-open .askdock { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .askdock { transition: none; } }
@@ -550,16 +836,11 @@ html.vchat-open .askdock { opacity: 0; pointer-events: none; }
   .wrap { padding-bottom: 132px; }
   .toast { bottom: 92px; }
 }
-/* Vici Chat entry points in the app (append to app-extra.css). Phone: a round "ask" button at the right of the app bar.
-   Desktop: the "Ask Vici" button in the header actions uses the app's own .btn. */
-.ab-ask { display: none; }
+/* Vici Chat in the app (append to app-extra.css). The chat opens from the app's own Ask bar (button.askdock.act-chat);
+   the round app-bar button and the desktop "Ask Vici" button this file used to style are gone (2026-11-18).
+   The phone app bar still reads name … Balance. */
 @media (max-width: 700px) {
   .appbar .ab-r { margin-left: auto; }
-  .ab-ask { position: relative; flex: none; display: grid; place-items: center; width: 40px; height: 40px; margin-right: -4px; padding: 0;
-    border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
-  .ab-ask::after { content: ""; position: absolute; inset: -4px; }
-  .ab-ask:active { transform: scale(.94); }
-  .ab-ask svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 }
 </style>
 <link rel="stylesheet" href="vici-chat.css">
@@ -678,7 +959,6 @@ html.vl-motion .kpi { position: relative; }
 <div class="appbar">
   <div class="ab-l"><span class="ab-name">Vici</span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
   <div class="ab-r"><span class="ab-k">Balance</span><span class="ab-v" id="ab-bal">$250.00</span></div>
-  <button type="button" class="ab-ask act-chat" aria-label="Ask Vici"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4.5 19.5l1.2-4.1A7.5 7.5 0 1 1 20 11.5z"/></svg></button>
 </div>
 
 <div class="wrap" data-tab="home">
@@ -690,7 +970,6 @@ html.vl-motion .kpi { position: relative; }
     <div class="actions">
       <span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span>
       <button class="btn ghost icon act-export" id="btn-export" type="button" hidden aria-label="Export CSV" title="Export CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 4v16M15 4v16"/></svg></button>
-      <button class="btn act-chat" type="button">Ask Vici</button>
       <button class="btn primary act-new" id="btn-new" type="button">+ Log entry</button>
     </div>
   </header>
@@ -1018,13 +1297,13 @@ html.vl-motion .kpi { position: relative; }
     const y = v => m.t + (1 - (v - lo) / (hi - lo)) * ih;
     for (const t of ticks) { svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" })); const tx = sv("text", { x: m.l - 8, y: y(t) + 4, "text-anchor": "end" }); tx.textContent = money0(t); svg.append(tx); }
     svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: y(start), y2: y(start), stroke: "var(--ink-3)", "stroke-dasharray": "4 4", "stroke-width": 1 }));
-    const sl = sv("text", { x: W - m.r + 6, y: y(start) + 4 }); sl.textContent = "Start"; svg.append(sl);
     const col = "var(--accent)";
     const defs = sv("defs"); const g = sv("linearGradient", { id: "cg", x1: 0, x2: 0, y1: 0, y2: 1 }); g.append(sv("stop", { offset: "0%", "stop-color": col, "stop-opacity": .2 }), sv("stop", { offset: "100%", "stop-color": col, "stop-opacity": 0 })); defs.append(g); svg.append(defs);
     const line = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
     svg.append(sv("path", { d: `${line}L${x(pts.length - 1)},${m.t + ih}L${x(0)},${m.t + ih}Z`, fill: "url(#cg)" }));
     svg.append(sv("path", { d: line, fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }));
     const last = pts.length - 1;
+    if (Math.abs(y(start) - y(pts[last].v)) >= 16) { const sl = sv("text", { x: W - m.r + 6, y: y(start) + 4 }); sl.textContent = "Start"; svg.append(sl); }  // not when the end value sits on it
     if (pts.length <= 40) pts.forEach((p, i) => { if (i !== last) svg.append(sv("circle", { cx: x(i), cy: y(p.v), r: 3, fill: "var(--panel)", stroke: col, "stroke-width": 1.5 })); });
     svg.append(sv("circle", { cx: x(last), cy: y(pts[last].v), r: 5, fill: col, stroke: "var(--panel)", "stroke-width": 2 }));
     const endL = sv("text", { x: x(last) + 9, y: y(pts[last].v) + 4, class: "val", style: "font-weight:600" }); endL.textContent = money(pts[last].v); svg.append(endL);
@@ -1478,6 +1757,79 @@ html.vl-motion .kpi { position: relative; }
     $$(".act-export").forEach(b => { b.hidden = false; b.addEventListener("click", run); });
   }
 
+  // ---------- Log from a screenshot ----------
+  // v8.11 (Angus, 2026-11-18: "Use log from a screenshot"): a "From screenshot" button at the top of the Log entry form sends a PrizePicks
+  // lineup screenshot to Vici through ViciChat.ask (the picks thread's bridge) and fills the form: Power unless the slip says Flex Play,
+  // the entry fee, the top payout as To win, the placed date, and every pick (More/Less, line, stat). Goblin and demon legs go into the
+  // notes, since their payouts differ. The row only shows while the bridge exists and the form is a new entry; Angus checks it and taps Save.
+  const SHOT_SYSTEM = "You read PrizePicks lineup screenshots for a bet tracker. Answer with JSON only. For each player row give the player's name as printed, the team abbreviation next to it, the sport from the league tag (NBA, NFL, CFB, Soccer, ...), the stat as PrizePicks labels it, the projection line as a number, and side: 'more' for an up arrow or More, 'less' for a down arrow or Less. flavor is 'demon' for a red devil icon, 'goblin' for a green goblin icon, else 'standard'. type is 'flex' when the slip says Flex Play, 'power' for Power Play, else 'unknown'. stake is the entry fee in dollars; to_win is the top payout shown (the all-correct amount); both as plain numbers. date is the placed date as YYYY-MM-DD when it is printed (the current year unless that would be in the future), else null. promo is true only when the entry was free or paid with promo money. If the image is not a PrizePicks lineup, set is_slip false and picks [].";
+  const SHOT_SCHEMA = { type: "object", additionalProperties: false, properties: {
+    is_slip: { type: "boolean" }, type: { type: "string", enum: ["power", "flex", "unknown"] }, stake: { type: ["number", "null"] }, to_win: { type: ["number", "null"] },
+    date: { type: ["string", "null"] }, promo: { type: "boolean" }, notes: { type: ["string", "null"] },
+    picks: { type: "array", items: { type: "object", additionalProperties: false, properties: {
+      player: { type: "string" }, team: { type: ["string", "null"] }, sport: { type: ["string", "null"] }, stat: { type: "string" }, line: { type: "number" },
+      side: { type: "string", enum: ["more", "less"] }, flavor: { type: "string", enum: ["standard", "goblin", "demon"] } },
+      required: ["player", "team", "sport", "stat", "line", "side", "flavor"] } } },
+    required: ["is_slip", "type", "stake", "to_win", "date", "promo", "notes", "picks"] };
+  const shotSport = s => { const t = String(s || "").toUpperCase(); return /NFL/.test(t) ? "NFL" : /CFB|NCAA|COLLEGE/.test(t) ? "CFB" : /SOCCER|EPL|UCL|MLS|LIGA|SERIE|BUNDES|LIGUE|PREMIER|UEFA|FIFA/.test(t) ? "Soccer" : "NBA"; };
+  async function shotJpeg(file) { // ≤1280px on the long side, JPEG, base64: what the bridge sends on
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("image")); i.src = url; });
+      const k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight, 1));
+      const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", 0.85).split(",")[1];
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function shotFill(j) {
+    const picks = (Array.isArray(j.picks) ? j.picks : []).filter(p => p && p.player && p.stat && isFinite(p.line)).slice(0, 6);
+    formType = j.type === "flex" ? "flex" : "power";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(j.date || "")) && j.date <= today()) $("#f-date").value = j.date;
+    $("#f-bonus").checked = !!j.promo;
+    if (j.stake != null && isFinite(j.stake) && j.stake > 0) $("#f-stake").value = String(j.stake);
+    if (j.to_win != null && isFinite(j.to_win) && j.to_win > 0) $("#f-towin").value = String(j.to_win);
+    $$("#pickrows .pickrow:not(.hdr)").forEach(r => r.remove());
+    for (const p of picks) $("#pickrows").append(pickRow({ sport: shotSport(p.sport), player: String(p.player).trim(), stat: String(p.stat).trim(), line: Number(p.line), side: p.side === "less" ? "under" : "over", result: "pending", actual: null }));
+    const odd = picks.filter(p => p.flavor === "goblin" || p.flavor === "demon").map(p => p.flavor[0].toUpperCase() + p.flavor.slice(1) + ": " + p.player + " " + p.stat);
+    // the word "linked" in notes marks the chat's own slips for payout learning (picks thread, v26), so a screenshot never writes it
+    const extra = [j.notes ? String(j.notes).trim().replace(/\blinked\b/gi, "tied") : "", ...odd].filter(Boolean).join(" · ");
+    if (extra) { const n = $("#f-notes"); n.value = ((n.value ? n.value + " · " : "") + extra).slice(0, 500); }
+    $("#f-payout").value = ""; payoutTouched = false; recalc();
+    return picks.length;
+  }
+  function setupShotLog() {
+    const body = $("#entry-form .body"); if (!body) return;
+    const input = el("input", { type: "file", id: "shot-file", accept: "image/*", hidden: true, "aria-hidden": "true", tabindex: "-1" });
+    const btn = el("button", { type: "button", class: "btn", id: "shot-btn", text: "From screenshot" });
+    const status = el("span", { class: "note", id: "shot-status", role: "status" });
+    const row = el("div", { class: "shotrow", id: "shot-row", hidden: true }, btn, input, status);
+    body.prepend(row);
+    const bridge = () => !!(window.ViciChat && typeof window.ViciChat.ask === "function");
+    const show = () => { row.hidden = !dlg.open || !!state.editing || !bridge(); if (dlg.open) { status.textContent = ""; btn.disabled = false; } };
+    new MutationObserver(show).observe(dlg, { attributes: true, attributeFilter: ["open"] });
+    const say = (t, bad) => { status.textContent = t; status.style.color = bad ? "var(--bad)" : ""; };
+    btn.addEventListener("click", () => { if (!bridge()) return; input.value = ""; input.click(); });
+    input.addEventListener("change", async () => {
+      const file = input.files && input.files[0]; if (!file) return;
+      btn.disabled = true; say("Reading the lineup…");
+      try {
+        const data = await shotJpeg(file);
+        const r = await window.ViciChat.ask({ system: SHOT_SYSTEM, maxTokens: 1200, tag: "screenshot", schema: SHOT_SCHEMA,
+          content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data } }, { type: "text", text: "Read this PrizePicks lineup into the JSON." }] });
+        if (!r || !r.ok) {
+          const c = r && r.code;
+          return say(c === "no_key" ? "Add your Anthropic key in Vici first (Settings in the chat)." : c === "offline" ? "You're offline. Try again with signal." : c === "auth" ? "Vici's key was refused. Check it in the chat's Settings." : c === "credits" ? "Vici's credits are used up." : "Couldn't read that image. Try a clearer screenshot of the whole lineup.", true);
+        }
+        const j = r.json || {};
+        if (!j.is_slip || !(Array.isArray(j.picks) && j.picks.length)) return say("That doesn't look like a PrizePicks lineup.", true);
+        const n = shotFill(j);
+        say(`${n} ${n === 1 ? "pick" : "picks"} filled in. Check the lines, then save.`);
+      } catch (e) { say("Couldn't read that image. Try a clearer screenshot of the whole lineup.", true); }
+      finally { btn.disabled = false; input.value = ""; }
+    });
+  }
+
   // ---------- Ask bar ----------
   // v8.10 (Angus chose "Chat C", 2026-11-18 8:39 AM PT): one pill on every screen opens Vici Chat with the composer ready:
   // above the tab bar on phones, bottom centre on desktop. It slips away while scrolling down and returns on the way up.
@@ -1780,6 +2132,7 @@ html.vl-motion .kpi { position: relative; }
   state.db = db;
   setupExport();
   setupAskDock();
+  setupShotLog();
   if (sync.remote) publish(); else render();
   if (!sync.auth) { setMode("idle"); showConnect(); }
   else startSync();

@@ -153,6 +153,10 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 .vc-res.hit { background: var(--good-soft); color: var(--good); }
 .vc-res.miss { background: var(--bad-soft); color: var(--bad); }
 .vc-res.push { background: var(--warn-soft); color: var(--warn); }
+.vc-keys { display: flex; flex-wrap: wrap; gap: 4px 12px; min-width: 0; padding: 2px 4px 0 0; }
+.vc-keys span { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; max-width: 100%; }
+.vc-keys i { font-style: normal; font-size: 9.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+.vc-keys b { font: 500 12.5px/1.2 var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vc-bot { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .vc-why { flex: 1; min-width: 0; min-height: 44px; padding: 6px 0; border: 0; background: none; text-align: left; font-size: 13px; line-height: 1.4;
   color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

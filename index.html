@@ -509,6 +509,9 @@ tr.det[hidden] { display: none !important; }
 .install { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: space-between; background: var(--accent-soft); color: var(--ink); border-radius: var(--r); padding: 12px 14px; font-size: 13.5px; }
 .install p { margin: 0; min-width: 0; flex: 1 1 220px; }
 .install .btns { display: flex; gap: 6px; }
+
+/* v8.8 (2026-11-18, Angus: "Remove this"): the Model panel that vici.py inserts stays out of Stats until the picks thread drops it from vici.py. */
+#p-model { display: none !important; }
 /* Vici Chat entry points in the app (append to app-extra.css). Phone: a round "ask" button at the right of the app bar.
    Desktop: the "Ask Vici" button in the header actions uses the app's own .btn. */
 .ab-ask { display: none; }
@@ -1655,7 +1658,8 @@ html.vl-motion .kpi { position: relative; }
   // ---------- Boot ----------
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => { });
   let rT; const reflow = () => { clearTimeout(rT); rT = setTimeout(render, 120); };
-  let vlW = -1; new ResizeObserver(es => { const w = Math.round(es[0].contentRect.width); if (w !== vlW) { vlW = w; reflow(); } }).observe($(".wrap")); // vici-launch: width only
+  // Redraw on width changes only: charts depend on width, the day list sizes itself (fitLog), and a height-only redraw would cut the launch animation's cascades short.
+  let wrapW = -1; new ResizeObserver(es => { const w = Math.round(es[0].contentRect.width); if (w !== wrapW) { wrapW = w; reflow(); } }).observe($(".wrap"));
   state.db = db;
   setupExport();
   if (sync.remote) publish(); else render();

@@ -594,25 +594,28 @@ html.vchat-open .askdock { opacity: 0; pointer-events: none; }
 }
 /* More motion across the app (Angus, 2026-11-18, "make it more animative"). motion.js adds html.vl-motion and drives the rest;
    nothing here runs with Reduce Motion on. */
-.vl-pill { position: absolute; left: 0; top: 0; width: 56px; height: 32px; border-radius: 999px; pointer-events: none; opacity: 0;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 15%, transparent), color-mix(in srgb, var(--ink) 6%, transparent));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 18%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 10%, transparent); }
-.vl-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--good) 55%, transparent), inset 0 0 28px color-mix(in srgb, var(--good) 20%, transparent); }
-.vl-flash.bad { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 55%, transparent), inset 0 0 28px color-mix(in srgb, var(--bad) 20%, transparent); }
+/* The tab marker: a lit segment of the tab bar's top rule, above the current tab (motion.js pins it there because of --vl-at) */
+.vl-pill { --vl-at: top; position: absolute; left: 0; top: -1px; width: 28px; height: 1.5px; pointer-events: none; opacity: 0; background: var(--ink); }
+/* The flash on Balance / Net PnL: a faint light rises off the tile's foot in the move's colour, then fades (motion.js drives opacity) */
+.vl-flash { --vl-c: var(--good); position: absolute; inset: auto 0 0 0; height: 14px; pointer-events: none; opacity: 0;
+  background: linear-gradient(0deg, var(--vl-c) 0 1px, color-mix(in srgb, var(--vl-c) 16%, transparent) 1px, transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 30%, transparent 92%); mask-image: linear-gradient(90deg, #000 30%, transparent 92%); }
+.vl-flash.bad { --vl-c: var(--bad); }
 html.vl-motion .kpi { position: relative; }
 @media (prefers-reduced-motion: no-preference) {
   /* motion.js slides sections in on a tab switch, so the CSS rise steps aside */
   html.vl-motion .panel, html.vl-motion .board { animation: none; }
   html.vl-sliding .wrap { overflow-x: clip; }
   /* Taps press in and spring back */
-  html.vl-motion :is(.btn, .chip, .seg button, .cal-nav, .cal-cell.has, .tabbar button, .slip.cmp .sh, .ab-ask) {
+  html.vl-motion :is(.btn, .chip, .seg button, .cal-nav, .cal-cell.has, .slip.cmp .sh, .ab-ask) {
     transition: border-color .15s, background .15s, color .25s, box-shadow .2s, transform .45s cubic-bezier(.34,1.4,.5,1); }
-  html.vl-motion :is(.btn, .chip, .seg button, .cal-nav, .cal-cell.has, .tabbar button, .slip.cmp .sh, .ab-ask):active { transition-duration: .15s, .15s, .25s, .2s, .08s; }
+  html.vl-motion :is(.btn, .chip, .seg button, .cal-nav, .cal-cell.has, .slip.cmp .sh, .ab-ask):active { transition-duration: .15s, .15s, .25s, .2s, .08s; }
+  html.vl-motion .tabbar button { transition: color .4s ease, transform .45s cubic-bezier(.34,1.4,.5,1); }
+  html.vl-motion .tabbar button:active { transition-duration: .4s, .08s; }
   html.vl-motion :is(.btn, .chip, .seg button, .cal-nav, .tabbar button):active { transform: scale(.94); }
   html.vl-motion :is(.cal-cell.has, .ab-ask):active { transform: scale(.9); }
   html.vl-motion .slip.cmp .sh:active { transform: scale(.985); }
-  html.vl-motion .tabbar .tb-add:active { transform: scale(.9) rotate(90deg); }
+  html.vl-motion .tabbar .tb-add:active { transform: scale(.92) rotate(90deg); }
   html.vl-motion .slip.cmp .sh .chev, html.vl-motion .panel.fold h2::after { transition: transform .5s cubic-bezier(.34,1.4,.5,1), margin-top .5s cubic-bezier(.34,1.4,.5,1), vertical-align .5s; }
   /* The toast rises in, the sync dot pings when it goes live, the sheet's backdrop fades */
   html.vl-motion .toast:not([hidden]) { animation: vl-toast .55s cubic-bezier(.2,.75,.2,1) backwards; }
@@ -625,6 +628,45 @@ html.vl-motion .kpi { position: relative; }
   html.vl-motion .vl-shine, html.vl-motion .kpi.hero .v.vl-shine { background-image: linear-gradient(100deg, transparent 38%, rgba(255,255,255,.95) 50%, transparent 62%), var(--vl-base, var(--plat-text));
     background-size: 300% 100%, 100% 100%; background-repeat: no-repeat; -webkit-background-clip: text; background-clip: text; color: transparent; animation: vl-shine 1.6s cubic-bezier(.4,0,.2,1); }
   @keyframes vl-shine { from { background-position: 100% 0, 0 0; } to { background-position: 0% 0, 0 0; } }
+}
+/* Editorial shell (Angus, 2026-11-18, "make the interface more premium", chose Editorial): solid black bars with one hairline each,
+   tiny tracked caps, thin icons, a hairline marker riding the tab bar's top rule, and the + as the one platinum object, flush in the bar.
+   Phone shell only (app bar, tab bar); the screens themselves are styled in the page. */
+@media (max-width: 700px) {
+  body::before { background: var(--bg); } /* the strip under the iPhone status bar */
+  /* ---- App bar ---- */
+  .appbar { align-items: stretch; gap: 16px; padding-block: 12px 11px; background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 1px solid var(--line); }
+  .appbar .ab-l, .appbar .ab-r { align-content: space-between; }
+  .appbar .ab-l { gap: 8px; grid-template-columns: minmax(0, 1fr); }
+  .appbar .ab-r { gap: 6px; flex: none; } /* the balance never shrinks; the status line gives way instead */
+  .appbar .ab-name { font-family: var(--f-display); font-weight: 300; font-size: 17px; line-height: 1; letter-spacing: .44em;
+    background: var(--plat-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .appbar .ab-k { font-family: var(--f-body); font-weight: 500; font-size: 9.5px; line-height: 1; letter-spacing: .22em; margin-right: -.22em; color: var(--ink-3); }
+  .appbar .ab-v { font-family: var(--f-display); font-weight: 300; font-size: 26px; line-height: 1; letter-spacing: .01em; background: none; color: var(--ink); }
+  .appbar .sync { position: relative; max-width: 100%; gap: 7px; font-size: 11px; font-weight: 400; letter-spacing: .02em; line-height: 14px; margin-bottom: 1px; color: var(--ink-3); }
+  .appbar .sync .sync-t { overflow: hidden; text-overflow: ellipsis; } /* a long status ("Offline · 12 changes waiting") trims instead of pushing the balance */
+  .appbar .sync i { width: 5px; height: 5px; }
+  .appbar .sync::after { content: ""; position: absolute; inset: -20px -12px -10px -8px; } /* 44px tap area, kept inside the bar */
+  /* ---- Tab bar ---- */
+  .tabbar { align-items: stretch; padding-top: 0; padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; border-top: 1px solid var(--line); }
+  .tabbar button { align-content: center; gap: 7px; min-height: 56px; padding: 0;
+    font: 500 9.5px/1 var(--f-body); letter-spacing: .16em; text-indent: .16em; text-transform: uppercase; color: var(--ink-3); }
+  .tabbar svg { width: 22px; height: 22px; stroke-width: 1.25; }
+  .tabbar button[aria-current="page"] { color: var(--ink); }
+  .tabbar button:focus-visible { outline: 1px solid var(--ink-2); outline-offset: -3px; }
+  /* without motion.js the current tab still gets its hairline */
+  .tabbar:not(:has(> .vl-pill)) button[aria-current="page"]::after { content: ""; position: absolute; top: -1px; left: 50%; width: 28px; margin-left: -14px; height: 1.5px; background: var(--ink); }
+  /* The + : the one platinum object, a disc sitting in the bar's own row */
+  .tabbar .tb-add { align-self: center; justify-self: center; width: 44px; height: 44px; min-height: 0; margin: 0; padding: 0; text-indent: 0;
+    border-radius: 50%; background: var(--accent-grad); color: var(--on-accent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.6), inset 0 -1px 0 rgba(0,0,0,.16); }
+  .tabbar .tb-add::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; } /* 48px tap area */
+  .tabbar .tb-add svg { width: 20px; height: 20px; stroke-width: 1.7; }
+  .tabbar .tb-add:focus-visible { outline: 1px solid var(--ink-2); outline-offset: 3px; }
+  /* Open count: a small figure at the icon's shoulder, no capsule */
+  .tb-n { top: calc(50% - 17px); left: calc(50% + 10px); min-width: 0; height: auto; padding: 0; border-radius: 0; background: none;
+    color: var(--ink); font: 400 11px/1 var(--f-display); letter-spacing: 0; text-indent: 0; font-variant-numeric: tabular-nums; }
 }
 </style>
 <!-- /vici-launch -->
@@ -2002,7 +2044,7 @@ html.vl-motion .kpi { position: relative; }
 </script>
 <script>
 // Vici motion ("make it more animative", Angus, 2026-11-18): calm, slow motion across the app once it is open.
-// Tabs slide in the direction you travel and a platinum highlight glides along the tab bar; taps press in and spring back;
+// Tabs slide in the direction you travel and a hairline marker glides along the tab bar; taps press in and spring back;
 // charts grow, slips, calendar days and the day's entries cascade; the balance pulses and shines when it changes.
 // launch.js runs first (splash, count-up) and fires vici:num and vici:launched. Every effect checks Reduce Motion
 // when it runs, and launch.css holds the CSS half (press-in, toast, sync ping, shine), all behind html.vl-motion.
@@ -2071,7 +2113,7 @@ html.vl-motion .kpi { position: relative; }
     if (to === "stats") barsIn(Math.min(at($("#c-format")), at($("#edge"))) + 220);
   }
 
-  // The platinum highlight under the current tab
+  // The marker on the current tab (a hairline on the tab bar's top rule, see launch.css)
   const bar = $(".tabbar"), pill = document.createElement("span");
   pill.className = "vl-pill"; pill.setAttribute("aria-hidden", "true");
   if (bar) bar.prepend(pill);
@@ -2080,11 +2122,18 @@ html.vl-motion .kpi { position: relative; }
     const b = bar && $("[data-go][aria-current='page']", bar);
     if (!b || !seen(bar)) { pill.style.opacity = "0"; at0 = null; return; }
     const ic = $("svg", b) || b, br = bar.getBoundingClientRect(), r = ic.getBoundingClientRect();
-    const x = r.left - br.left + r.width / 2 - 28, y = r.top - br.top + r.height / 2 - 16;
+    // centred on the tab's icon, or along the bar's top edge when launch.css sets --vl-at: top (a hairline marker)
+    const pw = pill.offsetWidth || 56, ph = pill.offsetHeight || 32, edge = getComputedStyle(pill).getPropertyValue("--vl-at").trim() === "top";
+    const x = r.left - br.left + r.width / 2 - pw / 2, y = edge ? 0 : r.top - br.top + r.height / 2 - ph / 2;
     const to = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     if (move && at0 && at0.t !== to && !still()) {
-      const mid = `translate(${((at0.x + x) / 2).toFixed(1)}px, ${y.toFixed(1)}px) scaleX(1.45)`;
-      pill.animate([{ transform: at0.t }, { transform: mid, offset: .45 }, { transform: to }], { duration: 650, easing: "cubic-bezier(.3,.7,.25,1)" });
+      // a tap mid-glide picks the marker up where it is drawn now, instead of jumping back to the last glide's end
+      let fx = at0.x, sx = 1;
+      const run = pill.getAnimations ? pill.getAnimations() : [];
+      if (run.length) { try { const m = new DOMMatrixReadOnly(getComputedStyle(pill).transform); fx = m.m41; sx = m.m11 || 1; } catch (e) {} run.forEach(a => a.cancel()); }
+      const from = `translate(${fx.toFixed(1)}px, ${y.toFixed(1)}px) scaleX(${sx.toFixed(3)})`;
+      const mid = `translate(${((fx + x) / 2).toFixed(1)}px, ${y.toFixed(1)}px) scaleX(1.45)`;
+      pill.animate([{ transform: from }, { transform: mid, offset: .45 }, { transform: to }], { duration: 750, easing: "cubic-bezier(.3,.7,.25,1)" });
     }
     pill.style.transform = to; pill.style.opacity = "1"; at0 = { t: to, x };
   }
@@ -2163,7 +2212,7 @@ html.vl-motion .kpi { position: relative; }
     const up = d.to > d.from;
     if (el.id === "ab-bal") {
       el.style.transformOrigin = "100% 50%";
-      anim(el, [{ transform: "scale(1)" }, { transform: "scale(1.08)", offset: .3 }, { transform: "scale(1)" }], { duration: 900, easing: "ease-in-out", fill: "none" });
+      anim(el, [{ transform: "scale(1)" }, { transform: "scale(1.04)", offset: .3 }, { transform: "scale(1)" }], { duration: 900, easing: "ease-in-out", fill: "none" });
       setTimeout(() => shine(el), 1000);
     }
     if (el.id === "k-bank" || el.id === "k-pnl") flash(el.closest(".kpi"), up);

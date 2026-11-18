@@ -384,11 +384,15 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
 .cal-cell { position: relative; aspect-ratio: 1 / 1; border-radius: 8px; background: var(--bg); border: 1px solid var(--line-2); display: grid; align-content: space-between; padding: 5px 3px; min-width: 0; }
 .cal-cell.blank { background: transparent; border-color: transparent; }
 .cal-cell.future { opacity: .4; }
-.cal-cell.today { box-shadow: inset 0 0 0 1px var(--accent); }
+.cal-cell.today .cal-d { color: var(--accent); font-weight: 700; }
+.cal-cell.sel { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.cal-cell.sel .cal-d { color: var(--ink); }
+.cal-o { position: absolute; top: 6px; right: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .cal-cell.up { background: var(--good-soft); border-color: color-mix(in srgb, var(--good) 35%, var(--line-2)); }
 .cal-cell.down { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 35%, var(--line-2)); }
 .cal-cell.flat { background: var(--line-2); }
-.cal-cell[tabindex] { cursor: default; }
+.cal-cell.has { cursor: pointer; }
+.cal-cell.has:hover { border-color: var(--ink-3); }
 .cal-d { font-size: 11px; color: var(--ink-3); line-height: 1; }
 .cal-cell.up .cal-d, .cal-cell.down .cal-d { color: var(--ink-2); }
 .cal-v { font-size: 11px; font-weight: 500; letter-spacing: 0; line-height: 1; justify-self: end; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -433,22 +437,34 @@ tr.det td { padding-top: 0; padding-bottom: 14px; }
 tr.det[hidden] { display: none !important; }
 .det-in { display: grid; gap: 8px; }
 .det-in .act { justify-self: end; }
-.psum .d { display: none; color: var(--ink-3); }
 .row .est { margin: 0 5px 0 0; }
 .pk .mg { white-space: nowrap; }
 .cal-v.l5 { font-size: 10.5px; letter-spacing: -.02em; }
 .cal-v.long { font-size: 9.5px; letter-spacing: -.03em; }
+/* Calendar + the chosen day's entries (v8.6): month on the left, that day's entries on the right; stacked on phones */
+.dual { display: grid; gap: 14px; margin-top: 12px; }
+.dayhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 2px 0 6px; min-height: 18px; }
+.dayhead b { font-family: var(--f-display); font-weight: 400; font-size: 15px; letter-spacing: .12em; text-transform: uppercase; }
+.dayhead span { font-size: 12px; color: var(--ink-2); }
+.dayhead .pos { color: var(--good); } .dayhead .neg { color: var(--bad); }
+#p-log thead th:first-child, #p-log tr.row > td:first-child { display: none; }
+@media (min-width: 701px) { .cal-o { top: 9px; right: 10px; width: 6px; height: 6px; } .cal-v.l5 { font-size: 13px; letter-spacing: 0; } .cal-v.long { font-size: 12px; letter-spacing: -.01em; } }
+@media (min-width: 801px) {
+  #p-log .tbl-wrap { margin: 0; }
+  #p-log table { min-width: 0; }
+  #p-log th:nth-child(2), #p-log tr.row > td:nth-child(2) { padding-left: 0; }
+  #p-log th:last-child, #p-log tr.row > td:last-child { padding-right: 0; }
+  #p-log tr.det td { padding-left: 0; padding-right: 0; }
+}
+@media (min-width: 900px) { .dual { grid-template-columns: minmax(0, 11fr) minmax(0, 13fr); gap: 8px 28px; align-items: start; } .dayhead { padding-top: 0; } }
 @media (max-width: 800px) {
-  #p-log tr.row { gap: 6px 12px; padding: 11px 18px; }
+  #p-log .tbl-wrap { margin: 0 -18px -16px; }
+  #p-log tr.row { gap: 6px 12px; padding: 11px 18px; grid-template-areas: "entry entry status" "picks picks picks" "stake payout pnl"; }
+  #p-log tr.row td:nth-child(2) { grid-column: 1 / 3; }
   #p-log tr.row td.pc { width: auto; max-width: none; }
   #p-log tr.row.open { border-bottom: 0; }
   #p-log tr.det { display: block; padding: 0 18px 14px; border-bottom: 1px solid var(--line-2); }
   #p-log tr.det td { display: block; padding: 0; border: 0; }
-}
-@media (max-width: 680px) {
-  #p-log tr.row { grid-template-areas: "entry entry status" "picks picks picks" "stake payout pnl"; }
-  #p-log tr.row td:nth-child(1) { display: none; }
-  .psum .d { display: inline; }
 }
 
 /* ---------- Standalone app ---------- */
@@ -598,31 +614,22 @@ tr.det[hidden] { display: none !important; }
       <div class="edge" id="edge"></div>
       <div class="ekey"><span><i class="kb"></i>Break-even</span><span><i class="kd"></i>Hit rate</span><span id="ekey-std" hidden>* standard payouts, only bonus entries in this format</span></div>
     </section>
-    <section class="panel span-6" id="p-daily" data-tabs="stats">
-      <h2>Daily PnL</h2>
-      <p class="hint">Net result of settled entries, by the day placed</p>
-      <div class="chart" id="c-daily"></div>
-    </section>
     <section class="panel span-12" id="p-open" data-tabs="open">
       <div class="panel-head"><h2>Open entries</h2><div class="livebar" id="livebar"><span class="hint">Tap a slip to grade picks as games finish</span></div></div>
       <div id="open-list"></div>
     </section>
-    <section class="panel span-12" id="p-log" data-tabs="history">
-      <div class="panel-head">
-        <h2>Entry log</h2>
-        <div class="loghead">
-          <input class="search" id="q" type="search" placeholder="Search player or stat" aria-label="Search entries by player, stat or note">
-          <div class="filters" role="group" aria-label="Filter by status">
-            <button class="chip" data-status="all" aria-pressed="true" type="button">All</button>
-            <button class="chip" data-status="settled" aria-pressed="false" type="button">Settled</button>
-            <button class="chip" data-status="open" aria-pressed="false" type="button">Open</button>
-          </div>
+    <section class="panel span-12" id="p-daily" data-tabs="history">
+      <h2>Calendar</h2>
+      <div class="dual">
+        <div class="chart" id="c-daily"></div>
+        <div id="p-log" class="daylog">
+          <div class="dayhead" id="day-head"></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Date</th><th>Entry</th><th>Picks</th><th class="r">Stake</th><th class="r">Payout</th><th class="r">PnL</th><th>Status</th></tr></thead>
+            <tbody id="log-body"></tbody>
+          </table></div>
         </div>
       </div>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th>Date</th><th>Entry</th><th>Picks</th><th class="r">Stake</th><th class="r">Payout</th><th class="r">PnL</th><th>Status</th></tr></thead>
-        <tbody id="log-body"></tbody>
-      </table></div>
     </section>
     <section class="panel span-12" data-tabs="stats">
       <details class="legend">
@@ -658,7 +665,7 @@ tr.det[hidden] { display: none !important; }
   <button type="button" data-go="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"/><path d="M4 16l5-6 4 3 7-8"/></svg>Home</button>
   <button type="button" data-go="open"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1.5a2.5 2.5 0 0 0 0 5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1.5a2.5 2.5 0 0 0 0-5z"/><path d="M14 7.5v9" stroke-dasharray="1.6 2.4"/></svg>Open<span class="tb-n" id="tb-open" hidden></span></button>
   <button type="button" class="tb-add act-new" aria-label="Log entry"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-  <button type="button" data-go="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="2.8"/></svg>History</button>
+  <button type="button" data-go="history"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>History</button>
   <button type="button" data-go="stats"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-8M12 20V5M19 20v-5"/></svg>Stats</button>
 </nav>
 
@@ -1028,34 +1035,37 @@ tr.det[hidden] { display: none !important; }
   }
 
   // ---------- Daily PnL ----------
-  // Daily PnL as a month calendar (Angus, 2026-11-17): each day's net result on the day placed; tap a day for the detail.
-  const cal = { month: null };
+  // Calendar (Angus, 2026-11-17): each day's net result on the day placed; tap a day and its entries show beside/below the month (the Entry log lives here since v8.6).
+  const cal = { month: null, day: null };
   function drawDaily(settled) {
     const host = $("#c-daily");
     const days = new Map(); for (const e of settled) { const r = days.get(e.date) || { d: e.date, v: 0, n: 0, w: 0, k: 0 }; r.v += pnl(e); r.n++; if (isPack(e)) r.k++; if (pnl(e) > 0) r.w++; days.set(e.date, r); }
+    const openDays = new Map(); for (const e of visible()) if (isOpen(e)) openDays.set(e.date, (openDays.get(e.date) || 0) + 1);
     const t = today(); if (!cal.month) cal.month = t.slice(0, 7);
     const [Y, M] = cal.month.split("-").map(Number);
     const first = new Date(Y, M - 1, 1), nDays = new Date(Y, M, 0).getDate(), lead = first.getDay();
     const inMonth = [...days.values()].filter(r => r.d.startsWith(cal.month));
     const tot = inMonth.reduce((a, r) => a + r.v, 0), nSet = inMonth.reduce((a, r) => a + r.n, 0), nPk = inMonth.reduce((a, r) => a + r.k, 0);
+    const has = k => days.has(k) || openDays.has(k);
+    const keys = [...new Set([...days.keys(), ...openDays.keys()])].filter(k => k.startsWith(cal.month)).sort();
+    if (!cal.day || !cal.day.startsWith(cal.month) || !has(cal.day)) cal.day = has(t) && t.startsWith(cal.month) ? t : (keys.filter(k => k <= t).pop() || keys[0] || null);
     const compact = host.clientWidth < 560;
     const fmtCell = v => { if (!compact) return money0(v, true); const a = Math.abs(v), sgn = v > 0 ? "+" : v < 0 ? "−" : ""; return sgn + "$" + (a >= 1000 ? (a / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(a))); };
-    const nav = (dir, label, text) => el("button", { class: "cal-nav", type: "button", "aria-label": label, text, onclick: () => { const nm = new Date(Y, M - 1 + dir, 1); cal.month = `${nm.getFullYear()}-${String(nm.getMonth() + 1).padStart(2, "0")}`; drawDaily(settled); } });
+    const nav = (dir, label, text) => el("button", { class: "cal-nav", type: "button", "aria-label": label, text, onclick: () => { const nm = new Date(Y, M - 1 + dir, 1); cal.month = `${nm.getFullYear()}-${String(nm.getMonth() + 1).padStart(2, "0")}`; drawDaily(settled); drawLog(visible()); } });
     const head = el("div", { class: "cal-head" }, nav(-1, "Previous month", "‹"),
       el("div", { class: "cal-title" }, el("b", { text: first.toLocaleDateString("en-US", { month: "long", year: "numeric" }) }), el("span", { class: "cal-tot num " + (tot > 0 ? "pos" : tot < 0 ? "neg" : ""), text: nSet ? `${money(tot, true)} · ${nSet - nPk} settled${nPk ? ` · ${nPk} packs` : ""}` : "—" })),
       nav(1, "Next month", "›"));
-    const grid = el("div", { class: "cal-grid", role: "grid", "aria-label": "Daily net PnL calendar" });
+    const grid = el("div", { class: "cal-grid", role: "grid", "aria-label": "Calendar of entries" });
     for (const w of ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]) grid.append(el("div", { class: "cal-wd", text: w }));
     for (let i = 0; i < lead; i++) grid.append(el("div", { class: "cal-cell blank" }));
     host.replaceChildren(head, grid);
-    const T = tip(host);
     for (let d = 1; d <= nDays; d++) {
-      const key = `${cal.month}-${String(d).padStart(2, "0")}`, r = days.get(key);
-      const cls = "cal-cell" + (r ? (r.v > 0 ? " up" : r.v < 0 ? " down" : " flat") : "") + (key === t ? " today" : key > t ? " future" : "");
-      const c = el("div", { class: cls, role: "gridcell", tabindex: r ? 0 : null, "aria-label": `${fmtDate(key)}: ${r ? money(r.v, true) + ", " + r.n + " settled" : "nothing settled"}` },
-        el("span", { class: "cal-d", text: String(d) }), r ? el("span", { class: "cal-v num" + (compact ? (fmtCell(r.v).length >= 6 ? " long" : fmtCell(r.v).length === 5 ? " l5" : "") : ""), text: fmtCell(r.v) }) : null);
-      if (r) { const show = () => { const rc = c.getBoundingClientRect(), hr = host.getBoundingClientRect(); T.show(rc.left - hr.left + rc.width / 2, rc.top - hr.top, fmtDate(key), [["Net PnL", money(r.v, true)], ["Entries", String(r.n)], ["Cashed", String(r.w)]]); };
-        c.addEventListener("pointerenter", show); c.addEventListener("pointerdown", show); c.addEventListener("pointerleave", () => T.hide()); c.addEventListener("focus", show); c.addEventListener("blur", () => T.hide()); }
+      const key = `${cal.month}-${String(d).padStart(2, "0")}`, r = days.get(key), nO = openDays.get(key) || 0, on = has(key), sel = key === cal.day;
+      const cls = "cal-cell" + (r ? (r.v > 0 ? " up" : r.v < 0 ? " down" : " flat") : "") + (key === t ? " today" : key > t ? " future" : "") + (on ? " has" : "") + (sel ? " sel" : "");
+      const c = el("div", { class: cls, role: "gridcell", tabindex: on ? 0 : null, "aria-selected": on ? String(sel) : null, "aria-label": `${fmtDate(key)}: ${r ? money(r.v, true) + ", " + r.n + " settled" : "nothing settled"}${nO ? `, ${nO} open` : ""}` },
+        el("span", { class: "cal-d", text: String(d) }), nO ? el("i", { class: "cal-o" }) : null, r ? el("span", { class: "cal-v num" + (compact ? (fmtCell(r.v).length >= 6 ? " long" : fmtCell(r.v).length === 5 ? " l5" : "") : ""), text: fmtCell(r.v) }) : null);
+      if (on) { const pick = () => { if (cal.day === key) return; cal.day = key; grid.querySelectorAll(".cal-cell.sel").forEach(x => { x.classList.remove("sel"); x.setAttribute("aria-selected", "false"); }); c.classList.add("sel"); c.setAttribute("aria-selected", "true"); drawLog(visible()); };
+        c.addEventListener("click", pick); c.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); } }); }
       grid.append(c);
     }
   }
@@ -1108,12 +1118,14 @@ tr.det[hidden] { display: none !important; }
 
   // ---------- Log table ----------
   function drawLog(list) {
-    const body = $("#log-body");
-    let rows = sorted(list); if (state.status === "open") rows = rows.filter(isOpen); else if (state.status === "settled") rows = rows.filter(e => !isOpen(e));
-    if (state.q) rows = rows.filter(e => [e.notes || "", isPack(e) ? "pack card" : "", ...(e.picks || []).flatMap(p => [p.player || "", p.stat || ""])].join(" ").toLowerCase().includes(state.q));
-    if (!rows.length) { body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "muted", style: "padding:22px 18px;text-align:center", text: state.loaded ? (state.entries.length ? "No entries match these filters." : "No entries yet. Log your first slip with + Log entry.") : "Loading…" }))); return; }
+    // Since v8.6 the log is the selected calendar day's entries (cal.day), newest first.
+    const body = $("#log-body"), head = $("#day-head");
+    const rows = cal.day ? sorted(list).filter(e => e.date === cal.day) : [];
+    if (!rows.length) { head.replaceChildren(); body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "muted", style: "padding:22px 18px;text-align:center", text: state.loaded ? (state.entries.length ? "No entries this month." : "No entries yet. Log your first slip with + Log entry.") : "Loading…" }))); return; }
+    const set = rows.filter(e => pnl(e) != null), net = set.reduce((a, e) => a + pnl(e), 0), nOpen = rows.length - set.length;
+    head.replaceChildren(el("b", { text: fmtDate(cal.day) }), el("span", { class: "num" + (set.length ? (net > 0 ? " pos" : net < 0 ? " neg" : "") : ""), text: [set.length ? money(net, true) : null, set.length ? `${set.length} settled` : null, nOpen ? `${nOpen} open` : null].filter(Boolean).join(" · ") }));
     body.replaceChildren(...rows.flatMap(e => { const o = outcome(e), p = pnl(e), on0 = ui.logOpen.has(e.id);
-      const sum = el("div", { class: "psum" }, el("span", { class: "d mono", text: fmtDate(e.date) + " · " }), isPack(e) ? "Card" : e.picks.flatMap((pk, i) => [i ? ", " : null, el("span", { class: pk.result || "pending", text: surname(pk) })]));
+      const sum = el("div", { class: "psum" }, isPack(e) ? "Card" : e.picks.flatMap((pk, i) => [i ? ", " : null, el("span", { class: pk.result || "pending", text: surname(pk) })]));
       const det = el("tr", { class: "det", hidden: !on0 }, el("td", { colspan: 7 }, el("div", { class: "det-in" },
         el("div", { class: "picks" }, isPack(e) ? packChip(e) : e.picks.map(pk => pickChip(pk))),
         e.notes ? el("div", { class: "note", text: e.notes }) : null,
@@ -1277,8 +1289,6 @@ tr.det[hidden] { display: none !important; }
   $$("[data-sport]").forEach(b => b.addEventListener("click", () => { state.sport = b.dataset.sport; press("[data-sport]", b); render(); }));
   $$("[data-tf]").forEach(b => b.addEventListener("click", () => { state.typeF = b.dataset.tf; press("[data-tf]", b); render(); }));
   $$("[data-range]").forEach(b => b.addEventListener("click", () => { state.range = b.dataset.range; press("[data-range]", b); render(); }));
-  $$("[data-status]").forEach(b => b.addEventListener("click", () => { state.status = b.dataset.status; press("[data-status]", b); drawLog(visible()); }));
-  let qT; $("#q").addEventListener("input", ev => { clearTimeout(qT); qT = setTimeout(() => { state.q = ev.target.value.trim().toLowerCase(); drawLog(visible()); }, 120); });
   $$(".act-new").forEach(b => b.addEventListener("click", () => openForm(null)));
 
   // ---------- App tabs (phone) ----------
@@ -1309,7 +1319,7 @@ tr.det[hidden] { display: none !important; }
       const q = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
       const lines = [["entry_id", "date", "type", "picks", "stake", "payout", "pnl", "status", "bonus_amount", "to_win", "break_even", "leg", "sport", "player", "stat", "line", "pick", "actual", "result"].join(",")];
       for (const e of sorted(state.entries)) { const be = entryBE(e); if (!(e.picks || []).length) lines.push([e.id, e.date, e.type, 0, e.stake, paid(e) ?? "", pnl(e) ?? "", outcome(e), e.bonus ? (e.bonusStake ?? "") : "", "", "", "", "", "", isPack(e) ? "Card" : "", "", "", isPack(e) ? (e.payout ?? "") : "", ""].map(q).join(",")); e.picks.forEach((p, i) => lines.push([e.id, e.date, e.type, e.picks.length, e.stake, paid(e) ?? "", pnl(e) ?? "", outcome(e), e.bonus ? (e.bonusStake ?? "") : "", e.toWin ?? "", be != null ? (be * 100).toFixed(1) + "%" : "", i + 1, p.sport, p.player, p.stat, p.line, p.side === "under" ? "Less" : "More", p.actual ?? "", p.result].map(q).join(","))); }
-      const name = "prizepicks-ledger-" + today() + ".csv";
+      const name = "vici-" + today() + ".csv";
       const file = new File([lines.join("\n")], name, { type: "text/csv" });
       try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
       const url = URL.createObjectURL(file); const a = el("a", { href: url, download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
@@ -1577,7 +1587,7 @@ tr.det[hidden] { display: none !important; }
 })();
 </script>
 <script>
-// Open risk and Edge vs break-even stay folded until tapped; the choice is remembered on this device.
+// Open risk stays folded until tapped; the choice is remembered on this device.
 {
   const fold = (id) => { const p = document.getElementById(id); if (!p) return; const head = p.querySelector(".panel-head") || p.querySelector("h2"); if (!head) return;
     const key = "vici-fold-" + id; let open = false; try { open = localStorage.getItem(key) === "1"; } catch (e) {}

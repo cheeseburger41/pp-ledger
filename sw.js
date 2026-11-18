@@ -1,5 +1,5 @@
 // Ledger service worker: the app opens offline from its cache, and your bets come from GitHub whenever there's signal.
-const CACHE = "ledger-v8";
+const CACHE = "ledger-v9";
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./vici-model.js", "./vici-data.js", "./vici-chat.js", "./vici-chat.css", "./vendor/anthropic-sdk.mjs"];
 
 self.addEventListener("install", e => {

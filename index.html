@@ -544,6 +544,9 @@ tr.det[hidden] { display: none !important; }
    launch.js drives it; this CSS alone fades the splash out if the script never runs. */
 #launch { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #050506; pointer-events: auto; animation: vl-out .6s ease 2.6s forwards; }
 #launch-mark { display: block; width: 84px; height: auto; overflow: visible; }
+/* The glow behind the V is an HTML layer, so its scale and fade run on the compositor even while the page is busy */
+#launch-glow { position: absolute; left: 50%; top: 50%; width: 166px; height: 166px; margin: -81px 0 0 -83px; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(closest-side, rgba(232,233,235,.22), rgba(214,216,220,.06) 55%, rgba(214,216,220,0)); }
 @keyframes vl-out { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { #launch { animation-duration: .2s; animation-delay: .3s; } }
 /* Slower, calmer motion everywhere else too (Angus, 2026-11-18): sections rising in on a tab switch, and the entry sheet */
@@ -590,7 +593,7 @@ html.vl-motion .kpi { position: relative; }
 </head>
 <body>
 <!-- vici-launch -->
-<div id="launch" aria-hidden="true"><svg id="launch-mark" viewBox="129.5 124.9 253 262.2" width="84" height="87" focusable="false"><defs><linearGradient id="vl-pl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f8f7"/><stop offset=".38" stop-color="#d5d7db"/><stop offset=".68" stop-color="#a6aab1"/><stop offset="1" stop-color="#e8e9eb"/></linearGradient><linearGradient id="vl-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="vl-gl"><stop offset="0" stop-color="#e8e9eb" stop-opacity=".22"/><stop offset=".55" stop-color="#d6d8dc" stop-opacity=".06"/><stop offset="1" stop-color="#d6d8dc" stop-opacity="0"/></radialGradient><filter id="vl-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><clipPath id="vl-clip"><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z"/></clipPath></defs><circle id="launch-glow" cx="256" cy="262" r="250" fill="url(#vl-gl)" opacity="0"/><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="url(#vl-pl)"/><g clip-path="url(#vl-clip)"><g id="launch-sheen"><rect x="20" y="110" width="96" height="290" transform="skewX(-20)" fill="url(#vl-sh)"/></g></g><g id="launch-trace" opacity="0"><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round" pathLength="100" stroke-dasharray="16 84" filter="url(#vl-blur)"/><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round" pathLength="100" stroke-dasharray="16 84"/></g></svg></div>
+<div id="launch" aria-hidden="true"><i id="launch-glow"></i><svg id="launch-mark" viewBox="129.5 124.9 253 262.2" width="84" height="87" focusable="false"><defs><linearGradient id="vl-pl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f8f7"/><stop offset=".38" stop-color="#d5d7db"/><stop offset=".68" stop-color="#a6aab1"/><stop offset="1" stop-color="#e8e9eb"/></linearGradient><linearGradient id="vl-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="vl-clip"><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z"/></clipPath></defs><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="url(#vl-pl)"/><g clip-path="url(#vl-clip)"><g id="launch-sheen"><rect x="20" y="110" width="96" height="290" transform="skewX(-20)" fill="url(#vl-sh)"/></g></g><g id="launch-trace" opacity="0" fill="none" stroke="#fff" stroke-linejoin="round" stroke-linecap="round"><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" stroke-width="13" stroke-opacity=".12" pathLength="100" stroke-dasharray="16 84"/><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" stroke-width="7" stroke-opacity=".28" pathLength="100" stroke-dasharray="16 84"/><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" stroke-width="2.6" stroke-opacity="1" pathLength="100" stroke-dasharray="16 84"/></g></svg></div>
 <!-- /vici-launch -->
 <div class="appbar">
   <div class="ab-l"><span class="ab-name">Vici</span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
@@ -888,6 +891,7 @@ html.vl-motion .kpi { position: relative; }
     else if (!all.length) s.textContent = `Fresh account with ${money(start)}. Log your first entry and your balance, edge and open risk fill in as you grade picks.`;
     else { const best = bestSport(); s.textContent = `Balance ${money(bank)}` + (openAll.length ? `, with ${money(openAllStake)} riding on ${plural(openAll.length, "open entry", "open entries")} (${money(bestCase)} if they all hit)` : "") + ". " + (settledAll.length ? `Net ${netAll >= 0 ? "up" : "down"} ${money(Math.abs(netAll))} across ${plural(settledAll.filter(e => !isPack(e)).length, "settled entry", "settled entries")}${settledAll.some(isPack) ? ` and ${plural(settledAll.filter(isPack).length, "pack", "packs")}` : ""}${best ? `. ${best.k} leads at ${money(best.v, true)}` : ""}.` : "Nothing has settled yet."); }
 
+    if (window.__vlHold) { $$(".act-new").forEach(b => { b.disabled = !state.canWrite; }); $("#ab-bal").textContent = money(bank); const tn = $("#tb-open"); tn.hidden = !openAll.length; tn.textContent = String(openAll.length); const h = window.__vlHold; h.r = h.r || (() => { if (window.__vlHold === h) window.__vlHold = null; render(); }); return; } window.__vlRan = true; // vici-launch: hold the drawing while the opening plays
     drawCurve(); drawRecords(list, start, bank); drawRisk(openAll, bank);
     drawBars("#c-format", byKey(settled, fmtName, [...new Set(settled.map(fmtName))].sort(fmtSort)), "format");
     drawBars("#c-sport", byKey(settled.filter(e => !isPack(e)), entrySport, SPORTS.concat("Mixed")), "sport");
@@ -1275,6 +1279,7 @@ html.vl-motion .kpi { position: relative; }
     $$(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.type === formType)));
   }
   function openForm(e) {
+    if (e && e.id) e = state.entries.find(x => x.id === e.id) || e; // vici-launch: fresh copy
     state.editing = e || null;
     $("#dlg-title").textContent = e ? "Edit entry" : "Log entry";
     $("#f-date").value = e ? e.date : today();
@@ -1778,8 +1783,10 @@ html.vl-motion .kpi { position: relative; }
     setTimeout(() => { L.style.pointerEvents = "none"; }, T); // taps wait until the app starts to show
     const sheen = document.getElementById("launch-sheen"), mark = document.getElementById("launch-mark");
     const glow = document.getElementById("launch-glow"), trace = document.getElementById("launch-trace");
-    if (glow) { glow.style.transformBox = "fill-box"; glow.style.transformOrigin = "center";
-      glow.animate([{ opacity: 0, transform: "scale(.7)" }, { opacity: 1, transform: "scale(1)", offset: .55 }, { opacity: .55, transform: "scale(1.08)" }], { duration: 1100, easing: "ease-out", fill: "forwards" }); }
+    if (glow) {
+      glow.animate([{ opacity: 0, transform: "scale(.7)" }, { opacity: 1, transform: "scale(1)", offset: .55 }, { opacity: .55, transform: "scale(1.08)" }], { duration: 1100, easing: "ease-out", fill: "forwards" });
+      glow.animate([{ opacity: .55, transform: "scale(1.08)" }, { opacity: 0, transform: "scale(1.3)" }], { duration: 720, delay: T, easing: "cubic-bezier(.45,0,.6,1)", fill: "forwards" }); // leaves with the V
+    }
     if (trace) { // a point of light runs twice around the V
       trace.animate([{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .82 }, { opacity: 0 }], { duration: 1000, delay: 40, easing: "linear", fill: "both" });
       trace.querySelectorAll("path").forEach(p => p.animate([{ strokeDashoffset: 0 }, { strokeDashoffset: -200 }], { duration: 1000, delay: 40, easing: "cubic-bezier(.45,.05,.55,.95)", fill: "both" })); }
@@ -1802,14 +1809,51 @@ html.vl-motion .kpi { position: relative; }
     const curve = document.getElementById("c-curve");
     if (seen(curve)) curve.animate([{ clipPath: "inset(0 100% 0 0)", webkitClipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", webkitClipPath: "inset(0 0% 0 0)" }], { duration: 1600, delay: T + 700, easing: "cubic-bezier(.4,0,.2,1)", fill: "backwards" });
     for (const sel of NUMS) { const el = document.querySelector(sel); if (seen(el)) count(el, 0, false, sel === "#ab-bal" || sel === "#k-bank" ? 1800 : 1500, T + 350); }
-    setTimeout(() => window.dispatchEvent(new Event("vici:launched")), T + 2250); // counts are done: motion.js runs the platinum shine
+    // The app's held redraw runs once the counts are done (or at the first tap on the app), then motion.js runs the platinum shine
+    setTimeout(release, T + 2400); // after the curve finishes drawing in (T + 2300)
+    // A tap on the app lifts the hold before its own handler runs, so a tab, filter or save redraws as usual on the node that
+    // was pressed; if the tap redrew nothing (a slip opening), the held redraw runs straight after it
+    const tap = e => {
+      if (L.isConnected && L.contains(e.target)) return;
+      document.removeEventListener("click", tap, true);
+      if (!held) return;
+      held = false; const h = window.__vlHold; window.__vlHold = null; window.__vlRan = false;
+      setTimeout(() => { if (h && h.r && !window.__vlRan) h.r(); }, 0);
+    };
+    document.addEventListener("click", tap, true);
+    setTimeout(() => window.dispatchEvent(new Event("vici:launched")), T + 2500);
+  }
+
+  // ---------- Keep the main thread quiet while the opening plays ----------
+  // Angus, 2026-11-18: "The opening of the app is not smooth". A sync or resize landing mid-launch rebuilt every chart and list
+  // (100ms+ each on a phone), and the deferred scripts ran during the sheen, so the V and the count-ups stuttered.
+  // Now the app's redraws are held (launch.py adds the check to render()) and one runs when the opening ends,
+  // and the opening starts once the deferred scripts and fonts are in, with caps so a slow network never holds the splash.
+  let held = false;
+  function release() { if (!held) return; held = false; const h = window.__vlHold; window.__vlHold = null; if (h && h.r) h.r(); }
+  function ready(f) {
+    let fired = false;
+    const go = () => {
+      if (fired) return; fired = true;
+      const fonts = document.fonts && document.fonts.ready ? document.fonts.ready.catch(() => {}) : Promise.resolve();
+      Promise.race([fonts, new Promise(r => setTimeout(r, 400))]).then(() => requestAnimationFrame(() => f()));
+    };
+    if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", () => setTimeout(go, 0), { once: true }); setTimeout(go, 700); }
+    else go();
   }
 
   try {
     if (!reduce && canAnimate) { document.documentElement.classList.add("vl-motion"); watchNumbers(); }
     if (!L) return;
-    if (reduce || !canAnimate || document.visibilityState === "hidden") quiet(); else play();
-  } catch (e) { drop(); }
+    if (reduce || !canAnimate || document.visibilityState === "hidden") quiet();
+    else {
+      L.style.animation = "none"; held = true; window.__vlHold = {};
+      let started = false, safety = 0;
+      const start = how => { if (started) return; started = true; clearTimeout(safety); try { how(); } catch (e) { drop(); release(); } };
+      safety = setTimeout(() => start(() => { quiet(); release(); }), 2500); // never leave the splash up if the start runs late
+      ready(() => start(play));
+    }
+  } catch (e) { drop(); release(); }
 })();
 </script>
 <script>

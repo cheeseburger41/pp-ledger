@@ -498,7 +498,8 @@
   /** PrizePicks' own lines in this chat's Optimal lookups. get_player_prop_odds with prop_type answers with every
    *  book's line, the entry named PrizePicks among them. seen: some lookup's answer has a PrizePicks line (or names
    *  PrizePicks and can't be read); found: the lines per player, for the answers that can be read ([{ full_name, odds:
-   *  { PrizePicks: [{ line }] } }]); none: the players a readable answer lists without any PrizePicks line. */
+   *  { PrizePicks: [{ line }] } }]); none: the players a readable answer lists without a PrizePicks entry (or with an
+   *  empty one). */
   function optimalPrizePicks(c) {
     const asked = new Set(), found = [], none = [];
     let seen = false;
@@ -517,7 +518,8 @@
             const own = row.odds.PrizePicks, player = normName(row.full_name);
             const lines = (Array.isArray(own) ? own : []).map(o => (o && o.line != null && o.line !== "" ? Number(o.line) : NaN)).filter(isNum);
             if (lines.length) { seen = true; found.push({ player, lines }); }
-            else if (none.indexOf(player) < 0) none.push(player);   // books only, or an empty PrizePicks entry
+            else if (own == null || (Array.isArray(own) && !own.length)) { if (none.indexOf(player) < 0) none.push(player); }   // books only, or an empty PrizePicks entry
+            else seen = true;   // a PrizePicks entry in a shape that can't be read: the line can't be checked, the pick isn't blocked
           });
           // an answer in another shape that names PrizePicks: the line can't be checked, the pick isn't blocked
           if (!read && /"PrizePicks"/.test(text)) seen = true;
@@ -1053,8 +1055,8 @@
         if (!err && p.line_source === "prizepicks_optimal") {
           pp = pp || optimalPrizePicks(ctx && ctx.conv);
           const mine = pp.found.filter(x => x.player === normName(player));
-          if (!pp.seen) err = "picks[" + k + "].line_source: no Optimal lookup in this chat shows a PrizePicks line. Confirm it with get_player_prop_odds (with prop_type), from his screenshot or on the web first";
-          else if (!mine.length && pp.none.indexOf(normName(player)) >= 0) err = "picks[" + k + "].line_source: the Optimal lookup shows no PrizePicks line for this player. Take his line from a screenshot or the web (then line_source \"prizepicks_web\"), or leave the pick out";
+          if (!mine.length && pp.none.indexOf(normName(player)) >= 0) err = "picks[" + k + "].line_source: the Optimal lookup shows no PrizePicks line for this player. Take his line from a screenshot or the web (then line_source \"prizepicks_web\"), or leave the pick out";
+          else if (!pp.seen) err = "picks[" + k + "].line_source: no Optimal lookup in this chat shows a PrizePicks line. Confirm it with get_player_prop_odds (with prop_type), from his screenshot or on the web first";
           else if (mine.length && !mine.some(x => x.lines.some(l => Math.abs(l - Number(p.line)) < 1e-9))) {
             err = "picks[" + k + "].line is not PrizePicks' line for this player in the Optimal lookup (" + Array.from(new Set(mine.reduce((a, x) => a.concat(x.lines), []))).slice(0, 6).join(", ") + "). Use PrizePicks' own line, never the consensus or another book's";
           }
@@ -2627,7 +2629,10 @@
     tail.forEach((m, j) => {
       if (!m || m.role !== "assistant" || !Array.isArray(m.content)) return;
       const res = resultsFor({ messages: tail }, j);
-      m.content.forEach(b => { if (b && b.type === "tool_use" && b.name === "suggest_picks" && Array.isArray(res.get(b.id))) out.push({ input: b.input, res: res.get(b.id) }); });
+      m.content.forEach(b => {
+        const r = b && b.type === "tool_use" && b.name === "suggest_picks" ? res.get(b.id) : null;
+        if (Array.isArray(r) && r.some(x => x && !x.error && x.id)) out.push({ input: b.input, res: r });   // a call that made a card
+      });
     });
     return out;
   }

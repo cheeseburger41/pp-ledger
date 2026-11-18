@@ -1857,6 +1857,7 @@ html.vl-motion .kpi { position: relative; }
     const bar = document.querySelector(".appbar"), tabs = document.querySelector(".tabbar");
     if (seen(bar)) rise(bar, -10, T + 150, 900);
     if (seen(tabs)) rise(tabs, 22, T + 300, 1000);
+    const dock = document.querySelector(".askdock"); if (seen(dock)) rise(dock, 22, T + 380, 1000); // the Ask Vici bar above the tab bar
     const wrap = document.querySelector(".wrap");
     const blocks = wrap ? [...wrap.children].flatMap(c => (c.classList.contains("grid") ? [...c.children] : [c])).filter(seen) : [];
     blocks.forEach((el, i) => rise(el, 16, T + 250 + Math.min(i, 7) * 120));
@@ -1901,6 +1902,80 @@ html.vl-motion .kpi { position: relative; }
     else go();
   }
 
+  // ---------- New versions ----------
+  // Angus, 2026-11-18: "A white screen appears when I open the app". The phone was waiting on the network twice before it could
+  // draw anything. sw.js now opens the app straight from its cache, so the V is up at once, and a release that landed since the
+  // last open installs while the still V shows: when it's in within a moment the app reloads onto it under the same still V and
+  // plays from there, so an update still shows on the first open. If it takes longer, this open plays as it is and the new
+  // version shows the next time the app opens, or when you come back to it after a minute or more away.
+  // Coming back counts as opening again: a release that took over while you were in the app reloads then, and one that landed
+  // while you were away is looked for at once and, if it's already installing, moved onto under the same still V.
+  // Never while a form, the chat, the connect sheet or a chat draft is open, or once you've touched the screen.
+  const CHECK_BY = 1000, SWAP_BY = 2600; // ms after the app was tapped: how long the still V waits for the check, then the install
+  const sw = "serviceWorker" in navigator ? navigator.serviceWorker : null;
+  let newer = false, claims = sw && sw.controller ? 1 : 0; // the first takeover of a brand-new install isn't an update
+  const splash = L ? L.outerHTML : ""; // the still V, kept for covering a swap later on
+  const stamp = () => { try { sessionStorage.setItem("vl-swap", String(Date.now())); } catch (e) {} };
+  const swapped = () => { try { return Date.now() - (+sessionStorage.getItem("vl-swap") || 0) < 15000; } catch (e) { return true; } };
+  const update = new Promise(res => {
+    if (!sw || !sw.controller || !sw.getRegistration || swapped()) return res(false);
+    sw.getRegistration().then(reg => {
+      if (!reg) return res(false);
+      if (reg.installing || reg.waiting) return res(true);
+      reg.addEventListener("updatefound", () => res(true), { once: true }); // as soon as a new version starts installing
+      reg.update().then(() => res(newer || !!(reg.installing || reg.waiting)), () => res(newer));
+    }, () => res(false));
+  });
+  if (sw) sw.addEventListener("controllerchange", () => { if (claims++) { newer = true; document.dispatchEvent(new Event("vici:newer")); } });
+  const busy = () => {
+    if (document.querySelector("dialog[open]")) return true;
+    const shown = id => { const el = document.getElementById(id); return !!(el && !el.hidden); };
+    if (shown("vchat") || shown("connect")) return true;
+    const draft = document.querySelector(".vc-ta"); return !!(draft && draft.value.trim());
+  };
+  const look = () => (sw && sw.getRegistration ? sw.getRegistration().then(r => (r ? r.update().then(() => r, () => r) : null)).catch(() => null) : Promise.resolve(null));
+  function cover() {
+    const t = document.createElement("div"); t.innerHTML = splash; const c = t.firstElementChild; if (!c) return null;
+    c.style.animation = "none"; document.body.appendChild(c);
+    if (canAnimate && !still()) c.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280, easing: "ease-out" });
+    return c;
+  }
+  function uncover(c) {
+    if (!c.isConnected) return;
+    if (canAnimate && !still()) settle(c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, easing: "ease", fill: "forwards" }), () => c.remove());
+    else c.remove();
+  }
+  const AWAY = 60e3;
+  let away = 0, touched = false;
+  for (const t of ["pointerdown", "keydown", "input"]) addEventListener(t, () => { touched = true; }, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") { away = Date.now(); look(); return; }
+    const long = away && Date.now() - away >= AWAY; away = 0; touched = false;
+    const calm = () => !touched && !busy() && !swapped() && !document.getElementById("launch") && document.visibilityState === "visible";
+    if (!long || !calm()) { look(); return; }
+    if (newer) { stamp(); location.reload(); return; }
+    if (!sw || !sw.getRegistration) return;
+    const t0 = performance.now();
+    sw.getRegistration().then(r => {
+      if (!r) return;
+      let done = false;
+      const found = () => { // a new version started installing within a moment of coming back: cover and move onto it
+        if (done) return; done = true; r.removeEventListener("updatefound", found);
+        if (performance.now() - t0 > 800 || !calm()) return;
+        if (newer) { stamp(); location.reload(); return; }
+        const c = cover(); if (!c) return;
+        const go = () => { clearTimeout(cap); stamp(); location.reload(); };
+        const cap = setTimeout(() => { document.removeEventListener("vici:newer", go); uncover(c); }, 3000);
+        document.addEventListener("vici:newer", go, { once: true });
+      };
+      if (r.installing || r.waiting) return found();
+      r.addEventListener("updatefound", found);
+      setTimeout(() => { if (!done) { done = true; r.removeEventListener("updatefound", found); } }, 800);
+      r.update().catch(() => {});
+    }).catch(() => {});
+  });
+  setInterval(() => { if (document.visibilityState === "visible") look(); }, 15 * 60e3); // a release found now takes over, and the next return shows it
+
   try {
     if (!reduce && canAnimate) { document.documentElement.classList.add("vl-motion"); watchNumbers(); }
     if (!L) return;
@@ -1910,7 +1985,17 @@ html.vl-motion .kpi { position: relative; }
       let started = false, safety = 0;
       const start = how => { if (started) return; started = true; clearTimeout(safety); try { how(); } catch (e) { drop(); release(); } };
       safety = setTimeout(() => start(() => { quiet(); release(); }), 2500); // never leave the splash up if the start runs late
-      ready(() => start(play));
+      const swap = () => { if (started) return; started = true; clearTimeout(safety); stamp(); location.reload(); };
+      ready(() => {
+        if (started) return;
+        const late = new Promise(r => setTimeout(() => r(false), Math.max(0, CHECK_BY - performance.now())));
+        Promise.race([update, late]).then(found => {
+          if (!found || started) return start(play);
+          if (newer) return swap();
+          clearTimeout(safety); safety = setTimeout(() => start(play), Math.max(0, SWAP_BY - performance.now())); // still installing: play this one
+          document.addEventListener("vici:newer", swap, { once: true });
+        }, () => start(play));
+      });
     }
   } catch (e) { drop(); release(); }
 })();

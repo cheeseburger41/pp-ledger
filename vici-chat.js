@@ -50,6 +50,7 @@
   const SEARCH_USD = 0.01;
   const POWER = { 2: 3, 3: 5, 4: 10, 5: 20, 6: 37.5 };
   const BE2 = Math.pow(1 / 3, 1 / 2); // Power 2 per-leg break-even, 57.7%
+  const MIN_LEG = Math.pow(1 / 37.5, 1 / 6); // the lowest per-leg break-even (Power 6), 54.7%
   const USAGE_FIELDS = ["replies", "input", "output", "cacheRead", "cacheWrite", "searches", "usd"];
 
   // ---------------------------------------------------------------- system prompt (static: cacheable, no dates or balances)
@@ -57,7 +58,7 @@
     "You are Vici, Angus's PrizePicks research partner, built into Vici, his bet-tracking app. He texts you from his phone, often between games, and wants picks that hit more often than PrizePicks' break-even. You research live, recommend only legs with a real edge, journal every pick you recommend so the app can grade it, and get sharper over time by reading the app's statistics on your own graded picks. Angus plays only what you recommend, so your record is the one that matters.",
     "",
     "# What you see each turn",
-    "Each user message starts with a <vici_context> block written by the app, not by Angus: the current time (Pacific), his Balance, his open entries, the last 7 days of results, how many of your picks are still pending, and a Learning section from the app's statistics engine. Treat it as current and more reliable than anything you remember. Don't quote it back or mention the tag.",
+    "Each user message starts with a <vici_context> block written by the app, not by Angus: the current time (Pacific, plus his local time when he is elsewhere; game times stay Pacific), his Balance, his open entries, the last 7 days of results, how many of your picks are still pending, and a Learning section from the app's statistics engine. Treat it as current and more reliable than anything you remember. Don't quote it back or mention the tag.",
     "After it comes his message: text, a screenshot of the PrizePicks board or a lineup, or both.",
     "",
     "# Sports and tools",
@@ -88,6 +89,7 @@
     "7. Football outdoors: weather at kickoff. Sustained wind of 15 mph or more, or heavy rain, cuts passing and kicking.",
     "8. Soccer: starting XIs are confirmed about an hour before kickoff. A MORE pick needs a starter; a LESS pick survives a benching because a DNP voids the leg. Before lineups are out, flag which MORE picks need the XI check. Use shots and shots on target per 90, the team's shot volume and the opponent's shots allowed.",
     "9. Projections: a projection that sits on the line is not an edge. Projection and recent hit rate should agree, with a gap of roughly 5% or more.",
+    "10. Look past the hit rate: usage or target share, minutes or snaps, pace, what the opponent allows to the position, home/away and head-to-head splits, and the season vs recent average against the line. Put the 2 to 4 numbers that decide the leg in stats.",
     "Never invent a stat, line, injury, quote or result. If a tool fails or data is missing, say what's missing in a few words and lower confidence or pass.",
     "",
     "# Lines",
@@ -105,7 +107,8 @@
     "- Trust segments: lean in when the research also supports the leg. Fade segments: demand extra evidence or skip. Every Learning line is your own record.",
     "- Factor lines show which signals have actually predicted hits (+) or misled (-). Weight them accordingly.",
     "- Samples under about 10 picks are noise. Don't overreact to them.",
-    "Recommend only legs whose Vici % beats the per-leg break-even of the slip they go in: Power 2 57.7%, Power 3 58.5%, Power 4 56.2%, Power 5 54.9%, Power 6 54.7%. If nothing clears, say Pass and why in one line. Passing is a good answer.",
+    "Aim for the highest chance to hit (Angus's rule): rank candidate legs by Vici % and recommend the strongest; a slip is only as good as its weakest leg, so never add a weaker leg to chase a bigger payout.",
+    "Recommend only legs with Vici % of at least 54.7% (the lowest per-leg break-even), in a slip that pays off on average (positive EV). Per-leg break-even with equal legs: Power 2 57.7%, Power 3 58.5%, Power 4 56.2%, Power 5 54.9%, Power 6 54.7%; with unequal legs the slip's EV decides. If nothing pays off, say Pass and why in one line. Passing is a good answer.",
     "Goblin and demon legs change the slip's payout, so the standard break-evens don't apply to a slip with one; the To Win Angus sees in the app is the truth.",
     "",
     "# suggest_picks: journal every recommended pick",
@@ -116,11 +119,13 @@
     "- projection when you have one, and gapPct = 100 × (projection − line) / line, with the sign flipped for LESS so a positive gap supports the pick.",
     "- oppRankPct: the opponent's defense against this stat, 0 = toughest, 1 = softest.",
     "- restDays, b2b, minutesTrend (up, flat or down), injuryFlag (short, e.g. \"Q ankle\" or \"teammate out: Suggs\"), and weather for outdoor football.",
+    "- stats: 2 to 4 other numbers that decide this leg and aren't above, as short label and value pairs, e.g. {label: \"Usage\", value: \"31%\"}, {label: \"vs ORL\", value: \"27.5 avg\"}, {label: \"Opp allows\", value: \"4th-most\"}. They show on the card.",
     "Use null for a feature you don't know; never guess one.",
     "Default slips are Power. Never assume Flex unless he asks for it. Every PrizePicks lineup needs players from at least two different teams (Angus's rule): never build a slip from one team. Two props on the same player (points and rebounds) are allowed, but that slip still needs a player from another team. Avoid pairing legs that need opposite game scripts.",
     "",
     "# Slips and stakes",
-    "Build a slip only from legs that clear its break-even, with players from at least two teams. Its chance to hit is the product of the Vici %. Prefer Power 2 or 3 with the strongest legs; go bigger only when every leg clears comfortably. Name it in one line, e.g. \"Power 2: Bane points + Wagner PRA, 39% to hit, pays 3x\".",
+    "Build slips with players from at least two teams. suggest_picks returns slips: for each size, the two-team lineup of this answer's picks with the highest chance to hit (hit_pct, the product of the Vici %), what it pays and ev_pct, the expected profit per dollar staked; recommended marks the one with the highest chance to hit that pays off with every leg at 54.7% or better. Use those numbers; don't compute your own. Send all of an answer's picks in one suggest_picks call; if a pick comes back with an error, fix it and send the whole set again (the same picks keep their ids) so the slips include it.",
+    "Lead with the recommended slip in one line: legs, chance to hit, payout and EV, e.g. \"Power 2: Bane points + Wagner PRA, 46% to hit, pays 3x, EV +38%\". Add one bigger option only when every leg in it clears comfortably, with its own chance to hit and payout, so he sees what the extra payout costs. If no slip pays off, say Pass.",
     "Stakes: unless he sets one, suggest at most about 5% of Balance per entry. No chasing losses, no \"lock\" talk. One short line, never a lecture. Always say Balance, never bankroll.",
     "",
     "# His record and grading",
@@ -128,7 +133,7 @@
     "",
     "# Style",
     "He reads on a phone and wants few words.",
-    "- Lead with the picks. The app shows each suggested pick as a card (player, stat, line, MORE/LESS, tier, Vici %, edge and your reasons), so don't repeat them as a list or table. After suggest_picks, write at most a few short lines: the slip you'd play, the biggest risk or lineup check, and where the lines came from when they weren't his.",
+    "- Lead with the picks. The app shows each suggested pick as a card, strongest first (player, stat, line, MORE/LESS, tier, Vici %, edge, the key numbers and your reasons), so don't repeat them as a list or table. After suggest_picks, write at most a few short lines: the slip you'd play with its chance to hit and payout, the biggest risk or lineup check, and where the lines came from when they weren't his.",
     "- No preamble, no restating the question, no sign-off.",
     "- Short markdown only: bold for names, brief bullets. Tables only when he asks for a comparison.",
     "- Numbers over adjectives. Name sources briefly (\"ESPN logs\", \"Rotowire\", \"StatMuse\").",
@@ -168,7 +173,9 @@
     prob: num("Your honest probability that the pick hits, 0 to 1"),
     tier: { type: "string", enum: ["A", "B", "C"] },
     reasons: str("At most 200 characters, decisive reason first, numbers over adjectives"),
-    features: FEATURES
+    features: FEATURES,
+    stats: { type: "array", maxItems: 4, description: "2 to 4 other numbers that decide this leg (shown on the card)",
+      items: objSchema({ label: str("At most 14 characters, e.g. Usage"), value: str("At most 18 characters, e.g. 31%") }, ["label", "value"]) }
   }, ["sport", "player", "team", "stat", "line", "line_source", "side", "prob", "tier", "reasons"]);
 
   const CLIENT_TOOLS = [
@@ -202,7 +209,7 @@
       "The app's learning model, built only from your graded picks: what you predicted (Vici %) vs the actual results, hit rates by segment with shrinkage and 80% intervals, trust and fade segments, calibration of your probabilities (buckets, Brier score, verdict) and factor lifts. Without sport: everything, with a by_sport summary. With sport: that sport's own record, calibration, trust, fade and segments.",
       { sport: { type: "string", enum: ["NBA", "NFL", "CFB", "Soccer"], description: "Only this sport's model" } }, []),
     tool("suggest_picks",
-      "Journal the picks you recommend and show them to Angus as cards he can add to a slip and log. Call it once per answer with every recommended pick (at most " + MAX_PICKS + "). Returns, for each pick, its journal id, vici_pct (your prob after the app's learned calibration and segment adjustment) and edge_pts against the Power 2 break-even (57.7%); edge_pts is null for goblin and demon legs (their payout differs). When every pick in the call is from one team, the first result carries lineup_note: those picks can't make a lineup on their own.",
+      "Journal the picks you recommend and show them to Angus as cards he can add to a slip and log. Call it once per answer with every recommended pick (at most " + MAX_PICKS + "). Returns, for each pick, its journal id, vici_pct (your prob after the app's learned calibration and segment adjustment) and edge_pts against the Power 2 break-even (57.7%); edge_pts is null for goblin and demon legs (their payout differs). When every pick in the call is from one team, the first result carries lineup_note: those picks can't make a lineup on their own. With two or more standard-line picks in this answer, the first pick that saved also carries slips: for each Power size, the two-team lineup of this answer's picks with the highest chance to hit: legs, hit_pct, pays, ev_pct (expected profit per dollar staked), every_leg_clears (each leg at or above that size's per-leg break-even), and recommended on the one to lead with.",
       { picks: { type: "array", items: PICK, maxItems: MAX_PICKS } }, ["picks"]),
     tool("grade_picks",
       "Grade your pending picks whose games are over, from ESPN box scores. Returns what was graded and the updated record.",
@@ -252,6 +259,22 @@
     return o;
   }
   function ymdPT(d) { const p = partsPT(d || new Date()); return p.year + "-" + p.month + "-" + p.day; }
+  const pad2 = n => String(n).padStart(2, "0");
+  /** The day where Angus is: his phone's own time zone (it follows him when he travels). Old chats clear at his midnight. */
+  function ymdLocal(d) { d = d || new Date(); return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function localZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { return ""; } }
+  /** "Wed 4:32 AM, Europe/London" when his phone's clock differs from Pacific time, else null. */
+  function localNote(d) {
+    const z = localZone();
+    if (!z || z === TZ) return null;
+    const o = {};
+    try {
+      const wall = tz => new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+      if (wall(z) === wall(TZ)) return null;   // same wall clock as Pacific right now
+      new Intl.DateTimeFormat("en-US", { timeZone: z, weekday: "short", hour: "numeric", minute: "2-digit", hour12: true }).formatToParts(d).forEach(p => { o[p.type] = p.value; });
+    } catch (e) { return null; }
+    return o.weekday + " " + o.hour + ":" + o.minute + " " + String(o.dayPeriod || "").toUpperCase() + ", " + z;
+  }
   function nowPT(d) { const p = partsPT(d); return p.weekday + " " + p.year + "-" + p.month + "-" + p.day + " " + p.hour + ":" + p.minute + " " + (p.dayPeriod || "").toUpperCase() + " PT"; }
   function addDays(ymd, n) {
     const [y, m, d] = ymd.split("-").map(Number);
@@ -363,7 +386,8 @@
   function contextBlock(now) {
     now = now || new Date();
     const V = root.Vici || {};
-    const L = ["<vici_context>", "Now: " + nowPT(now)];
+    const here = localNote(now);
+    const L = ["<vici_context>", "Now: " + nowPT(now) + (here ? " (his local time: " + here + ")" : "")];
     let bal = null, st = null;
     try { bal = typeof V.balance === "function" ? Number(V.balance()) : null; } catch (e) { bal = null; }
     try { st = typeof V.settings === "function" ? V.settings() : null; } catch (e) { st = null; }
@@ -535,6 +559,45 @@
     return !!names[0] && new Set(names).size === 1;
   }
 
+  /** The best Power slip of each size (2 to 6 legs) from one answer's picks (Angus, 2026-11-18: "use the highest % possible of
+   *  it hitting ... and look at the payout"): the two-team lineup with the highest chance to hit (the product of the Vici
+   *  %), what it pays and its expected profit per $1. Goblin and demon legs change the payout, so they're left out, and so
+   *  is a second leg on the same player and stat. every_leg_clears: each leg is at or above that size's per-leg break-even.
+   *  recommended: the highest chance to hit among the slips that pay off on average (positive expected profit) with no leg
+   *  under MIN_LEG, the lowest per-leg break-even (Power 6, 54.7%). The per-size break-evens aren't monotonic (Power 3 needs
+   *  more per leg than Power 4), so requiring every_leg_clears could push the pick to a long shot. */
+  function bestSlips(legs) {
+    const ok = (legs || []).filter(l => l && l.id && isNum(l.vici) && l.vici > 0 && l.vici < 1 && !isAltLine(l.lineType))
+      .sort((a, b) => b.vici - a.vici).slice(0, MAX_PICKS);
+    const out = [];
+    for (let n = 2; n <= Math.min(6, ok.length); n++) {
+      let best = null;
+      const cur = [];
+      const walk = i => {
+        if (cur.length === n) {
+          const hit = cur.reduce((a, l) => a * l.vici, 1);
+          if (best && hit <= best.hit) return;
+          if (new Set(cur.map(l => normName(l.player) + "|" + normName(l.stat))).size < n || oneTeam(cur)) return;
+          best = { hit, legs: cur.slice() };
+          return;
+        }
+        for (let j = i; j <= ok.length - (n - cur.length); j++) { cur.push(ok[j]); walk(j + 1); cur.pop(); }
+      };
+      walk(0);
+      if (!best) continue;
+      const mult = POWER[n], be = Math.pow(1 / mult, 1 / n);
+      out.push({
+        size: n, ids: best.legs.map(l => l.id), legs: best.legs.map(l => l.player + " " + l.stat + " " + (l.side === "under" ? "LESS" : "MORE") + " " + l.line),
+        hit_pct: round(best.hit * 100, 1), pays: mult + "x", ev_pct: round((best.hit * mult - 1) * 100, 1),
+        every_leg_clears: best.legs.every(l => l.vici >= be), min_leg: Math.min.apply(null, best.legs.map(l => l.vici))
+      });
+    }
+    const good = out.filter(x => x.ev_pct > 0 && x.min_leg >= MIN_LEG).sort((a, b) => b.hit_pct - a.hit_pct);
+    if (good.length) good[0].recommended = true;
+    out.forEach(x => { delete x.min_leg; });
+    return out;
+  }
+
   function cleanFeatures(f) {
     f = f && typeof f === "object" ? f : {};
     const n = v => (isNum(v) ? v : null);
@@ -680,6 +743,12 @@
         S.model = null;
       }
       for (let k = 0; k < out.length; k++) if (!out[k]) out[k] = { error: "missing pick" };
+      // the answer's picks so far (an earlier call this turn, or a fixed pick sent again) and this call's
+      const legs = save.map((jp, j) => Object.assign({}, jp, { id: out[at[j]].id }));
+      if (!(S.turnLegs instanceof Map)) S.turnLegs = new Map();
+      legs.forEach(l => { if (l.id) S.turnLegs.set(l.id, l); });
+      const slips = bestSlips(Array.from(S.turnLegs.values()));
+      if (slips.length && out[at[0]]) out[at[0]].slips = slips;
       if (oneTeam(save) && out[at[0]]) {
         const tm = save[0].team ? String(save[0].team).toUpperCase() : save[0].player;
         out[at[0]].lineup_note = "Every pick here is from one team (" + tm + "). A PrizePicks lineup needs players from at least two teams: pair them with a leg from another team, or say so.";
@@ -710,9 +779,23 @@
     }
   };
 
+  /** suggest_picks' optional stats are display-only: a number value becomes text, an empty or odd item is dropped and only 4
+   *  are kept, so one bad stat never refuses the picks. Works on a copy: the chat keeps the bot's own tool input. */
+  function tidyStats(input) {
+    if (!input || !Array.isArray(input.picks) || !input.picks.some(p => p && typeof p === "object" && p.stats != null)) return input;
+    return Object.assign({}, input, { picks: input.picks.map(p => {
+      if (!p || typeof p !== "object" || p.stats == null) return p;
+      const q = Object.assign({}, p);
+      const st = (Array.isArray(p.stats) ? p.stats : []).map(x => (x && typeof x === "object" ? { label: plain(x.label, 14), value: plain(x.value, 18) } : null))
+        .filter(x => x && x.label && x.value).slice(0, 4);
+      if (st.length) q.stats = st; else delete q.stats;
+      return q;
+    }) });
+  }
   async function runTool(name, input, ctx) {
     const fn = IMPL[name];
     if (!fn) throw new Error("Unknown tool " + name);
+    if (name === "suggest_picks") input = tidyStats(input);
     const err = validate(TOOL_SCHEMA[name], input || {}, "input");
     if (err) throw new Error("Invalid input: " + err);
     return fn(input || {}, ctx || {});
@@ -1499,8 +1582,12 @@
         p.lineType === "goblin" || p.lineType === "demon" ? h("span", { class: "lt " + p.lineType, text: p.lineType }) : null));
     const right = h("div", { class: "vc-pct" }, h("b", { text: vp == null ? "—" : Math.round(vp * 100) + "%" }), resultChip(id, edge, alt));
     const f = cleanFeatures(p.features);
-    const feats = FEAT_ROWS.map(([k, fn]) => [k, fn(f)]).filter(x => x[1] != null && x[1] !== "");
+    const extra = cardStats(p.stats);
+    const feats = FEAT_ROWS.map(([k, fn]) => [k, fn(f)]).filter(x => x[1] != null && x[1] !== "").concat(extra);
     if (p.opponent) feats.unshift(["Opp", (p.home === true ? "vs " : p.home === false ? "@ " : "") + String(p.opponent)]);
+    // the numbers behind the pick, on the card itself: its hit rate at this line, the average, the projection, then his own
+    const keyNums = [["L10", FEAT_ROWS[1][1](f) || null], ["L5", f.l10 ? null : FEAT_ROWS[0][1](f)], ["Avg", FEAT_ROWS[2][1](f)],
+      ["Proj", FEAT_ROWS[4][1](f)]].filter(x => x[1] != null && x[1] !== "").concat(extra).slice(0, 4);
     const open = S.expanded.has(id);
     const why = h("button", { type: "button", class: "vc-why", "aria-expanded": open ? "true" : "false", text: String(p.reasons || "Details") });
     const detail = h("div", { class: "vc-feats", hidden: !open },
@@ -1514,14 +1601,24 @@
     });
     const add = h("button", { type: "button", class: "vc-add", "aria-pressed": S.slip.has(id) ? "true" : "false", disabled: graded ? true : null, text: S.slip.has(id) ? "✓ Slip" : "+ Slip" });
     add.addEventListener("click", () => toggleSlip(pick));
-    card.append(h("div", { class: "vc-top" }, left, right), h("div", { class: "vc-bot" }, why, add), detail);
+    card.append(h("div", { class: "vc-top" }, left, right),
+      keyNums.length ? h("div", { class: "vc-keys" }, keyNums.map(([k, v]) => h("span", null, h("i", { text: k }), h("b", { text: String(v) })))) : null,
+      h("div", { class: "vc-bot" }, why, add), detail);
     return card;
+  }
+  /** The bot's extra numbers for a pick (stats: [{label, value}]), cleaned for the card: at most 4, short, no links. */
+  function cardStats(list) {
+    return (Array.isArray(list) ? list : []).map(x => [plain(x && x.label, 14), plain(x && x.value, 18)])
+      .filter(([k, v]) => k && v && !URLISH.test(k + " " + v)).slice(0, 4);
   }
   function cardsNode(input, res) {
     const picks = input && Array.isArray(input.picks) ? input.picks : [];
     const arr = Array.isArray(res) ? res : [];
     const wrap = h("div", { class: "vc-cards" });
-    picks.forEach((p, k) => { const r = arr[k]; if (r && !r.error && r.id && p) wrap.append(cardNode(p, r)); });
+    // strongest first: the highest chance to hit leads
+    picks.map((p, k) => ({ p, r: arr[k], k })).filter(x => x.r && !x.r.error && x.r.id && x.p)
+      .sort((a, b) => (isNum(b.r.vici_pct) ? b.r.vici_pct : -1) - (isNum(a.r.vici_pct) ? a.r.vici_pct : -1) || a.k - b.k)
+      .forEach(x => wrap.append(cardNode(x.p, x.r)));
     return wrap;
   }
   function refreshCards() {
@@ -1714,6 +1811,7 @@
     box.hidden = false;
     let title, sub = "";
     const same = oneTeam(picks);
+    const comb = picks.every(p => isNum(p.p)) ? picks.reduce((a, p) => a * p.p, 1) : null;
     if (n === 1) title = "Add 1 more";
     else if (n > 6) title = "Max 6";
     else if (same) {
@@ -1729,8 +1827,10 @@
       const mult = POWER[n], be = Math.pow(1 / mult, 1 / n);
       title = "Power " + n + " · " + mult + "x";
       sub = "needs " + (be * 100).toFixed(1) + "%";
+      // expected return of the payout at these chances (what $1 on this slip is worth on average), first so a narrow phone
+      // cuts the break-even rather than the EV
+      if (comb != null) { const ev = Math.round((comb * mult - 1) * 100); sub = "EV " + (ev > 0 ? "+" : ev < 0 ? "−" : "") + Math.abs(ev) + "% · " + sub; }
     }
-    const comb = picks.every(p => isNum(p.p)) ? picks.reduce((a, p) => a * p.p, 1) : null;
     const names = picks.map(p => String(p.player).split(" ").pop()).join(" · ");
     box.append(
       h("span", { class: "vc-sn", text: String(n) }),
@@ -1778,7 +1878,7 @@
   }
 
   // ---------------------------------------------------------------- send + agent loop
-  /** A chat stops being "current" when it's from an earlier day (Pacific) or its last request sent more than LONG_CHAT
+  /** A chat stops being "current" when it's from an earlier day (his time zone) or its last request sent more than LONG_CHAT
    *  input tokens: every message re-sends the whole chat, so the next one starts a new chat (a long one stays in History;
    *  an earlier day's is deleted, see purgeOld). The day rule needs a real break (STALE_GAP): a chat still going at
    *  midnight keeps its context. */
@@ -1788,17 +1888,19 @@
     if (isNum(c.ctx) && c.ctx > LONG_CHAT) return true;
     return staleDay(c, now);
   }
-  /** Its last message was on an earlier day (Pacific) and more than STALE_GAP ago. */
+  /** Its last message was on an earlier day (his time zone) and more than STALE_GAP ago. */
   function staleDay(c, now) {
     if (!c || !c.messages || !c.messages.length) return false;
     const t = Date.parse(c.updatedAt || c.createdAt), n = now ? new Date(now) : new Date();
-    return isFinite(t) && ymdPT(new Date(t)) < ymdPT(n) && n.getTime() - t > STALE_GAP;
+    return isFinite(t) && ymdLocal(new Date(t)) < ymdLocal(n) && n.getTime() - t > STALE_GAP;
   }
-  /** Old chats are deleted after midnight (Angus's rule, 2026-11-17): History only holds today's chats (Pacific). The
+  /** Old chats are deleted after midnight (Angus's rule, 2026-11-17), his midnight where he is (2026-11-18: "Not just
+   *  pacific midnight, but midnight where I am sending the message"): History only holds today's chats in his phone's time
+   *  zone. The
    *  exception is a chat still going at midnight: the current one (on screen or to be reopened) while a reply runs or
    *  within STALE_GAP of its last message. It goes at the first check after that. Picks journaled from any
    *  chat, and what Vici learned from them, stay. Runs at launch, when the sheet or History opens, when the app comes
-   *  back to the foreground, and at midnight PT. Resolves to how many chats were deleted. */
+   *  back to the foreground, and at his midnight. Resolves to how many chats were deleted. */
   let purging = null, midnightT = 0;
   function keepPastMidnight(meta, now) {
     const mine = !!S.conv && S.conv.id === meta.id;
@@ -1811,12 +1913,12 @@
     if (dead) return Promise.resolve(0);
     if (purging) return purging;
     const n = isNum(now) ? now : Date.now();
-    const today = ymdPT(new Date(n));
+    const today = ymdLocal(new Date(n));
     const run = saveChain.then(() => db.list()).then(async rows => {
       let gone = 0;
       for (const r of rows) {
         const t = Date.parse(r.updatedAt || r.createdAt);
-        if (isFinite(t) && ymdPT(new Date(t)) >= today) continue;
+        if (isFinite(t) && ymdLocal(new Date(t)) >= today) continue;
         if (dead || keepPastMidnight(r, n)) continue;
         await db.del(r.id);
         gone++;
@@ -1835,11 +1937,11 @@
     purging = run;
     return run;
   }
-  /** The next midnight in Pacific time after `now` (ms), DST-safe: the first second whose PT date is a later day. */
-  function nextMidnightPT(now) {
-    const today = ymdPT(new Date(now));
+  /** The next midnight on his phone's clock after `now` (ms), DST-safe: the first second whose local date is a later day. */
+  function nextMidnight(now) {
+    const today = ymdLocal(new Date(now));
     let lo = now, hi = now + 26 * 3600 * 1000;
-    while (hi - lo > 1000) { const mid = Math.floor((lo + hi) / 2); if (ymdPT(new Date(mid)) > today) hi = mid; else lo = mid; }
+    while (hi - lo > 1000) { const mid = Math.floor((lo + hi) / 2); if (ymdLocal(new Date(mid)) > today) hi = mid; else lo = mid; }
     return hi;
   }
   function armMidnight() {
@@ -1847,7 +1949,7 @@
     clearTimeout(midnightT);
     const now = Date.now();
     // a few seconds past midnight; a backgrounded phone may run it late, so coming back to the app checks too
-    midnightT = setTimeout(() => { midnightT = 0; newDay(); armMidnight(); }, Math.max(1000, nextMidnightPT(now) - now + 3000));
+    midnightT = setTimeout(() => { midnightT = 0; newDay(); armMidnight(); }, Math.max(1000, nextMidnight(now) - now + 3000));
   }
   /** Midnight passed, or the app came back to the foreground: an earlier day's chat left on screen gives way to a new
    *  one, then old chats are deleted. */
@@ -1914,6 +2016,7 @@
     if (S.conv && stale(S.conv)) { S.conv = null; lsDel(LS.cur); renderAll(); }
     if (!S.conv) S.conv = newConv();
     const c = S.conv;
+    S.turnLegs = new Map();   // the picks this answer recommends (for its slips)
     repairHistory(c);
     if (dropPaused(c)) renderAll();
     const empty = S.dom.list.querySelector(".vc-empty");
@@ -2676,7 +2779,7 @@
     isOpen: () => S.open,
     MODEL, SYSTEM_PROMPT, TOOLS, PROMPT_SIG,
     _test: { echoContent, fitJSON, usageOf, mapError, contextBlock, validate, toolLabel, ledgerView, cleanFeatures, vsLine, buildParams, usage, repairHistory, gameWhen, contextSize,
-      dropPaused, stale, refusalLabel, CFG, LONG_CHAT, purgeOld, nextMidnightPT, oneTeam, teamName,
+      dropPaused, stale, refusalLabel, CFG, LONG_CHAT, purgeOld, nextMidnight, oneTeam, teamName, bestSlips, ymdLocal, localNote, tidyStats,
       reloadSlip: () => { loadSlip(); refreshSlip(); } }
   };
   if (root && HAS_DOM) root.ViciChat = api;

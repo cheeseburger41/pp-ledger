@@ -518,8 +518,30 @@ tr.det[hidden] { display: none !important; }
 }
 </style>
 <link rel="stylesheet" href="vici-chat.css">
+<link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1320x2868.png">
+<link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1260x2736.png">
+<link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1206x2622.png">
+<link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1290x2796.png">
+<link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1179x2556.png">
+<link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1284x2778.png">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1170x2532.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1125x2436.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1242x2688.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/launch-828x1792.png">
+<link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1242x2208.png">
+<link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/launch-750x1334.png">
+<link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/launch-640x1136.png">
+<style>
+/* Vici launch: a black splash with the platinum ticket, matching the iOS launch screen pixel for pixel, then the app eases in.
+   launch.js drives it; this CSS alone fades the splash out if the script never runs. */
+#launch { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #050506; pointer-events: auto; animation: vl-out .4s ease 1.6s forwards; }
+#launch-mark { display: block; width: 132px; height: auto; overflow: visible; }
+@keyframes vl-out { to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { #launch { animation-duration: .2s; animation-delay: .3s; } }
+</style>
 </head>
 <body>
+<div id="launch" aria-hidden="true"><svg id="launch-mark" viewBox="96 150 320 212" width="132" height="87" focusable="false"><defs><linearGradient id="vl-pl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f8f7"/><stop offset=".38" stop-color="#d5d7db"/><stop offset=".68" stop-color="#a6aab1"/><stop offset="1" stop-color="#e8e9eb"/></linearGradient><linearGradient id="vl-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="vl-clip"><path d="M120 150H392A24 24 0 0 1 416 174V222A34 34 0 0 0 416 290V338A24 24 0 0 1 392 362H120A24 24 0 0 1 96 338V290A34 34 0 0 0 96 222V174A24 24 0 0 1 120 150Z"/></clipPath></defs><path d="M120 150H392A24 24 0 0 1 416 174V222A34 34 0 0 0 416 290V338A24 24 0 0 1 392 362H120A24 24 0 0 1 96 338V290A34 34 0 0 0 96 222V174A24 24 0 0 1 120 150Z" fill="url(#vl-pl)"/><g clip-path="url(#vl-clip)"><g id="launch-sheen"><rect x="30" y="140" width="104" height="240" transform="skewX(-20)" fill="url(#vl-sh)"/></g></g><path d="M352 168V344" stroke="#0a0a0b" stroke-width="7" stroke-linecap="round" stroke-dasharray="1 19" opacity=".4"/><polyline points="146,304 200,254 246,280 318,206" fill="none" stroke="#0a0a0b" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/><circle cx="318" cy="206" r="21" fill="#4ad49c" stroke="#0a0a0b" stroke-width="7"/></svg></div>
 <div class="appbar">
   <div class="ab-l"><span class="ab-name">Vici</span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
   <div class="ab-r"><span class="ab-k">Balance</span><span class="ab-v" id="ab-bal">$250.00</span></div>
@@ -1601,5 +1623,127 @@ tr.det[hidden] { display: none !important; }
 <script src="vici-data.js" defer></script>
 <script src="vici-chat.js" defer></script>
 <script>document.addEventListener("DOMContentLoaded", function () { var b = document.getElementById("model-box"); if (b && window.ViciChat) window.ViciChat.renderModel(b); });</script>
+<script>
+// Vici launch: the splash (same picture as the iOS launch screen) gets a platinum sheen and opens up, then the app bar,
+// sections and tab bar ease in one after another, the key numbers count up and the balance curve draws in.
+// After launch, the key numbers glide to new values whenever a sync or a filter changes them.
+// With Reduce Motion on, the splash just fades and nothing moves or counts.
+(() => {
+  const L = document.getElementById("launch");
+  const mq = window.matchMedia ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+  const still = () => !!(mq && mq.matches);
+  const reduce = still();
+  const canAnimate = typeof Element.prototype.animate === "function";
+  const drop = () => { if (L && L.isConnected) L.remove(); };
+  const ease = "cubic-bezier(.2,.75,.2,1)";
+  const settle = (a, f) => { if (a && a.finished) a.finished.then(f, f); else f(); };
+  const seen = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+
+  // ---------- Numbers that count ----------
+  // The counter tells its own writes from the app's by text node, not by text: every textContent write makes a new node,
+  // so an app write is caught even when it happens to equal the figure on screen.
+  const NUMS = ["#ab-bal", "#k-bank", "#k-pnl", "#k-roi", "#k-win", "#k-hit", "#k-open"];
+  const parse = t => {
+    const m = /^([^\d]*?)(\d[\d,]*(?:\.\d+)?)(\D*)$/.exec(String(t).trim()); if (!m) return null;
+    const pre = m[1], n = parseFloat(m[2].replace(/,/g, ""));
+    return { neg: /[−-]/.test(pre), plus: pre.includes("+"), cur: pre.replace(/[−+-]/g, ""), dec: (m[2].split(".")[1] || "").length, post: m[3], grp: m[2].includes(",") || m[3].trim() !== "%", n };
+  };
+  const val = p => (p.neg ? -p.n : p.n);
+  const fmt = (p, v, plus) => (v < 0 ? "−" : plus && v > 0 ? "+" : "") + p.cur + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: p.dec, maximumFractionDigits: p.dec, useGrouping: p.grp }) + p.post;
+  const outQuart = k => 1 - Math.pow(1 - k, 4);
+  const tweens = new Map(), shown = new Map();
+  let raf = 0;
+  const put = (el, s, text) => { s.last = text; el.textContent = text; s.node = el.firstChild; };
+  const land = (el, text) => { tweens.delete(el); shown.set(el, text); }; // stop counting and leave the app's own text in place
+  // The app wrote this number while it was counting. Same value as the count is heading to: keep counting.
+  // A new value: head for it instead (keeping the launch delay if the count hasn't started), or stop if it's already showing.
+  // Runs as a MutationObserver microtask straight after the app's write, so the app's figure never reaches the screen mid-count.
+  function rewrite(el, s) {
+    const txt = el.textContent, p = parse(txt);
+    if (!p) return land(el, txt);
+    if (txt !== s.final) {
+      const now = performance.now(), waiting = now < s.t0 + s.delay;
+      if (Math.abs(val(p) - s.v) < 1e-9) return land(el, txt);
+      s.to = p; s.final = txt;
+      if (!waiting) { s.from = s.v; s.t0 = now; s.delay = 0; s.dur = Math.max(450, s.dur * .6); }
+    }
+    put(el, s, fmt(s.to, s.v, s.to.plus || s.plusFrom));
+  }
+  function tick(now) {
+    raf = 0;
+    for (const [el, s] of tweens) {
+      if (el.firstChild !== s.node) { rewrite(el, s); if (!tweens.has(el)) continue; }
+      const k = Math.min(1, Math.max(0, (now - s.t0 - s.delay) / s.dur));
+      if (k >= 1) { land(el, s.final); el.textContent = s.final; continue; }
+      s.v = s.from + (val(s.to) - s.from) * outQuart(k);
+      const text = fmt(s.to, s.v, s.to.plus || s.plusFrom); if (text !== s.last) put(el, s, text);
+    }
+    if (tweens.size) raf = requestAnimationFrame(tick);
+  }
+  function count(el, fromV, plusFrom, dur, delay) {
+    const final = el.textContent, to = parse(final); if (!to) { shown.set(el, final); return; }
+    if (fromV === val(to)) { shown.set(el, final); return; }
+    const s = { from: fromV, v: fromV, to, final, plusFrom, dur, delay, t0: performance.now() };
+    put(el, s, fmt(to, fromV, to.plus || plusFrom)); // the starting figure goes up before the next paint
+    tweens.set(el, s); if (!raf) raf = requestAnimationFrame(tick);
+  }
+  function watchNumbers() {
+    const mo = new MutationObserver(list => {
+      const els = new Set(); for (const r of list) { const el = r.target.nodeType === 1 ? r.target : r.target.parentElement; if (el) els.add(el.closest(NUMS.join(","))); }
+      for (const el of els) {
+        if (!el) continue;
+        const s = tweens.get(el);
+        if (s) { if (el.firstChild !== s.node) rewrite(el, s); continue; }
+        const txt = el.textContent, before = shown.get(el); if (txt === before) continue;
+        const a = before != null ? parse(before) : null, b = parse(txt);
+        if (a && b && !still() && seen(el)) count(el, val(a), a.plus, 650, 0); else shown.set(el, txt);
+      }
+    });
+    for (const sel of NUMS) { const el = document.querySelector(sel); if (el) { shown.set(el, el.textContent); mo.observe(el, { childList: true, characterData: true, subtree: true }); } }
+    // Reduce Motion switched on while the app is open: land every count on its value now
+    const off = () => { if (still()) for (const [el, s] of tweens) { land(el, s.final); el.textContent = s.final; } };
+    if (mq && mq.addEventListener) mq.addEventListener("change", off); else if (mq && mq.addListener) mq.addListener(off);
+  }
+
+  // ---------- Launch ----------
+  function quiet() { // Reduce Motion, or no Web Animations: a short fade and nothing else
+    if (!L) return;
+    if (!canAnimate) return; // the CSS fallback fades it
+    L.style.animation = "none"; L.style.pointerEvents = "none";
+    settle(L.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, delay: 80, easing: "ease", fill: "forwards" }), drop);
+  }
+  function play() {
+    L.style.animation = "none";
+    const T = 360; // when the splash opens up; everything else is timed from here
+    setTimeout(() => { L.style.pointerEvents = "none"; }, T); // taps wait until the app starts to show
+    const sheen = document.getElementById("launch-sheen"), mark = document.getElementById("launch-mark");
+    if (sheen) sheen.animate([{ transform: "translateX(20px)" }, { transform: "translateX(560px)" }], { duration: 620, delay: 0, easing: "cubic-bezier(.35,.1,.35,1)", fill: "forwards" });
+    if (mark) mark.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.28)", opacity: 0 }], { duration: 420, delay: T, easing: "cubic-bezier(.5,0,.75,0)", fill: "forwards" });
+    settle(L.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 460, delay: T + 60, easing: "ease-out", fill: "forwards" }), drop);
+
+    const rise = (el, y, delay, dur) => el.animate([{ opacity: 0, transform: `translateY(${y}px)` }, { opacity: 1, transform: "none" }], { duration: dur || 620, delay, easing: ease, fill: "backwards" });
+    const bar = document.querySelector(".appbar"), tabs = document.querySelector(".tabbar");
+    if (seen(bar)) rise(bar, -10, T + 80, 560);
+    if (seen(tabs)) rise(tabs, 22, T + 160, 620);
+    const wrap = document.querySelector(".wrap");
+    const blocks = wrap ? [...wrap.children].flatMap(c => (c.classList.contains("grid") ? [...c.children] : [c])).filter(seen) : [];
+    blocks.forEach((el, i) => rise(el, 16, T + 140 + Math.min(i, 7) * 70));
+    const board = document.querySelector(".board");
+    if (seen(board)) {
+      const b = blocks.indexOf(board), d = T + 140 + Math.min(Math.max(b, 0), 7) * 70;
+      board.querySelectorAll(".kpi").forEach((k, i) => k.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: d + 90 + i * 45, easing: "ease-out", fill: "backwards" }));
+    }
+    const curve = document.getElementById("c-curve");
+    if (seen(curve)) curve.animate([{ clipPath: "inset(0 100% 0 0)", webkitClipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", webkitClipPath: "inset(0 0% 0 0)" }], { duration: 1000, delay: T + 420, easing: "cubic-bezier(.4,0,.2,1)", fill: "backwards" });
+    for (const sel of NUMS) { const el = document.querySelector(sel); if (seen(el)) count(el, 0, false, sel === "#ab-bal" || sel === "#k-bank" ? 1150 : 950, T + 200); }
+  }
+
+  try {
+    if (!reduce && canAnimate) watchNumbers();
+    if (!L) return;
+    if (reduce || !canAnimate || document.visibilityState === "hidden") quiet(); else play();
+  } catch (e) { drop(); }
+})();
+</script>
 </body>
 </html>

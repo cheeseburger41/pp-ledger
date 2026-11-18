@@ -314,16 +314,7 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 .vm-sec h3 { margin: 0 0 10px; font-family: var(--f-display); font-weight: 400; font-size: 12px; letter-spacing: .24em; text-transform: uppercase; color: var(--ink-2); }
 .vm-svg { display: block; width: 100%; max-width: 520px; height: auto; overflow: visible; }
 .vm-svg text { font-family: var(--f-mono); font-size: 10px; fill: var(--ink-3); }
-.vm-band { fill: var(--accent-soft); stroke: var(--line); stroke-width: 1; }
-.vm-svg .vm-tl { font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; }
 .vm-grid { stroke: var(--line-2); stroke-width: 1; }
-.vm-svg .vm-rl { font-family: var(--f-body); font-size: 12px; fill: var(--ink-2); }
-.vm-svg .vm-rv { font-size: 11px; fill: var(--ink); }
-.vm-ci { stroke: var(--ink-3); stroke-width: 2; stroke-linecap: round; }
-.vm-post { fill: var(--bg); stroke: var(--ink-2); stroke-width: 1.5; }
-.vm-dot { fill: var(--accent); }
-.vm-dot.good { fill: var(--good); }
-.vm-dot.bad { fill: var(--bad); }
 .vm-diag { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 4; }
 .vm-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
 .vm-pt { fill: var(--accent); fill-opacity: .9; stroke: var(--bg); stroke-width: 1.5; }

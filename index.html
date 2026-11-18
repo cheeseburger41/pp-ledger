@@ -392,6 +392,9 @@ dialog::backdrop { background: rgba(0,0,0,.72); }
 .cal-cell.up .cal-v { color: var(--good); } .cal-cell.down .cal-v { color: var(--bad); } .cal-cell.flat .cal-v { color: var(--ink-2); }
 @media (min-width: 701px) { .cal-grid { gap: 6px; } .cal-cell { aspect-ratio: auto; min-height: 76px; padding: 8px 10px; } .cal-v { font-size: 14px; } .cal-d { font-size: 12px; } .cal-title b { font-size: 16px; } }
 /* Open risk: always open; each player is a card with the number of open picks, tap to open it (Angus, 2026-11-18) */
+/* Export CSV as a small spreadsheet icon (Angus, 2026-11-18) */
+.btn.icon { width: 40px; height: 40px; min-height: 0; padding: 0; display: inline-grid; place-items: center; }
+.btn.icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .pcard { display: grid; gap: 6px; align-content: start; text-align: left; min-width: 0; border: 1px solid var(--line-2); border-radius: 8px; padding: 12px; background: var(--bg); color: var(--ink); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .pcard:hover { border-color: var(--ink-3); }
@@ -517,6 +520,36 @@ tr.det[hidden] { display: none !important; }
 .install { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: space-between; background: var(--accent-soft); color: var(--ink); border-radius: var(--r); padding: 12px 14px; font-size: 13.5px; }
 .install p { margin: 0; min-width: 0; flex: 1 1 220px; }
 .install .btns { display: flex; gap: 6px; }
+
+/* ---------- Ask bar ---------- */
+/* v8.10 (Angus chose "Chat C", 2026-11-18): one pill on every screen opens Vici Chat (app-tail.js setupAskDock). It replaces the app bar pill
+   and the desktop header button, which vici.py still inserts until the picks thread drops them. --tab-h is measured by the app. */
+:root { --dock-h: 50px; --dock-gap: 18px; --dock-space: calc(var(--dock-h) + var(--dock-gap)); --tab-h: calc(60px + env(safe-area-inset-bottom, 0px)); }
+.ab-ask, .top .actions .btn.act-chat { display: none !important; }
+.askdock { position: fixed; z-index: 24; display: flex; align-items: center; gap: 10px; height: var(--dock-h); padding: 0 6px 0 18px; border: 1px solid var(--line); border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(16px); backdrop-filter: saturate(1.4) blur(16px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .55); color: var(--ink-3); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  transition: transform .32s cubic-bezier(.2, .8, .2, 1), opacity .32s ease, border-color .2s ease; }
+.askdock:hover { border-color: var(--ink-3); }
+.askdock:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.askdock:active { transform: scale(.985); }
+.askdock .ad-v { font-family: var(--f-display); font-weight: 300; font-size: 20px; line-height: 1; letter-spacing: .1em; background: var(--plat-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.askdock .ad-t { flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.askdock .ad-go { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent-grad); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
+.askdock .ad-go svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.askdock.away { opacity: 0; transform: translateY(calc(100% + 40px)); pointer-events: none; }
+html.vchat-open .askdock { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .askdock { transition: none; } }
+@media (max-width: 700px) {
+  .askdock { left: 12px; right: 12px; bottom: calc(var(--tab-h) + var(--dock-gap)); }
+  .wrap { padding-bottom: calc(72px + var(--dock-space) + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(88px + var(--dock-space) + env(safe-area-inset-bottom, 0px)); }
+}
+@media (min-width: 701px) {
+  .askdock { left: 0; right: 0; bottom: 22px; width: min(600px, calc(100vw - 48px)); margin: 0 auto; }
+  .wrap { padding-bottom: 132px; }
+  .toast { bottom: 92px; }
+}
 /* Vici Chat entry points in the app (append to app-extra.css). Phone: a round "ask" button at the right of the app bar.
    Desktop: the "Ask Vici" button in the header actions uses the app's own .btn. */
 .ab-ask { display: none; }
@@ -614,7 +647,7 @@ html.vl-motion .kpi { position: relative; }
     </div>
     <div class="actions">
       <span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span>
-      <button class="btn ghost act-export" id="btn-export" type="button" hidden>Export CSV</button>
+      <button class="btn ghost icon act-export" id="btn-export" type="button" hidden aria-label="Export CSV" title="Export CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 4v16M15 4v16"/></svg></button>
       <button class="btn act-chat" type="button">Ask Vici</button>
       <button class="btn primary act-new" id="btn-new" type="button">+ Log entry</button>
     </div>
@@ -724,7 +757,7 @@ html.vl-motion .kpi { position: relative; }
     <h2>Vici</h2>
     <div class="cacct" id="c-acct" hidden>
       <div class="acct-meta" id="acct-meta"></div>
-      <div class="row-btns"><button class="btn" id="a-sync" type="button">Sync now</button><button class="btn ghost act-export" type="button" hidden>Export CSV</button><button class="btn ghost" id="a-token" type="button">Change token</button><button class="btn ghost danger" id="a-out" type="button">Disconnect this device</button></div>
+      <div class="row-btns"><button class="btn" id="a-sync" type="button">Sync now</button><button class="btn ghost icon act-export" type="button" hidden aria-label="Export CSV" title="Export CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 4v16M15 4v16"/></svg></button><button class="btn ghost" id="a-token" type="button">Change token</button><button class="btn ghost danger" id="a-out" type="button">Disconnect this device</button></div>
       <div class="row-btns" id="a-out-confirm" hidden><span class="note" id="a-out-warn"></span><button class="btn danger" id="a-out-yes" type="button">Disconnect</button><button class="btn ghost" id="a-out-no" type="button">Keep</button></div>
     </div>
     <div class="cfields" id="c-fields">
@@ -1403,6 +1436,37 @@ html.vl-motion .kpi { position: relative; }
     $$(".act-export").forEach(b => { b.hidden = false; b.addEventListener("click", run); });
   }
 
+  // ---------- Ask bar ----------
+  // v8.10 (Angus chose "Chat C", 2026-11-18 8:39 AM PT): one pill on every screen opens Vici Chat with the composer ready:
+  // above the tab bar on phones, bottom centre on desktop. It slips away while scrolling down and returns on the way up.
+  // vici-chat.js wires the .act-chat click itself; this only adds the keyboard and keeps the bar clear of the tab bar.
+  function setupAskDock() {
+    const dock = el("button", { type: "button", class: "askdock act-chat", "aria-label": "Ask Vici" },
+      el("span", { class: "ad-v", "aria-hidden": "true", text: "V" }),
+      el("span", { class: "ad-t", text: "Ask Vici…" }),
+      el("span", { class: "ad-go", "aria-hidden": "true" }, sv("svg", { viewBox: "0 0 24 24" })));
+    dock.querySelector("svg").append(sv("path", { d: "M12 19V5M6 11l6-6 6 6" }));
+    document.body.append(dock);
+    dock.addEventListener("click", () => {
+      const c = window.ViciChat; if (!c || typeof c.open !== "function") return;
+      c.open();
+      const ta = document.querySelector("#vchat .vc-ta"); if (ta) ta.focus({ preventScroll: true });
+    });
+    const fit = () => { const bar = $(".tabbar"), h = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().height : 0; document.documentElement.style.setProperty("--tab-h", Math.round(h) + "px"); };
+    fit(); window.addEventListener("resize", fit);
+    let last = window.scrollY, tick = false;
+    window.addEventListener("scroll", () => {
+      if (tick) return; tick = true;
+      requestAnimationFrame(() => {
+        tick = false;
+        const y = window.scrollY, end = document.documentElement.scrollHeight - window.innerHeight - 40;
+        if (y > last + 4 && y > 80 && y < end) dock.classList.add("away");
+        else if (y < last - 4 || y <= 80 || y >= end) dock.classList.remove("away");
+        last = y;
+      });
+    }, { passive: true });
+  }
+
   // ---------- Sync ----------
   // Your bets live in ledger.json in your private GitHub repo: {version, settings:{starting, startDate}, entries:{<id>: entry}}.
   // This device keeps the last synced copy plus any changes not yet saved (the outbox), so it opens instantly and works offline.
@@ -1673,6 +1737,7 @@ html.vl-motion .kpi { position: relative; }
   let wrapW = -1; new ResizeObserver(es => { const w = Math.round(es[0].contentRect.width); if (w !== wrapW) { wrapW = w; reflow(); } }).observe($(".wrap"));
   state.db = db;
   setupExport();
+  setupAskDock();
   if (sync.remote) publish(); else render();
   if (!sync.auth) { setMode("idle"); showConnect(); }
   else startSync();

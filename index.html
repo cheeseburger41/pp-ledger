@@ -238,11 +238,6 @@ label.check input { width: 16px; height: 16px; margin: 0; accent-color: var(--ac
 .note { font-size: 12px; color: var(--ink-3); }
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 50; }
 .banner { background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 10px 14px; font-size: 13px; }
-details.legend { font-size: 12.5px; color: var(--ink-2); }
-details.legend summary { cursor: pointer; color: var(--ink-3); font-size: 12px; }
-details.legend p { max-width: 90ch; }
-details.legend table { min-width: 0; margin-top: 8px; }
-details.legend td, details.legend th { padding: 4px 10px; }
 @media (prefers-reduced-motion: no-preference) { .panel, .board { animation: rise .45s cubic-bezier(.2,.7,.2,1) both; } @keyframes rise { from { transform: translateY(6px); opacity: .6; } to { transform: none; opacity: 1; } } }
 /* Phone: tables become stacked cards */
 @media (max-width: 800px) {
@@ -302,7 +297,7 @@ details.legend td, details.legend th { padding: 4px 10px; }
 .pk.card { border-style: dashed; }
 .pk .cardic { color: var(--accent); flex: none; }
 /* App mode: on phones the Ledger runs like an app, with a sticky balance bar, one section at a time and a bottom tab bar */
-.appbar, .tabbar, .acct { display: none; }
+.appbar, .tabbar { display: none; }
 .sync { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--ink-3); white-space: nowrap; }
 .sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
 .sync.live i { background: var(--good); }
@@ -330,8 +325,6 @@ details.legend td, details.legend th { padding: 4px 10px; }
   .fbar .filters { flex-wrap: nowrap; flex: none; }
   .chip { padding: 7px 14px; }
   #p-open { order: -1; }
-  .acct { display: block; }
-  .acct .row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .in, .search { font-size: 16px; }
   .btn { min-height: 40px; }
   .btn.sm { min-height: 34px; }
@@ -448,9 +441,11 @@ tr.det[hidden] { display: none !important; }
 .dayhead span { font-size: 12px; color: var(--ink-2); }
 .dayhead .pos { color: var(--good); } .dayhead .neg { color: var(--bad); }
 #p-log thead th:first-child, #p-log tr.row > td:first-child { display: none; }
+#p-log .tbl-wrap { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+#p-log thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
 @media (min-width: 701px) { .cal-o { top: 9px; right: 10px; width: 6px; height: 6px; } .cal-v.l5 { font-size: 13px; letter-spacing: 0; } .cal-v.long { font-size: 12px; letter-spacing: -.01em; } }
 @media (min-width: 801px) {
-  #p-log .tbl-wrap { margin: 0; }
+  #p-log .tbl-wrap { margin: 0; max-height: min(64vh, 640px); }
   #p-log table { min-width: 0; }
   #p-log th:nth-child(2), #p-log tr.row > td:nth-child(2) { padding-left: 0; }
   #p-log th:last-child, #p-log tr.row > td:last-child { padding-right: 0; }
@@ -458,7 +453,13 @@ tr.det[hidden] { display: none !important; }
 }
 @media (min-width: 900px) { .dual { grid-template-columns: minmax(0, 11fr) minmax(0, 13fr); gap: 8px 28px; align-items: start; } .dayhead { padding-top: 0; } }
 @media (max-width: 800px) {
-  #p-log .tbl-wrap { margin: 0 -18px -16px; }
+  #p-log .tbl-wrap { margin: 0 -18px -16px; max-height: 54vh; border-top: 1px solid var(--line-2); }
+  /* v8.7: a tighter calendar on phones so the day's entries get the room below it */
+  #p-daily > h2 { display: none; }
+  #p-daily .cal-head { margin-bottom: 6px; }
+  #p-daily .cal-cell { aspect-ratio: auto; height: 36px; padding: 4px 3px; }
+  #p-daily .dual { gap: 8px; margin-top: 4px; }
+  #p-daily .dayhead { padding-top: 0; }
   #p-log tr.row { gap: 6px 12px; padding: 11px 18px; grid-template-areas: "entry entry status" "picks picks picks" "stake payout pnl"; }
   #p-log tr.row td:nth-child(2) { grid-column: 1 / 3; }
   #p-log tr.row td.pc { width: auto; max-width: none; }
@@ -470,7 +471,8 @@ tr.det[hidden] { display: none !important; }
 /* ---------- Standalone app ---------- */
 /* Black & platinum: the app bar is the page black in every mode */
 :root { --bar-bg: #050506; --bar-ink: #f2f2f3; --bar-ink-2: #9a9da4; --bar-accent: #d6d8dc; }
-.acct { display: block; }
+.sync[role="button"] { cursor: pointer; }
+.banner.act { cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 3px; }
 .top .actions .sync { margin-right: 6px; }
 @media (max-width: 700px) {
   body::before { background: var(--bar-bg); }
@@ -498,13 +500,15 @@ tr.det[hidden] { display: none !important; }
 .cbox .btn { min-height: 44px; }
 .cbox .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
 
-.acct-meta { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+.cfields { display: grid; gap: 14px; }
+.cacct { display: grid; gap: 12px; }
+.cacct .row-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cacct .note { font-size: 13px; color: var(--ink-2); flex: 1 1 100%; }
+.acct-meta { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
 .acct-meta b { font-family: var(--f-mono); font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
 .install { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: space-between; background: var(--accent-soft); color: var(--ink); border-radius: var(--r); padding: 12px 14px; font-size: 13.5px; }
 .install p { margin: 0; min-width: 0; flex: 1 1 220px; }
 .install .btns { display: flex; gap: 6px; }
-
-.acct .row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
 /* Vici Chat entry points in the app (append to app-extra.css). Phone: a round "ask" button at the right of the app bar.
    Desktop: the "Ask Vici" button in the header actions uses the app's own .btn. */
 .ab-ask { display: none; }
@@ -662,33 +666,6 @@ tr.det[hidden] { display: none !important; }
         </div>
       </div>
     </section>
-    <section class="panel span-12" data-tabs="stats">
-      <details class="legend">
-        <summary>How the numbers work</summary>
-        <p>Packs: a pack's price comes out of your balance and its card's value goes back in, so a pack's PnL is the card value minus the price. A free pack costs nothing, so its whole card value counts as profit. Packs count toward Balance, Net PnL, ROI and the balance and daily charts, but not toward win rate, pick hit rate, records for entries or break-even.</p>
-        <p>Balance = starting balance + net PnL of settled entries − entry amounts of open entries. An entry's amount leaves your balance the moment you log it and only comes back, with any winnings, when it settles. A Power entry only pays when every pick hits: one miss settles it as a loss right away. Bonus lineups use promo money, so they never take from your balance and only their winnings count. When every pick hits, the payout is the entry's To Win from the app; otherwise it uses the standard multipliers below, and a push or DNP drops that pick and pays the smaller entry.</p>
-        <p>Break-even is the share of picks you need to hit for an entry to pay back its cost on average. It comes from each entry's own To Win, so goblin and demon lines are priced in; bonus lineups are left out because they cost nothing. Flex break-evens assume the lower tiers shrink in step with your To Win. Open risk counts every open entry: the best case adds each entry's To Win to your balance, and the player table shows how much payout depends on each player.</p>
-        <p>Grading: open a slip and type each player's actual stat, and the pick grades itself. You can also ask Claude in your project to grade open picks from NFL and NBA box scores. Every change is saved to ledger.json in your private GitHub repo, and the repo's history keeps each version. A payout marked est. used the standard multipliers, so check it against the app.</p>
-        <p>Personal tracker. Not affiliated with PrizePicks.</p>
-        <div class="tbl-wrap inset"><table style="min-width:460px">
-          <thead><tr><th>Picks</th><th>Power (all hit)</th><th>Power break-even</th><th>Flex payouts</th><th>Flex break-even</th></tr></thead>
-          <tbody>
-            <tr><td>2</td><td class="mono">3x</td><td class="mono">57.7%</td><td class="muted">n/a</td><td class="muted">n/a</td></tr>
-            <tr><td>3</td><td class="mono">5x</td><td class="mono">58.5%</td><td class="mono">3/3 3x · 2/3 1x</td><td class="mono">57.7%</td></tr>
-            <tr><td>4</td><td class="mono">10x</td><td class="mono">56.2%</td><td class="mono">4/4 6x · 3/4 1.5x</td><td class="mono">55.0%</td></tr>
-            <tr><td>5</td><td class="mono">20x</td><td class="mono">54.9%</td><td class="mono">5/5 10x · 4/5 2x · 3/5 0.4x</td><td class="mono">54.3%</td></tr>
-            <tr><td>6</td><td class="mono">37.5x</td><td class="mono">54.7%</td><td class="mono">6/6 25x · 5/6 2x · 4/6 0.4x</td><td class="mono">54.2%</td></tr>
-          </tbody>
-        </table></div>
-      </details>
-    </section>
-    <section class="panel span-12 acct" data-tabs="stats">
-      <h2>Account</h2>
-      <p class="hint">Sync and a copy of every entry</p>
-      <div class="acct-meta" id="acct-meta"></div>
-      <div class="row-btns"><button class="btn" id="a-sync" type="button">Sync now</button><button class="btn act-export" type="button" hidden>Export CSV</button><button class="btn ghost" id="a-token" type="button">Change token</button><button class="btn ghost danger" id="a-out" type="button">Disconnect this device</button></div>
-      <div class="row-btns" id="a-out-confirm" hidden><span class="note" id="a-out-warn"></span><button class="btn danger" id="a-out-yes" type="button">Disconnect</button><button class="btn ghost" id="a-out-no" type="button">Keep</button></div>
-    </section>
   </div>
 </div>
 
@@ -704,10 +681,17 @@ tr.det[hidden] { display: none !important; }
   <form class="cbox" id="connect-form" novalidate>
     <img class="logo" src="icons/icon-192.png" alt="" width="64" height="64">
     <h2>Vici</h2>
+    <div class="cacct" id="c-acct" hidden>
+      <div class="acct-meta" id="acct-meta"></div>
+      <div class="row-btns"><button class="btn" id="a-sync" type="button">Sync now</button><button class="btn ghost act-export" type="button" hidden>Export CSV</button><button class="btn ghost" id="a-token" type="button">Change token</button><button class="btn ghost danger" id="a-out" type="button">Disconnect this device</button></div>
+      <div class="row-btns" id="a-out-confirm" hidden><span class="note" id="a-out-warn"></span><button class="btn danger" id="a-out-yes" type="button">Disconnect</button><button class="btn ghost" id="a-out-no" type="button">Keep</button></div>
+    </div>
+    <div class="cfields" id="c-fields">
     <p>Your bets sync through your private GitHub repo. Paste a token for it once and this device stays connected.</p>
     <label class="f">Data repo<input class="in" id="c-repo" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="username/pp-ledger-data"></label>
     <label class="f">GitHub token<input class="in" id="c-token" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="github_pat_…"></label>
     <p class="note">Make one at <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub fine-grained tokens</a>. Under Repository access pick your data repo, and set Contents to Read and write. The token stays on this device.</p>
+    </div>
     <p class="err" id="c-err" role="alert" hidden></p>
     <div class="row"><button class="btn ghost" id="c-cancel" type="button" hidden>Cancel</button><button class="btn primary" id="c-go" type="submit">Connect</button></div>
   </form>
@@ -1152,7 +1136,8 @@ tr.det[hidden] { display: none !important; }
     // Since v8.6 the log is the selected calendar day's entries (cal.day), newest first.
     const body = $("#log-body"), head = $("#day-head");
     const rows = cal.day ? sorted(list).filter(e => e.date === cal.day) : [];
-    if (!rows.length) { head.replaceChildren(); body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "muted", style: "padding:22px 18px;text-align:center", text: state.loaded ? (state.entries.length ? "No entries this month." : "No entries yet. Log your first slip with + Log entry.") : "Loading…" }))); return; }
+    if (!rows.length) { head.replaceChildren(); body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "muted", style: "padding:22px 18px;text-align:center", text: state.loaded ? (state.entries.length ? "No entries this month." : "No entries yet. Log your first slip with + Log entry.") : "Loading…" }))); fitLog(); return; }
+    const wrap = body.closest(".tbl-wrap"); if (wrap && fitLog.day !== cal.day) { fitLog.day = cal.day; wrap.scrollTop = 0; }
     const set = rows.filter(e => pnl(e) != null), net = set.reduce((a, e) => a + pnl(e), 0), nOpen = rows.length - set.length;
     head.replaceChildren(el("b", { text: fmtDate(cal.day) }), el("span", { class: "num" + (set.length ? (net > 0 ? " pos" : net < 0 ? " neg" : "") : ""), text: [set.length ? money(net, true) : null, set.length ? `${set.length} settled` : null, nOpen ? `${nOpen} open` : null].filter(Boolean).join(" · ") }));
     body.replaceChildren(...rows.flatMap(e => { const o = outcome(e), p = pnl(e), on0 = ui.logOpen.has(e.id);
@@ -1172,7 +1157,19 @@ tr.det[hidden] { display: none !important; }
         el("td", {}, el("span", { class: "pill " + o, text: o === "even" ? "Push" : o })));
       return [tr, det];
     }));
+    fitLog();
   }
+  // v8.7 (Angus, 2026-11-17): the day's entries scroll inside the panel. On phones the list ends at the tab bar, so the History tab never scrolls as a page.
+  function fitLog() {
+    const w = $("#p-log .tbl-wrap"); if (!w) return;
+    if (!matchMedia("(max-width: 800px)").matches || !w.offsetParent) { w.style.maxHeight = ""; return; }
+    const bar = $(".tabbar"), barH = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().height : 0;
+    const pad = parseFloat(getComputedStyle($(".wrap")).paddingBottom) || 0;
+    const top = w.getBoundingClientRect().top + window.scrollY;
+    w.style.maxHeight = Math.max(240, Math.floor(window.innerHeight - top - Math.max(pad, barH + 8))) + "px";
+  }
+  window.addEventListener("resize", fitLog);
+  if (window.ResizeObserver) new ResizeObserver(() => fitLog()).observe($("#c-daily"));
 
   // ---------- Form ----------
   const dlg = $("#dlg"); let formType = "power";
@@ -1282,7 +1279,7 @@ tr.det[hidden] { display: none !important; }
       const card = num($("#f-payout").value);
       if (!amt || amt <= 0) return fail("Enter the pack's price, for example 5.");
       if (card == null || card < 0) return fail("Enter what the card was worth, for example 1.59.");
-      if (!state.db) return fail("Connect your ledger first, under Stats → Account.");
+      if (!state.db) return fail("Connect your ledger first: tap the sync status at the top.");
       const now = new Date().toISOString();
       const prev = {}; if (state.editing) for (const [k, v] of Object.entries(state.editing)) if (k !== "id") prev[k] = v;
       const doc = { ...prev, date, type: "pack", stake: bonus ? 0 : amt, payout: card, picks: [], notes: $("#f-notes").value.trim(), createdAt: prev.createdAt || now, updatedAt: now };
@@ -1307,7 +1304,7 @@ tr.det[hidden] { display: none !important; }
     if (bonus) { doc.bonus = true; doc.bonusStake = amt; if (toWin != null) doc.potentialPayout = toWin; } else { delete doc.bonus; delete doc.bonusStake; delete doc.potentialPayout; }
     if (toWin != null) doc.toWin = toWin; else delete doc.toWin;
     delete doc.estPayout;
-    if (!state.db) return fail("Connect your ledger first, under Stats → Account.");
+    if (!state.db) return fail("Connect your ledger first: tap the sync status at the top.");
     const id = state.editing ? state.editing.id : "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     $("#dlg-save").disabled = true;
     try { await state.db.doc("entries/" + id).set(doc); dlg.close(); toast(state.editing ? "Entry updated" : "Entry logged"); } catch (e2) { showErr(e2); } finally { $("#dlg-save").disabled = false; }
@@ -1467,8 +1464,8 @@ tr.det[hidden] { display: none !important; }
   function syncError(e) {
     const c = e && e.code, repo = sync.auth ? sync.auth.repo : "your repo";
     if (c === "net") { sync.problem = ""; setMode("offline"); return; }
-    sync.problem = c === 401 ? "GitHub didn't accept your token. It may have expired. Paste a new one under Account."
-      : c === 403 ? `Your token can't save to ${repo}. Give it Contents: Read and write, then paste it again under Account.`
+    sync.problem = c === 401 ? "GitHub didn't accept your token. It may have expired. Tap to paste a new one."
+      : c === 403 ? `Your token can't save to ${repo}. Give it Contents: Read and write, then tap to paste it again.`
       : c === "no_repo" ? `Can't find ${repo} with this token. Check the repo name and that the token includes it.`
       : c === "rate" ? "GitHub is limiting requests for a few minutes. Your changes are safe on this device and will sync after."
       : c === "bad_json" ? `ledger.json in ${repo} isn't valid JSON, so syncing is paused to protect your data. Ask Claude to fix it.`
@@ -1483,7 +1480,7 @@ tr.det[hidden] { display: none !important; }
     banner(m === "error" ? sync.problem : !sync.remote && m === "offline" ? "You're offline. Your ledger loads as soon as you're back online." : "");
     drawAccount();
   }
-  function banner(text) { const b = $("#banner"); b.hidden = !text; b.textContent = text || ""; }
+  function banner(text) { const b = $("#banner"); b.hidden = !text; b.textContent = text || ""; b.classList.toggle("act", !!(text && sync.problem)); }
   function startSync() {
     clearInterval(sync.timer);
     sync.timer = setInterval(() => { if (document.visibilityState === "visible") syncNow(); }, 60e3);
@@ -1495,12 +1492,17 @@ tr.det[hidden] { display: none !important; }
 
   // ---------- Connect screen ----------
   const cv = $("#connect");
-  function showConnect(msg) {
+  // v8.7: one sheet for the account. With acct set and a connection it shows sync, token and disconnect; otherwise the token form.
+  function showConnect(msg, acct) {
+    const a = !!(acct && sync.auth && !msg);
+    $("#c-acct").hidden = !a; $("#c-fields").hidden = a; $("#c-go").hidden = a;
+    $("#a-out-confirm").hidden = true; $("#a-out").hidden = false;
     $("#c-repo").value = (sync.auth && sync.auth.repo) || CFG.dataRepo || "";
     $("#c-token").value = "";
     const err = $("#c-err"); err.hidden = !msg; err.textContent = msg || "";
-    $("#c-cancel").hidden = !sync.auth;
-    cv.hidden = false; setTimeout(() => $(($("#c-repo").value ? "#c-token" : "#c-repo")).focus(), 50);
+    const cancel = $("#c-cancel"); cancel.hidden = !sync.auth; cancel.textContent = a ? "Close" : "Cancel";
+    drawAccount();
+    cv.hidden = false; if (!a) setTimeout(() => $(($("#c-repo").value ? "#c-token" : "#c-repo")).focus(), 50);
   }
   $("#c-cancel").addEventListener("click", () => { cv.hidden = true; });
   $("#connect-form").addEventListener("submit", async ev => {
@@ -1533,11 +1535,21 @@ tr.det[hidden] { display: none !important; }
       el("span", {}, "Last synced ", el("b", { text: sync.lastOk ? when(sync.lastOk) : "never" })),
       n ? el("span", {}, "Waiting to sync ", el("b", { text: plural(n, "change", "changes") })) : null].filter(Boolean));
   }
-  $("#a-sync").addEventListener("click", () => sync.auth ? syncNow(true) : showConnect());
+  $("#a-sync").addEventListener("click", () => { if (!sync.auth) return showConnect(); cv.hidden = true; syncNow(true); });
   $("#a-token").addEventListener("click", () => showConnect());
   $("#a-out").addEventListener("click", () => { $("#a-out-confirm").hidden = false; $("#a-out").hidden = true; const unsynced = sync.outbox.length + viciUnsynced(); $("#a-out-warn").textContent = unsynced ? `${plural(unsynced, "change hasn't", "changes haven't")} synced yet and will be lost.` : "This removes the token, saved copy, key and chats from this device only."; });
   $("#a-out-no").addEventListener("click", () => { $("#a-out-confirm").hidden = true; $("#a-out").hidden = false; });
   $("#a-out-yes").addEventListener("click", () => { ["auth", "remote", "outbox"].forEach(k => LS.del(k)); $("#a-out-yes").disabled = true; viciForget().then(() => location.reload()); });
+
+  // v8.7 (Angus, 2026-11-17): the Account panel is gone. The sync status (app bar on phones, header on desktop) opens the
+  // account sheet, a sync problem banner opens the token form, and Escape closes the sheet.
+  $$(".sync").forEach(s => {
+    s.setAttribute("role", "button"); s.tabIndex = 0; s.setAttribute("aria-label", "Account and sync");
+    const open = () => showConnect(null, true);
+    s.addEventListener("click", open); s.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+  });
+  $("#banner").addEventListener("click", () => { if (sync.problem) showConnect(sync.problem); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !cv.hidden && sync.auth) cv.hidden = true; });
 
   // ---------- Install hint ----------
   let deferredInstall = null;

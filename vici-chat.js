@@ -51,8 +51,7 @@
   };
   const SEARCH_USD = 0.01;
   const POWER = { 2: 3, 3: 5, 4: 10, 5: 20, 6: 37.5 };
-  const BE2 = Math.pow(1 / 3, 1 / 2); // Power 2 per-leg break-even, 57.7%
-  const MIN_LEG = Math.pow(1 / 37.5, 1 / 6); // the lowest per-leg break-even (Power 6), 54.7%
+  const BE2 = Math.pow(1 / 3, 1 / 2); // Power 2 per-leg break-even at the standard 3x, 57.7% (fallback without the model)
   const USAGE_FIELDS = ["replies", "input", "output", "cacheRead", "cacheWrite", "searches", "usd"];
 
   // ---------------------------------------------------------------- system prompt (static: cacheable, no dates or balances)
@@ -106,12 +105,13 @@
     "The app turns prob into Vici %: it recalibrates your probabilities against your graded history in that sport (a sport with few graded picks borrows from the others) and shifts them by how your picks in that sport, stat and side have actually done. suggest_picks returns vici_pct and edge_pts for each pick; trust those over your raw prob.",
     "Read the Learning section every turn and act on it:",
     "- Calibration and the By sport line show how your past probabilities compared with the results (\"too confident\": they ran high; \"too cautious\": low; \"calibrated\": on target). The app already corrects for this in Vici %, so keep prob your honest estimate from today's research and don't subtract the lean yourself; treat a \"too confident\" lean in the pick's sport as a reason to re-check soft legs. Each sport's own lean is on the By sport line; a sport with no lean shown there (too few picks, or not listed) follows the overall Calibration line.",
-    "- Trust segments: lean in when the research also supports the leg. Fade segments: demand extra evidence or skip. Every Learning line is your own record.",
+    "- Trust segments: lean in when the research also supports the leg. Fade segments: demand extra evidence or skip. Every Learning line is your own record, except the Payouts line (what PrizePicks pays him, from his Power entries).",
     "- Factor lines show which signals have actually predicted hits (+) or misled (-). Weight them accordingly.",
     "- Samples under about 10 picks are noise. Don't overreact to them.",
-    "Aim for the highest chance to hit (Angus's rule): rank candidate legs by Vici % and recommend the strongest; a slip is only as good as its weakest leg, so never add a weaker leg to chase a bigger payout.",
-    "Recommend only legs with Vici % of at least 54.7% (the lowest per-leg break-even), in a slip that pays off on average (positive EV). Per-leg break-even with equal legs: Power 2 57.7%, Power 3 58.5%, Power 4 56.2%, Power 5 54.9%, Power 6 54.7%; with unequal legs the slip's EV decides. If nothing pays off, say Pass and why in one line. Passing is a good answer.",
-    "Goblin and demon legs change the slip's payout, so the standard break-evens don't apply to a slip with one; the To Win Angus sees in the app is the truth.",
+    "- Your slips he played: what the slips he logged from you actually made, against the EV the app gave them. Under about 10 settled slips it is noise; only a gap that holds over many slips means your probabilities run high.",
+    "Aim for the most profit over time (Angus's rule: \"help me gain the most profits\"). Profit starts with honest probabilities: rank candidate legs by Vici %, send every leg that clears, and never inflate a prob to make a slip work. The app then picks the slip that grows his Balance fastest, weighing the chance to hit against what PrizePicks pays him, and sizes the stake.",
+    "PrizePicks often pays him less than the standard 3/5/10/20/37.5x. The Learning section's Payouts line gives what he gets per size, from his own entries (a size marked est. has under 3 entries and is scaled from his other sizes), and the per-leg break-even at that payout. Recommend only legs at or above the lowest of those break-evens, in a slip with positive EV. If nothing pays off, say Pass and why in one line. Passing is a good answer.",
+    "Goblin and demon legs change the slip's payout, so those break-evens don't apply to a slip with one; the To Win Angus sees in the app is the truth.",
     "",
     "# suggest_picks: journal every recommended pick",
     "Every concrete pick you recommend (player, stat, line, side) goes through suggest_picks in the same turn, before your final text. That is how Angus sees the cards, adds them to a slip and logs the entry, and how the app grades the pick after the game and learns from it. Never recommend a pick in text that you didn't send to suggest_picks, and don't send picks you are only discussing or rejecting.",
@@ -126,16 +126,16 @@
     "Default slips are Power. Never assume Flex unless he asks for it. Every PrizePicks lineup needs players from at least two different teams (Angus's rule): never build a slip from one team. Two props on the same player (points and rebounds) are allowed, but that slip still needs a player from another team. Avoid pairing legs that need opposite game scripts.",
     "",
     "# Slips and stakes",
-    "Build slips with players from at least two teams. suggest_picks returns slips: for each size, the two-team lineup of this answer's picks with the highest chance to hit (hit_pct, the product of the Vici %), what it pays and ev_pct, the expected profit per dollar staked; recommended marks the one with the highest chance to hit that pays off with every leg at 54.7% or better. Use those numbers; don't compute your own. Send all of an answer's picks in one suggest_picks call; if a pick comes back with an error, fix it and send the whole set again (the same picks keep their ids) so the slips include it.",
-    "Lead with the recommended slip in one line: legs, chance to hit, payout and EV, e.g. \"Power 2: Bane points + Wagner PRA, 46% to hit, pays 3x, EV +38%\". Add one bigger option only when every leg in it clears comfortably, with its own chance to hit and payout, so he sees what the extra payout costs. If no slip pays off, say Pass.",
-    "Stakes: unless he sets one, suggest at most about 5% of Balance per entry. No chasing losses, no \"lock\" talk. One short line, never a lecture. Always say Balance, never bankroll.",
+    "Build slips with players from at least two teams. suggest_picks returns slips: for each size, the two-team lineup of this answer's picks with the highest chance to hit (hit_pct, the product of the Vici %), what it usually pays him (pays; standard_pays when PrizePicks' standard differs), ev_pct (expected profit per dollar staked), stake (dollars) and stake_pct (share of his Balance), and growth_pct (expected growth of the Balance per slip at that stake). recommended marks the slip with the most growth among those with positive EV and no leg under the lowest break-even. Use those numbers; don't compute your own, except when he tells you the payout PrizePicks shows for a lineup (X): then EV = hit × X − 1 (say Pass if it isn't positive) and stake = the slip's stake × k(X) / k(pays) in whole dollars, where k(m) = (hit × m − 1) / (m − 1). A slip has no stake when his Balance is unknown (then give stake_pct as a share of his Balance) or when the stake would be under 50 cents (the edge is too thin to stake; such a slip is never recommended). Never make up a dollar stake. Send all of an answer's picks in one suggest_picks call; if a pick comes back with an error, fix it and send the whole set again (the same picks keep their ids) so the slips include it.",
+    "Lead with the recommended slip in one line: legs, chance to hit, payout, EV and stake, e.g. \"Power 3: Bane points + Wagner PRA + Tatum rebounds, 24% to hit, pays ~4.4x, EV +6%, stake $X\" with X the slip's stake. When a slip with a much higher chance to hit is close in growth, add it as one line so he sees the trade-off. If no slip pays off, say Pass.",
+    "Stakes: the slip's stake is a quarter of the Kelly stake on his Balance while your record is short, rising toward half as your graded picks prove your probabilities, and never more than 5% of the Balance. Suggest that stake; if he plays more, say once what it risks. If he tells you the payout PrizePicks shows for a lineup, trust it over pays and redo EV and stake as above. No chasing losses, no \"lock\" talk. One short line, never a lecture. Always say Balance, never bankroll.",
     "",
     "# His record and grading",
     "Use grade_picks when he asks how your picks did, or when pending picks are from games that are over. Use ledger for questions about his entries, results, PnL or open exposure. For \"what have you learned\", call vici_model and give the 2 to 4 findings that change how you pick, with numbers; say plainly when samples are still small. When he asks about one sport, pass that sport.",
     "",
     "# Style",
     "He reads on a phone and wants few words.",
-    "- Lead with the picks. The app shows each suggested pick as a card, strongest first (player, stat, line, MORE/LESS, tier, Vici %, edge, the key numbers and your reasons), so don't repeat them as a list or table. After suggest_picks, write at most a few short lines: the slip you'd play with its chance to hit and payout, the biggest risk or lineup check, and where the lines came from when they weren't his.",
+    "- Lead with the picks. The app shows each suggested pick as a card, strongest first (player, stat, line, MORE/LESS, tier, Vici %, edge, the key numbers and your reasons), so don't repeat them as a list or table. After suggest_picks, write at most a few short lines: the slip you'd play with its chance to hit, payout and stake, the biggest risk or lineup check, and where the lines came from when they weren't his.",
     "- No preamble, no restating the question, no sign-off.",
     "- Short markdown only: bold for names, brief bullets. Tables only when he asks for a comparison.",
     "- Numbers over adjectives. Name sources briefly (\"ESPN logs\", \"Rotowire\", \"StatMuse\").",
@@ -208,10 +208,10 @@
       "Angus's own Vici ledger. summary: Balance, record, PnL, ROI and open exposure. open: open entries with their picks. recent: the last 15 settled entries with results.",
       { view: { type: "string", enum: ["summary", "open", "recent"] } }, ["view"]),
     tool("vici_model",
-      "The app's learning model, built only from your graded picks: what you predicted (Vici %) vs the actual results, hit rates by segment with shrinkage and 80% intervals, trust and fade segments, calibration of your probabilities (buckets, Brier score, verdict) and factor lifts. Without sport: everything, with a by_sport summary. With sport: that sport's own record, calibration, trust, fade and segments.",
+      "The app's learning model, built from your graded picks (plus payouts: what PrizePicks pays him per Power size, from his entries; your_slips: what the slips he logged from you made): what you predicted (Vici %) vs the actual results, hit rates by segment with shrinkage and 80% intervals, trust and fade segments, calibration of your probabilities (buckets, Brier score, verdict) and factor lifts. Without sport: everything, with a by_sport summary. With sport: that sport's own record, calibration, trust, fade and segments.",
       { sport: { type: "string", enum: ["NBA", "NFL", "CFB", "Soccer"], description: "Only this sport's model" } }, []),
     tool("suggest_picks",
-      "Journal the picks you recommend and show them to Angus as cards he can add to a slip and log. Call it once per answer with every recommended pick (at most " + MAX_PICKS + "). Returns, for each pick, its journal id, vici_pct (your prob after the app's learned calibration and segment adjustment) and edge_pts against the Power 2 break-even (57.7%); edge_pts is null for goblin and demon legs (their payout differs). When every pick in the call is from one team, the first result carries lineup_note: those picks can't make a lineup on their own. With two or more standard-line picks in this answer, the first pick that saved also carries slips: for each Power size, the two-team lineup of this answer's picks with the highest chance to hit: legs, hit_pct, pays, ev_pct (expected profit per dollar staked), every_leg_clears (each leg at or above that size's per-leg break-even), and recommended on the one to lead with.",
+      "Journal the picks you recommend and show them to Angus as cards he can add to a slip and log. Call it once per answer with every recommended pick (at most " + MAX_PICKS + "). Returns, for each pick, its journal id, vici_pct (your prob after the app's learned calibration and segment adjustment) and edge_pts against the Power 2 break-even at the payout he usually gets (the Learning section's Payouts line); edge_pts is null for goblin and demon legs (their payout differs). When every pick in the call is from one team, the first result carries lineup_note: those picks can't make a lineup on their own. With two or more standard-line picks in this answer, the first pick that saved also carries slips: for each Power size, the two-team lineup of this answer's picks with the highest chance to hit: legs, hit_pct, pays (what that size usually pays him), standard_pays (when that differs), ev_pct (expected profit per dollar staked), every_leg_clears (each leg at or above that size's per-leg break-even), stake_pct and stake (the suggested stake as a share of the Balance and in dollars; stake is left out when the Balance is unknown or the stake is under 50 cents), growth_pct (expected growth of the Balance per slip at that stake), and recommended on the one to lead with: the most growth among the slips that pay off.",
       { picks: { type: "array", items: PICK, maxItems: MAX_PICKS } }, ["picks"]),
     tool("grade_picks",
       "Grade your pending picks whose games are over, from ESPN box scores. Returns what was graded and the updated record.",
@@ -378,7 +378,8 @@
     const VM = root.ViciModel;
     if (!VM) return null;
     if (!S.model) {
-      try { S.model = VM.build({ journal: journalAll(), now: Date.now() }); }
+      // the ledger only for what PrizePicks pays him and what Vici's logged slips made; the learning is the journal's
+      try { S.model = VM.build({ journal: journalAll(), ledger: entries(), now: Date.now() }); }
       catch (e) { S.model = null; }
     }
     return S.model;
@@ -560,14 +561,56 @@
     return !!names[0] && new Set(names).size === 1;
   }
 
-  /** The best Power slip of each size (2 to 6 legs) from one answer's picks (Angus, 2026-11-18: "use the highest % possible of
-   *  it hitting ... and look at the payout"): the two-team lineup with the highest chance to hit (the product of the Vici
-   *  %), what it pays and its expected profit per $1. Goblin and demon legs change the payout, so they're left out, and so
-   *  is a second leg on the same player and stat. every_leg_clears: each leg is at or above that size's per-leg break-even.
-   *  recommended: the highest chance to hit among the slips that pay off on average (positive expected profit) with no leg
-   *  under MIN_LEG, the lowest per-leg break-even (Power 6, 54.7%). The per-size break-evens aren't monotonic (Power 3 needs
-   *  more per leg than Power 4), so requiring every_leg_clears could push the pick to a long shot. */
-  function bestSlips(legs) {
+  // ---- payouts and stakes (Angus, 2026-11-18: "Train the algorithm to help me gain the most profits")
+  /** What an n-pick Power slip usually pays him (ViciModel.payout: learned from his entries; the standard without it). */
+  function payFor(n, model) {
+    const VM = root.ViciModel;
+    let mult = null;
+    if (VM && typeof VM.payout === "function") { try { mult = VM.payout(model === undefined ? getModel() : model, n); } catch (e) { mult = null; } }
+    if (!isNum(mult) || mult <= 1) mult = POWER[n] || null;
+    return mult ? { mult, standard: POWER[n], be: Math.pow(1 / mult, 1 / n) } : null;
+  }
+  /** ViciModel.slipPlan for an n-pick slip with chance `hit` (pays, break-even, EV, stake share, growth); without the
+   *  model: the standard payout, no stake. */
+  function planFor(n, hit, model) {
+    const VM = root.ViciModel, m = model === undefined ? getModel() : model;
+    if (!isNum(hit)) return null;
+    if (VM && typeof VM.slipPlan === "function") { try { const p = VM.slipPlan(m, n, hit); if (p) return p; } catch (e) { /* standard below */ } }
+    const pf = payFor(n, m);
+    return pf ? Object.assign({ n, hit, ev: hit * pf.mult - 1, kelly: 0, stake: 0, growth: 0 }, pf) : null;
+  }
+  /** The lowest per-leg break-even over the Power sizes (his Power 6's, about 55%). A slip whose legs are all below it can't pay
+   *  off at any size, though one strong leg can carry a weaker one; bestSlips uses it as a guard against leaning on one thin
+   *  leg, not as an EV rule. */
+  function minLegBE(model) {
+    let lo = 1;
+    for (let n = 2; n <= 6; n++) { const pf = payFor(n, model); if (pf && pf.be < lo) lo = pf.be; }
+    return lo;
+  }
+  const fmtX = x => (Math.round(x * 100) / 100) + "x";
+  function balanceNow() {
+    try { const V = root.Vici, b = V && typeof V.balance === "function" ? Number(V.balance()) : NaN; return isFinite(b) ? b : null; } catch (e) { return null; }
+  }
+  /** Whole dollars for a stake share of the Balance, never over 5% of it (ViciModel's cap); null when it rounds below 50
+   *  cents or the cap is under $1 (too small to play). */
+  function stakeUsd(share, bal) {
+    if (!(share > 0) || !isNum(bal) || !(bal > 0)) return null;
+    const x = bal * share, cap = Math.floor(bal * 0.05 + 1e-9);
+    return x < 0.5 || cap < 1 ? null : Math.min(cap, Math.max(1, Math.round(x)));
+  }
+
+  /** The best Power slip of each size (2 to 6 legs) from one answer's picks: the two-team lineup with the highest chance to
+   *  hit (the product of the Vici %; for a fixed size and payout that is also the most profitable lineup), what it usually
+   *  pays him, its expected profit per $1, the stake (fractional Kelly on his Balance) and the expected growth of the
+   *  Balance at that stake. Goblin and demon legs change the payout, so they're left out, and so is a second leg on the
+   *  same player and stat. every_leg_clears: each leg is at or above that size's per-leg break-even.
+   *  recommended (Angus, 2026-11-18: "help me gain the most profits"): the slip that grows the Balance fastest, among those
+   *  that pay off on average with no leg under the lowest per-leg break-even. Growth weighs the chance to hit against the
+   *  payout: a long shot leads only when its payout more than makes up for it. opts: {model, balance} for tests. */
+  function bestSlips(legs, opts) {
+    const o = opts || {};
+    const model = o.model !== undefined ? o.model : getModel();
+    const bal = o.balance !== undefined ? o.balance : balanceNow();
     const ok = (legs || []).filter(l => l && l.id && isNum(l.vici) && l.vici > 0 && l.vici < 1 && !isAltLine(l.lineType))
       .sort((a, b) => b.vici - a.vici).slice(0, MAX_PICKS);
     const out = [];
@@ -586,16 +629,27 @@
       };
       walk(0);
       if (!best) continue;
-      const mult = POWER[n], be = Math.pow(1 / mult, 1 / n);
-      out.push({
+      const plan = planFor(n, best.hit, model);
+      if (!plan) continue;
+      const slip = {
         size: n, ids: best.legs.map(l => l.id), legs: best.legs.map(l => l.player + " " + l.stat + " " + (l.side === "under" ? "LESS" : "MORE") + " " + l.line),
-        hit_pct: round(best.hit * 100, 1), pays: mult + "x", ev_pct: round((best.hit * mult - 1) * 100, 1),
-        every_leg_clears: best.legs.every(l => l.vici >= be), min_leg: Math.min.apply(null, best.legs.map(l => l.vici))
-      });
+        hit_pct: round(best.hit * 100, 1), pays: fmtX(plan.mult)
+      };
+      if (plan.mult !== plan.standard) slip.standard_pays = fmtX(plan.standard);
+      slip.ev_pct = round(plan.ev * 100, 1);
+      slip.every_leg_clears = best.legs.every(l => l.vici >= plan.be);
+      slip.stake_pct = round(plan.stake * 100, 2);
+      const usd = stakeUsd(plan.stake, bal);
+      if (usd != null) slip.stake = usd;
+      slip.growth_pct = round(plan.growth * 100, 3);
+      Object.defineProperty(slip, "_rank", { value: { ev: plan.ev, growth: plan.growth, min: Math.min.apply(null, best.legs.map(l => l.vici)) } });
+      out.push(slip);
     }
-    const good = out.filter(x => x.ev_pct > 0 && x.min_leg >= MIN_LEG).sort((a, b) => b.hit_pct - a.hit_pct);
+    const floor = minLegBE(model);
+    // with a known Balance, only a slip with a playable stake can lead (an edge under 50 cents is too thin to stake)
+    const good = out.filter(x => x._rank.ev > 0 && x._rank.min >= floor && (!isNum(bal) || x.stake != null))
+      .sort((a, b) => b._rank.growth - a._rank.growth || b.hit_pct - a.hit_pct);
     if (good.length) good[0].recommended = true;
-    out.forEach(x => { delete x.min_leg; });
     return out;
   }
 
@@ -715,11 +769,11 @@
           result: "pending", actual: null, gradedAt: null, gradedBy: null
         };
         save.push(jp); at.push(k);
-        // a goblin or demon leg changes the slip's multiplier: an edge against the standard Power 2 break-even would lie
+        // a goblin or demon leg changes the slip's multiplier: an edge against the Power 2 break-even would lie
         const alt = isAltLine(jp.lineType);
         out[k] = {
           id: jp.id, player: jp.player, stat: jp.stat, line: jp.line, side: jp.side,
-          vici_pct: round(adj.p * 100, 1), edge_pts: alt ? null : round((adj.p - BE2) * 100, 1), note: adj.note || ""
+          vici_pct: round(adj.p * 100, 1), edge_pts: alt ? null : round((adj.p - (payFor(2, model) || { be: BE2 }).be) * 100, 1), note: adj.note || ""
         };
         if (alt) out[k].edge_note = "goblin/demon: payout differs, standard break-even doesn't apply";
       });
@@ -745,7 +799,8 @@
       }
       for (let k = 0; k < out.length; k++) if (!out[k]) out[k] = { error: "missing pick" };
       // the answer's picks so far (an earlier call this turn, or a fixed pick sent again) and this call's
-      const legs = save.map((jp, j) => Object.assign({}, jp, { id: out[at[j]].id }));
+      // at the Vici % the card shows (vici_pct), so the slips' odds, EV and stake match the tray and Log
+      const legs = save.map((jp, j) => Object.assign({}, jp, { id: out[at[j]].id, vici: out[at[j]].vici_pct / 100 }));
       if (!(S.turnLegs instanceof Map)) S.turnLegs = new Map();
       legs.forEach(l => { if (l.id) S.turnLegs.set(l.id, l); });
       const slips = bestSlips(Array.from(S.turnLegs.values()));
@@ -1563,7 +1618,7 @@
     const id = r.id;
     const vp = isNum(r.vici_pct) ? r.vici_pct / 100 : null;
     const alt = isAltLine(p.lineType);   // goblin / demon: no edge against the standard break-even (older results had one)
-    const edge = alt ? null : isNum(r.edge_pts) ? r.edge_pts : vp != null ? (vp - BE2) * 100 : null;
+    const edge = alt ? null : isNum(r.edge_pts) ? r.edge_pts : vp != null ? (vp - (payFor(2) || { be: BE2 }).be) * 100 : null;
     const side = sideOf(p.side);
     const jp = journalById(id);
     // the slip checks the two-team rule with these
@@ -1825,12 +1880,16 @@
       title = "Power " + n;
       sub = "payout varies";
     } else {
-      const mult = POWER[n], be = Math.pow(1 / mult, 1 / n);
-      title = "Power " + n + " · " + mult + "x";
-      sub = "needs " + (be * 100).toFixed(1) + "%";
-      // expected return of the payout at these chances (what $1 on this slip is worth on average), first so a narrow phone
-      // cuts the break-even rather than the EV
-      if (comb != null) { const ev = Math.round((comb * mult - 1) * 100); sub = "EV " + (ev > 0 ? "+" : ev < 0 ? "−" : "") + Math.abs(ev) + "% · " + sub; }
+      // what PrizePicks usually pays him for this size ("~" when that's his own average, not the standard)
+      const pf = payFor(n), plan = comb != null ? planFor(n, comb) : null;
+      title = "Power " + n + " · " + (pf.mult !== pf.standard ? "~" + (Math.round(pf.mult * 10) / 10) : pf.mult) + "x";
+      sub = "needs " + (pf.be * 100).toFixed(1) + "%";
+      // the expected return at these chances (what $1 on this slip is worth on average) comes first, so a narrow phone cuts
+      // the rest; a slip that pays off shows its stake (fractional Kelly on the Balance), one that doesn't its break-even
+      if (plan) {
+        const ev = Math.round(plan.ev * 100), usd = plan.ev > 0 ? stakeUsd(plan.stake, balanceNow()) : null;
+        sub = "EV " + (ev > 0 ? "+" : ev < 0 ? "−" : "") + Math.abs(ev) + "% · " + (usd != null ? "stake $" + usd : sub);
+      }
     }
     const names = picks.map(p => String(p.player).split(" ").pop()).join(" · ");
     box.append(
@@ -1844,11 +1903,21 @@
     const picks = slipPicks();
     if (picks.length < 2 || picks.length > 6 || oneTeam(picks)) return;
     const comb = picks.every(p => isNum(p.p)) ? picks.reduce((a, p) => a * p.p, 1) : null;
+    // a standard-line slip carries its EV (the model compares it with what the logged slips made) and, when it pays off,
+    // the suggested stake; goblin / demon legs change the payout, so those get neither
+    const alt = picks.some(p => isAltLine(p.lineType));
+    const plan = comb != null && !alt ? planFor(picks.length, comb) : null;
+    const ev = plan ? Math.round(plan.ev * 100) : null;
+    const usd = plan && plan.ev > 0 ? stakeUsd(plan.stake, balanceNow()) : null;
     const draft = {
       date: ymdPT(new Date()), type: "power",
       picks: picks.map(p => ({ sport: p.sport, player: p.player, stat: p.stat, line: p.line, side: p.side })),
-      notes: "Vici: " + picks.length + " picks" + (comb != null ? " · " + Math.round(comb * 100) + "% combined" : "")
+      notes: "Vici: " + picks.length + " picks" + (comb != null ? " · " + Math.round(comb * 100) + "% combined" : "") +
+        (ev != null ? " · EV " + (ev > 0 ? "+" : ev < 0 ? "−" : "") + Math.abs(ev) + "%" : "") +
+        // the model doesn't learn PrizePicks' usual payout from these (their payout differs by design)
+        (alt ? " · goblin/demon" : "")
     };
+    if (usd != null) draft.stake = usd;
     const before = new Set(entries().map(entryKey));
     try {
       if (!root.Vici || typeof root.Vici.openDraft !== "function") throw new Error("no host");
@@ -2464,6 +2533,7 @@
     checkLogged();
     refreshHeader();
     refreshCards();
+    refreshSlip();   // its payout, EV and stake follow the ledger (payouts, Balance) and the journal
   }
   async function maybeGrade(force) {
     const D = root.ViciData;

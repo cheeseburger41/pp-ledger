@@ -236,7 +236,7 @@ label.check input { width: 16px; height: 16px; margin: 0; accent-color: var(--ac
 .calc { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 13px; color: var(--ink-2); background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px; }
 .calc b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; }
 .note { font-size: 12px; color: var(--ink-3); }
-.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 50; }
+.toast { position: fixed; top: auto; right: auto; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); margin: 0; border: 0; overflow: visible; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 50; }  /* top/right/margin/border/overflow undo the popover UA styles */
 .banner { background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 10px 14px; font-size: 13px; }
 @media (prefers-reduced-motion: no-preference) { .panel, .board { animation: rise .45s cubic-bezier(.2,.7,.2,1) both; } @keyframes rise { from { transform: translateY(6px); opacity: .6; } to { transform: none; opacity: 1; } } }
 /* Phone: tables become stacked cards */
@@ -486,25 +486,34 @@ tr.det[hidden] { display: none !important; }
 
    THE SYSTEM
    Rules      three tokens. --ed-rule (ink 18% on black, ~#303031): section rules, control outlines, the weekday rule, th, dialog header/footer.
-              --ed-rule-2 (ink 14%, ~#262627): row and grid rules. --ed-rule-in (ink 36%, ~#5a5a5b, 2.9:1): input underlines only, the one
-              place a rule is the whole affordance. The platinum gradient is drawn as a rule once, under the Balance hero. Hover is one wash, white 3.5%.
+              --ed-rule-2 (ink 14%, ~#262627): row and grid rules. --ed-rule-in (ink 40%, ~#646465, 3.4:1): input underlines (the one place a rule
+              is the whole affordance, so it clears the 3:1 non-text floor) and the sport chart's label ticks. The platinum gradient is drawn as a rule
+              once, under the Balance hero. Hover is one wash, white 3.5%.
    Panels     transparent, no border/radius/shadow, one --ed-rule top rule, padding 20px 0 4px; page gap 30px (phone) / 32px, grid 32px 44px.
    Labels     two voices. Section h2: Jost 400 11.5px, .3em, caps, ink-2. Micro labels (.kpi .k, .sc .k, th, label.f, .cal-wd, .pickrow.hdr,
               .filters .lbl, the phone STAKE/PAYOUT/PNL): Inter 500 10.5px, .22em, caps, ink-3. Titles (month, day, dialog): Jost 500 15px .24em ink.
    Numbers    Jost 300, tabular, -.01em (the page loads Jost 300/400/500 only, so A's "200" always rendered as 300): hero 54px on phones
-              (full width, the platinum rule 22px beneath) / 46px on desktop (hero column only, 24px beneath); board cells 34px / 32px;
-              Open risk 32px; player-card counts 30px; the phone board ends on a full-width "In play" line at 24px. Row figures JetBrains Mono.
-   Rows       records 11px 0 on air; the day list on --ed-rule-2 rules under each row, open slips on a rule between entries (phone rows 16px 0, desktop td 14px 12px); th is the
-              list's first rule and sticks on var(--bg); picks in a row are a coloured dot + a neutral name.
+              (full width, the platinum rule 22px beneath) / 46px on desktop (hero column only, 24px beneath); board cells 34px / 32px, in columns
+              that never shrink below their figure (minmax(min-content, 1fr): a four-figure PnL widens its column instead of crossing a rule);
+              Open risk 32px; player-card counts 30px; the phone board ends on a full-width "In play" line at 24px, its sub following the figure.
+              Row figures JetBrains Mono.
+   Rows       records 11px 0 on air; the day list on --ed-rule-2 rules under each row, open slips on a rule between entries (phone rows 16px 0, desktop td 14px 12px).
+              The day list still scrolls inside its panel (Angus, 2026-11-17: "make it so I can scroll for the daily picks since it gets too long"):
+              its scrollbar is a visible --ed-rule-in hairline and a 22px fade at the foot of the window says there is more. On phones the window is
+              the screen below the day head and tapping a day brings that head to the top (fitLog.reveal in the page). On desktop the th is the list's
+              first rule and sticks on var(--bg), its rule painted as an inset shadow so it rides with the cell (a collapsed table border would stay behind).
+              Picks in a row are a coloured dot + a neutral name; the names wrap instead of ending in "…", and a line breaks after a comma, never between a dot and its name.
    Calendar   gap 0, cells transparent, 48px tall on phones / 60px min on desktop; day numbers Jost 400 13/14px centred (past ink-2, days
               with a result ink, future ink-3 at full opacity, today platinum 500); values mono 11/12.5px centred beneath; one unbroken
               --ed-rule under the weekday row; the selected day a centred 24x2px platinum underline.
-   Controls   inputs transparent with a 1px --ed-rule-in underline (platinum on focus), 15px (16px on phones); buttons hairline pills
-              (1px --ed-rule, 999px, 8px 16px, 13px 500), the primary platinum, the ghost borderless ink-2 and flush left inside the sheet;
+   Controls   inputs transparent with a 1px --ed-rule-in underline (platinum on focus), 15px (16px on phones, where the Notes resize grip is dropped);
+              buttons hairline pills (1px --ed-rule, 999px, 8px 16px, 13px 500), the primary platinum, the ghost borderless ink-2, except in the
+              account sheet, where every text action is a hairline pill like the form's Cancel (only the icon button stays a bare glyph);
               filter chips hairline pills (ink-2, 6px 14px / 8px 16px on phones, the phone row fading at its edges), the pressed chip
               platinum; the Entry type seg is text tabs with a platinum underline; statuses are outlined pills (ring at 50% of their colour).
-   Ask bar    black glass (bg 88%) with a --ed-rule edge and a 15px prompt; its platinum go button untouched. */
-:root { --ed-rule: color-mix(in srgb, var(--ink) 18%, var(--bg)); --ed-rule-2: color-mix(in srgb, var(--ink) 14%, var(--bg)); --ed-rule-in: color-mix(in srgb, var(--ink) 36%, var(--bg)); --ed-wash: rgba(255,255,255,.035); --ed-track: .22em; }
+   Ask bar    black glass (bg 88%) with a --ed-rule edge, a 15px prompt and a short shadow (0 10px 28px at .5) that stays off the text scrolling
+              through the dock gap; its platinum go button untouched. */
+:root { --ed-rule: color-mix(in srgb, var(--ink) 18%, var(--bg)); --ed-rule-2: color-mix(in srgb, var(--ink) 14%, var(--bg)); --ed-rule-in: color-mix(in srgb, var(--ink) 40%, var(--bg)); --ed-wash: rgba(255,255,255,.035); --ed-track: .22em; }
 
 /* ---------- Air ---------- */
 .wrap { gap: 32px; }
@@ -539,7 +548,7 @@ tr.det[hidden] { display: none !important; }
 .kpi.hero { background: transparent; box-shadow: none; position: relative; padding-bottom: 24px; }
 .kpi.hero::before { display: none; }
 .kpi.hero::after { content: ""; position: absolute; left: 0; right: 16px; bottom: 0; height: 1px; background: var(--accent-grad); opacity: .85; }
-@media (min-width: 901px) { .board { grid-template-columns: 1.5fr repeat(5, minmax(0, 1fr)); } }
+@media (min-width: 901px) { .board { grid-template-columns: minmax(min-content, 1.5fr) repeat(5, minmax(min-content, 1fr)); } } /* a column is never narrower than its nowrap figure ("−$1,234.56" is 162px at 32px; a plain 1fr cell has 137px), while subs and labels still wrap */
 @media (max-width: 900px) and (min-width: 701px) {
   .kpi { padding-bottom: 24px; }
   .kpi:nth-child(4) { border-left: 0; padding-left: 0; }
@@ -571,7 +580,7 @@ tr.det[hidden] { display: none !important; }
 .in:focus { border-bottom-color: var(--accent); box-shadow: 0 1px 0 var(--accent); outline: none; }
 .in::placeholder { color: var(--ink-3); opacity: 1; }
 select.in { appearance: none; -webkit-appearance: none; padding-right: 18px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2385888f' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 2px center / 10px 6px; }
-textarea.in { line-height: 1.45; resize: vertical; min-height: 58px; }
+textarea.in { line-height: 1.45; resize: vertical; min-height: 58px; } /* the grip stays on desktop (it is the only way to grow Notes there); phones drop it below */
 label.f { gap: 8px; }
 .fields { gap: 18px 22px; }
 label.check { font-size: 13px; color: var(--ink-2); gap: 10px; }
@@ -629,7 +638,8 @@ label.check { font-size: 13px; color: var(--ink-2); gap: 10px; }
 .pill, .pill.won, .pill.lost, .pill.open, .pill.even, .pill.bonus { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 50%, transparent); border-radius: 999px; padding: 3px 10px; font-family: var(--f-body); font-size: 10.5px; font-weight: 500; letter-spacing: .14em; }
 .pill.won { color: var(--good); } .pill.lost { color: var(--bad); } .pill.open { color: var(--accent); } .pill.even { color: var(--warn); } .pill.bonus { color: var(--ink-2); }
 .tag { display: inline-block; margin-top: 3px; }
-.psum { font-size: 13px; color: var(--ink-2); }
+.psum { font-size: 13px; color: var(--ink-2); white-space: normal; overflow: visible; text-overflow: clip; } /* every pick is named: a 6-pick slip wraps to a second line instead of ending in "…" (the picks are the entry) */
+.psum span { white-space: nowrap; } /* the dot is the span's ::before, so a line breaks after a comma, never between a dot and its name */
 .psum .hit, .psum .miss, .psum .push, .psum .pending { color: var(--ink-2); }
 .psum span::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); margin-right: 5px; vertical-align: 1px; }
 .psum .hit::before { background: var(--good); } .psum .miss::before { background: var(--bad); } .psum .push::before { background: var(--warn); }
@@ -640,6 +650,7 @@ label.check { font-size: 13px; color: var(--ink-2); gap: 10px; }
 .chart .val { font-size: 13px; font-weight: 500; letter-spacing: 0; fill: var(--ink); }
 .chart .catlbl { font-size: 13px; font-weight: 500; letter-spacing: 0; }
 #c-format rect, #c-sport rect { rx: 0; ry: 0; }
+#c-sport rect[height="2.5"] { fill: var(--ed-rule-in); } /* the tick under each sport label: the per-sport palette (--s1..--s4) keys to nothing else on these screens and read as link underlines, so it is a neutral hairline, kept rather than hidden */
 #c-curve text.val { paint-order: stroke fill; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; } /* the end value keeps a black halo, so it stays legible whatever crosses it */
 .tip { background: var(--bg); border-color: var(--ed-rule); border-radius: 2px; box-shadow: 0 16px 40px rgba(0,0,0,.6); font-size: 13px; }
 .tip .t { margin-bottom: 6px; }
@@ -671,8 +682,12 @@ label.check { font-size: 13px; color: var(--ink-2); gap: 10px; }
 .dayhead { padding: 0 0 12px; }
 .dayhead span { font-size: 15px; }
 .tbl-wrap { margin: 6px 0 0; }
+/* The day's entries scroll inside their window (base: min(64vh, 640px) on desktop; on phones the screen below the day head, set by fitLog()). With the
+   panel surface gone the window needs its own cues: a scrollbar in --ed-rule-in instead of the invisible --line-2, and a fade at the foot that ends over the last row. */
+#p-log .tbl-wrap { scrollbar-color: var(--ed-rule-in) transparent; }
+#p-log .tbl-wrap::after { content: ""; display: block; position: sticky; bottom: 0; height: 22px; margin-top: -22px; background: linear-gradient(to bottom, transparent, var(--bg)); pointer-events: none; }
 th { padding: 0 12px 10px; border-bottom: 1px solid var(--ed-rule); }
-#p-log thead th { background: var(--bg); }
+#p-log thead th { background: var(--bg); border-bottom-color: transparent; box-shadow: inset 0 -1px 0 var(--ed-rule); } /* the sticky th's rule is an inset shadow: with border-collapse the border belongs to the table grid and would stay behind when the header sticks */
 td { padding: 14px 12px; border-bottom: 1px solid var(--ed-rule-2); }
 tr.row:hover td { background: var(--ed-wash); }
 th:first-child, td:first-child { padding-left: 0; } th:last-child, td:last-child { padding-right: 0; }
@@ -699,7 +714,7 @@ dialog::backdrop { background: rgba(0,0,0,.78); }
   .pickrow .player { width: calc(100% - 30px); }
 }
 
-/* ---------- Account / connect sheet: a page, not a card; its ghost buttons flush with the copy ----------
+/* ---------- Account / connect sheet: a page, not a card; its text actions hairline pills, like the form's Cancel one tap away ----------
    The app build appends its own .cbox / .install / .askdock rules after this file, so these carry one extra class. */
 .connect .cbox { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 0; gap: 20px; }
 .connect .cbox h2 { font-size: 32px; }
@@ -710,10 +725,11 @@ dialog::backdrop { background: rgba(0,0,0,.78); }
 .connect .acct-meta b { font-size: 13px; }
 .connect .cacct .row-btns { gap: 8px 18px; }
 .connect .cbox .row { border-top: 1px solid var(--ed-rule); padding-top: 18px; }
-.connect .cbox .btn.ghost:not(.icon) { padding-left: 0; padding-right: 0; }
+.connect .cbox .btn.ghost:not(.icon) { padding-left: 16px; padding-right: 16px; border-color: var(--ed-rule); color: var(--ink); } /* Change token, Close, Keep: a bare ink-2 word flush with the copy had nothing marking it as tappable */
+.connect .cbox .btn.ghost.danger { color: var(--bad); } /* Disconnect this device keeps its colour inside the pill */
 
 /* ---------- Ask bar (light touch), toasts, banners ---------- */
-button.askdock { background: color-mix(in srgb, var(--bg) 88%, transparent); border-color: var(--ed-rule); box-shadow: 0 18px 44px rgba(0,0,0,.6); }
+button.askdock { background: color-mix(in srgb, var(--bg) 88%, transparent); border-color: var(--ed-rule); box-shadow: 0 10px 28px rgba(0,0,0,.5); } /* shorter than the first pass's 0 18px 44px .6, which darkened the dock gap that text scrolls through below 4.5:1 */
 button.askdock:hover { border-color: var(--ink-3); }
 button.askdock .ad-t { font-size: 15px; }
 .toast { border-radius: 999px; padding: 10px 18px; font-size: 13px; font-weight: 500; }
@@ -722,8 +738,9 @@ button.askdock .ad-t { font-size: 15px; }
 
 /* ---------- Phone ---------- */
 @media (max-width: 800px) {
-  #p-log .tbl-wrap { margin: 0; border-top: 1px solid var(--ed-rule); }
+  #p-log .tbl-wrap { margin: 0; border-top: 1px solid var(--ed-rule); } /* its height is fitLog()'s: the screen below the day head, clear of the Ask bar */
   #p-log tr.row { padding: 16px 0; gap: 10px 14px; border-bottom: 1px solid var(--ed-rule-2); }
+  #p-log tr.row .psum { line-height: 1.6; }
   #p-log tr.row:hover { background: transparent; }
   #p-log tr.row.open { border-bottom: 0; }
   #p-log tr.row td[data-l]::before { margin-bottom: 5px; }
@@ -746,12 +763,13 @@ button.askdock .ad-t { font-size: 15px; }
   .cal-d { font-size: 13px; }
   .cal-v, .cal-v.l5, .cal-v.long { font-size: 11px; }
   .in, .search, .seg button { font-size: 16px; }
+  textarea.in { resize: none; } /* a touch screen cannot use the resize grip, which otherwise sits as a stray glyph at the end of the Notes hairline */
   #dlg { background: var(--bg); }
   .dlg header { padding: 16px 20px; }
   .dlg .body { padding: 20px 20px 28px; }
   .dlg footer { padding: 12px 20px; }
   /* The board: a full-width hero over its platinum rule, a 2x2 of figures, then In play as the closing line */
-  .board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 20px; padding-top: 22px; }
+  .board { grid-template-columns: repeat(2, minmax(min-content, 1fr)); gap: 30px 20px; padding-top: 22px; } /* as on desktop: a 34px "−$1,234.56" (172px) takes its width from the 169px cell's neighbour, not from the gutter */
   .kpi, .kpi:nth-child(odd), .kpi:nth-child(-n+2), .kpi:nth-child(n+4) { border: 0 !important; padding: 0; }
   .kpi .v { font-size: 34px; }
   .kpi.hero { grid-column: 1 / -1; padding-bottom: 22px; }
@@ -759,7 +777,7 @@ button.askdock .ad-t { font-size: 15px; }
   .kpi.hero::after { right: 0; }
   .kpi:last-child { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; border-top: 1px solid var(--ed-rule-2) !important; padding-top: 18px; margin-top: -6px; }
   .kpi:last-child .v { font-size: 24px; margin: 0; }
-  .kpi:last-child .sub { margin: 0 0 0 auto; }
+  .kpi:last-child .sub { margin: 0; } /* the sub follows its figure ("IN PLAY  $0.00  —"), as on every other cell of the board */
 }
 
 /* ---------- Standalone app ---------- */
@@ -1542,7 +1560,7 @@ html.vl-motion .kpi { position: relative; }
     const body = $("#log-body"), head = $("#day-head");
     const rows = cal.day ? sorted(list).filter(e => e.date === cal.day) : [];
     if (!rows.length) { head.replaceChildren(); body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "muted", style: "padding:22px 18px;text-align:center", text: state.loaded ? (state.entries.length ? "No entries this month." : "No entries yet. Log your first slip with + Log entry.") : "Loading…" }))); fitLog(); return; }
-    const wrap = body.closest(".tbl-wrap"); if (wrap && fitLog.day !== cal.day) { fitLog.day = cal.day; wrap.scrollTop = 0; }
+    const wrap = body.closest(".tbl-wrap"); if (wrap && fitLog.day !== cal.day) { const first = fitLog.day === undefined; fitLog.day = cal.day; wrap.scrollTop = 0; if (!first) fitLog.reveal(); }
     const set = rows.filter(e => pnl(e) != null), net = set.reduce((a, e) => a + pnl(e), 0), nOpen = rows.length - set.length;
     head.replaceChildren(el("b", { text: fmtDate(cal.day) }), el("span", { class: "num" + (set.length ? (net > 0 ? " pos" : net < 0 ? " neg" : "") : ""), text: [set.length ? money(net, true) : null, set.length ? `${set.length} settled` : null, nOpen ? `${nOpen} open` : null].filter(Boolean).join(" · ") }));
     body.replaceChildren(...rows.flatMap(e => { const o = outcome(e), p = pnl(e), on0 = ui.logOpen.has(e.id);
@@ -1564,15 +1582,25 @@ html.vl-motion .kpi { position: relative; }
     }));
     fitLog();
   }
-  // v8.7 (Angus, 2026-11-17): the day's entries scroll inside the panel. On phones the list ends at the tab bar, so the History tab never scrolls as a page.
+  // v8.7 (Angus, 2026-11-17: "make it so I can scroll for the daily picks since it gets too long"): the day's entries scroll inside the panel.
+  // v8.13: on phones the window is the screen below the day head (the app bar and the Ask bar's space kept clear), and tapping a day
+  // brings its head to the top of the screen (fitLog.reveal), so the list is never a peephole under the Ask bar. Desktop keeps its 64vh window.
+  const phone = () => matchMedia("(max-width: 800px)").matches;
   function fitLog() {
     const w = $("#p-log .tbl-wrap"); if (!w) return;
-    if (!matchMedia("(max-width: 800px)").matches || !w.offsetParent) { w.style.maxHeight = ""; return; }
+    if (!phone() || !w.offsetParent) { w.style.maxHeight = ""; return; }
     const bar = $(".tabbar"), barH = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().height : 0;
     const pad = parseFloat(getComputedStyle($(".wrap")).paddingBottom) || 0;
-    const top = w.getBoundingClientRect().top + window.scrollY;
-    w.style.maxHeight = Math.max(240, Math.floor(window.innerHeight - top - Math.max(pad, barH + 8))) + "px";
+    const head = $("#day-head"), headH = head ? head.getBoundingClientRect().height + 8 : 0;
+    w.style.maxHeight = Math.max(240, Math.floor(window.innerHeight - fitLog.barH() - headH - Math.max(pad, barH + 8))) + "px";
   }
+  fitLog.barH = () => { const ab = $(".appbar"); if (!ab) return 0; const cs = getComputedStyle(ab); return cs.display !== "none" && (cs.position === "sticky" || cs.position === "fixed") ? ab.getBoundingClientRect().height : 0; };
+  fitLog.reveal = () => {
+    const head = $("#day-head"); if (!head || !phone() || !head.offsetParent) return;
+    fitLog();
+    const y = Math.round(head.getBoundingClientRect().top + window.scrollY - fitLog.barH() - 6);
+    if (y > window.scrollY + 4) window.scrollTo({ top: y, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
   window.addEventListener("resize", fitLog);
   if (window.ResizeObserver) new ResizeObserver(() => fitLog()).observe($("#c-daily"));
 
@@ -1735,7 +1763,8 @@ html.vl-motion .kpi { position: relative; }
   }
   $$(".tabbar [data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
 
-  let toastT; function toast(msg) { let t = $(".toast"); if (!t) { t = el("div", { class: "toast", role: "status" }); document.body.append(t); } t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, Math.min(7000, 2200 + msg.length * 35)); }
+  // The toast is a manual popover where the browser has them, so it sits in the top layer above an open <dialog>.
+  let toastT; function toast(msg) { let t = $(".toast"); if (!t) { t = el("div", { class: "toast", role: "status", popover: "manual" }); document.body.append(t); } t.textContent = msg; t.hidden = false; if (t.showPopover) { try { if (!t.matches(":popover-open")) t.showPopover(); } catch (e) { /* not a popover here */ } } clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; if (t.hidePopover) { try { t.hidePopover(); } catch (e) { /* already hidden */ } } }, Math.min(7000, 2200 + msg.length * 35)); }
 
   // ---------- Grading helpers (the app grades by hand; Claude grades from box scores in the repo) ----------
   const live = { info: new Map() };

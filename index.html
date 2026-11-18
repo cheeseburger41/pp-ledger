@@ -877,11 +877,15 @@ html.vchat-open .askdock { opacity: 0; pointer-events: none; }
    nothing here runs with Reduce Motion on. */
 /* The tab marker: a lit segment of the tab bar's top rule, above the current tab (motion.js pins it there because of --vl-at) */
 .vl-pill { --vl-at: top; position: absolute; left: 0; top: -1px; width: 28px; height: 1.5px; pointer-events: none; opacity: 0; background: var(--ink); }
-/* The flash on Balance / Net PnL: a faint light rises off the tile's foot in the move's colour, then fades (motion.js drives opacity) */
+/* The flash when the Balance moves: the tile's platinum rule lights in the move's colour and a faint light rises off it, then fades
+   (motion.js drives opacity; Net PnL has no rule, so its figure glows softly in its own colour instead) */
 .vl-flash { --vl-c: var(--good); position: absolute; inset: auto 0 0 0; height: 14px; pointer-events: none; opacity: 0;
   background: linear-gradient(0deg, var(--vl-c) 0 1px, color-mix(in srgb, var(--vl-c) 16%, transparent) 1px, transparent);
   -webkit-mask-image: linear-gradient(90deg, #000 30%, transparent 92%); mask-image: linear-gradient(90deg, #000 30%, transparent 92%); }
 .vl-flash.bad { --vl-c: var(--bad); }
+.kpi.hero > .vl-flash { right: 16px; } /* on the rule exactly: .kpi.hero::after in the page's Editorial stylesheet */
+@media (max-width: 900px) and (min-width: 701px) { .kpi.hero > .vl-flash { bottom: -1px; z-index: 2; } }
+@media (max-width: 700px) { .kpi.hero > .vl-flash { right: 0; } }
 html.vl-motion .kpi { position: relative; }
 @media (prefers-reduced-motion: no-preference) {
   /* motion.js slides sections in on a tab switch, so the CSS rise steps aside */
@@ -2553,12 +2557,20 @@ html.vl-motion .kpi { position: relative; }
     const off = () => el.classList.remove("vl-shine");
     el.addEventListener("animationend", off, { once: true }); setTimeout(off, 2200);
   }
-  function flash(kpi, good) {
+  // The Balance tile's platinum rule lights in the move's colour; Net PnL has no rule, so its figure glows instead
+  function flash(kpi, good, num) {
     if (!kpi) return;
+    if (!kpi.classList.contains("hero")) { glow(num, good); return; }
     let f = $(":scope > .vl-flash", kpi);
     if (!f) { f = document.createElement("i"); f.className = "vl-flash"; f.setAttribute("aria-hidden", "true"); kpi.append(f); }
     f.classList.toggle("bad", !good);
     f.animate([{ opacity: 0 }, { opacity: 1, offset: .25 }, { opacity: 0 }], { duration: 1700, easing: "ease-in-out" });
+  }
+  function glow(el, good) { // in the figure's own colour, so a green figure never wears a red halo
+    if (!seen(el)) return;
+    const own = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(getComputedStyle(el).color);
+    const c = own && own[4] !== "0" ? `rgba(${own[1]}, ${own[2]}, ${own[3]}, .55)` : (good ? "rgba(74, 212, 156, .55)" : "rgba(255, 125, 136, .55)");
+    anim(el, [{ textShadow: `0 0 0 ${c}` }, { textShadow: `0 0 16px ${c}`, offset: .25 }, { textShadow: `0 0 0 ${c}` }], { duration: 1700, easing: "ease-in-out", fill: "none" });
   }
   document.addEventListener("vici:num", ev => {
     const d = ev.detail || {}, el = d.el; if (!el || still()) return;
@@ -2568,7 +2580,7 @@ html.vl-motion .kpi { position: relative; }
       anim(el, [{ transform: "scale(1)" }, { transform: "scale(1.04)", offset: .3 }, { transform: "scale(1)" }], { duration: 900, easing: "ease-in-out", fill: "none" });
       setTimeout(() => shine(el), 1000);
     }
-    if (el.id === "k-bank" || el.id === "k-pnl") flash(el.closest(".kpi"), up);
+    if (el.id === "k-bank" || el.id === "k-pnl") flash(el.closest(".kpi"), up, el);
     if (el.id === "k-bank") setTimeout(() => shine(el), 1000);
   });
   window.addEventListener("vici:launched", () => {

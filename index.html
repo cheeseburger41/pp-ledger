@@ -518,6 +518,7 @@ tr.det[hidden] { display: none !important; }
 }
 </style>
 <link rel="stylesheet" href="vici-chat.css">
+<!-- vici-launch -->
 <link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1320x2868.png">
 <link rel="apple-touch-startup-image" media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1260x2736.png">
 <link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-1206x2622.png">
@@ -532,16 +533,24 @@ tr.det[hidden] { display: none !important; }
 <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/launch-750x1334.png">
 <link rel="apple-touch-startup-image" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/launch-640x1136.png">
 <style>
-/* Vici launch: a black splash with the platinum ticket, matching the iOS launch screen pixel for pixel, then the app eases in.
+/* Vici launch: a black splash with the platinum V, matching the iOS launch screen pixel for pixel, then the app eases in.
    launch.js drives it; this CSS alone fades the splash out if the script never runs. */
-#launch { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #050506; pointer-events: auto; animation: vl-out .4s ease 1.6s forwards; }
-#launch-mark { display: block; width: 132px; height: auto; overflow: visible; }
+#launch { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #050506; pointer-events: auto; animation: vl-out .6s ease 2.6s forwards; }
+#launch-mark { display: block; width: 84px; height: auto; overflow: visible; }
 @keyframes vl-out { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { #launch { animation-duration: .2s; animation-delay: .3s; } }
+/* Slower, calmer motion everywhere else too (Angus, 2026-11-18): sections rising in on a tab switch, and the entry sheet */
+@media (prefers-reduced-motion: no-preference) {
+  .panel, .board { animation-duration: .8s; }
+  #dlg[open] { animation-duration: .45s; }
+}
 </style>
+<!-- /vici-launch -->
 </head>
 <body>
-<div id="launch" aria-hidden="true"><svg id="launch-mark" viewBox="96 150 320 212" width="132" height="87" focusable="false"><defs><linearGradient id="vl-pl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f8f7"/><stop offset=".38" stop-color="#d5d7db"/><stop offset=".68" stop-color="#a6aab1"/><stop offset="1" stop-color="#e8e9eb"/></linearGradient><linearGradient id="vl-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="vl-clip"><path d="M120 150H392A24 24 0 0 1 416 174V222A34 34 0 0 0 416 290V338A24 24 0 0 1 392 362H120A24 24 0 0 1 96 338V290A34 34 0 0 0 96 222V174A24 24 0 0 1 120 150Z"/></clipPath></defs><path d="M120 150H392A24 24 0 0 1 416 174V222A34 34 0 0 0 416 290V338A24 24 0 0 1 392 362H120A24 24 0 0 1 96 338V290A34 34 0 0 0 96 222V174A24 24 0 0 1 120 150Z" fill="url(#vl-pl)"/><g clip-path="url(#vl-clip)"><g id="launch-sheen"><rect x="30" y="140" width="104" height="240" transform="skewX(-20)" fill="url(#vl-sh)"/></g></g><path d="M352 168V344" stroke="#0a0a0b" stroke-width="7" stroke-linecap="round" stroke-dasharray="1 19" opacity=".4"/><polyline points="146,304 200,254 246,280 318,206" fill="none" stroke="#0a0a0b" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/><circle cx="318" cy="206" r="21" fill="#4ad49c" stroke="#0a0a0b" stroke-width="7"/></svg></div>
+<!-- vici-launch -->
+<div id="launch" aria-hidden="true"><svg id="launch-mark" viewBox="129.5 124.9 253 262.2" width="84" height="87" focusable="false"><defs><linearGradient id="vl-pl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f8f7"/><stop offset=".38" stop-color="#d5d7db"/><stop offset=".68" stop-color="#a6aab1"/><stop offset="1" stop-color="#e8e9eb"/></linearGradient><linearGradient id="vl-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="vl-clip"><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z"/></clipPath></defs><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="url(#vl-pl)"/><g clip-path="url(#vl-clip)"><g id="launch-sheen"><rect x="20" y="110" width="96" height="290" transform="skewX(-20)" fill="url(#vl-sh)"/></g></g></svg></div>
+<!-- /vici-launch -->
 <div class="appbar">
   <div class="ab-l"><span class="ab-name">Vici</span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
   <div class="ab-r"><span class="ab-k">Balance</span><span class="ab-v" id="ab-bal">$250.00</span></div>
@@ -1623,8 +1632,9 @@ tr.det[hidden] { display: none !important; }
 <script src="vici-data.js" defer></script>
 <script src="vici-chat.js" defer></script>
 <script>document.addEventListener("DOMContentLoaded", function () { var b = document.getElementById("model-box"); if (b && window.ViciChat) window.ViciChat.renderModel(b); });</script>
+<!-- vici-launch -->
 <script>
-// Vici launch: the splash (same picture as the iOS launch screen) gets a platinum sheen and opens up, then the app bar,
+// Vici launch: the splash (same picture as the iOS launch screen) gets a platinum sheen across the V and opens up, then the app bar,
 // sections and tab bar ease in one after another, the key numbers count up and the balance curve draws in.
 // After launch, the key numbers glide to new values whenever a sync or a filter changes them.
 // With Reduce Motion on, the splash just fades and nothing moves or counts.
@@ -1665,7 +1675,7 @@ tr.det[hidden] { display: none !important; }
       const now = performance.now(), waiting = now < s.t0 + s.delay;
       if (Math.abs(val(p) - s.v) < 1e-9) return land(el, txt);
       s.to = p; s.final = txt;
-      if (!waiting) { s.from = s.v; s.t0 = now; s.delay = 0; s.dur = Math.max(450, s.dur * .6); }
+      if (!waiting) { s.from = s.v; s.t0 = now; s.delay = 0; s.dur = Math.max(700, s.dur * .6); }
     }
     put(el, s, fmt(s.to, s.v, s.to.plus || s.plusFrom));
   }
@@ -1696,7 +1706,7 @@ tr.det[hidden] { display: none !important; }
         if (s) { if (el.firstChild !== s.node) rewrite(el, s); continue; }
         const txt = el.textContent, before = shown.get(el); if (txt === before) continue;
         const a = before != null ? parse(before) : null, b = parse(txt);
-        if (a && b && !still() && seen(el)) count(el, val(a), a.plus, 650, 0); else shown.set(el, txt);
+        if (a && b && !still() && seen(el)) count(el, val(a), a.plus, 1000, 0); else shown.set(el, txt);
       }
     });
     for (const sel of NUMS) { const el = document.querySelector(sel); if (el) { shown.set(el, el.textContent); mo.observe(el, { childList: true, characterData: true, subtree: true }); } }
@@ -1714,28 +1724,28 @@ tr.det[hidden] { display: none !important; }
   }
   function play() {
     L.style.animation = "none";
-    const T = 360; // when the splash opens up; everything else is timed from here
+    const T = 800; // when the splash opens up; everything else is timed from here (slowed down at Angus's request, 2026-11-18)
     setTimeout(() => { L.style.pointerEvents = "none"; }, T); // taps wait until the app starts to show
     const sheen = document.getElementById("launch-sheen"), mark = document.getElementById("launch-mark");
-    if (sheen) sheen.animate([{ transform: "translateX(20px)" }, { transform: "translateX(560px)" }], { duration: 620, delay: 0, easing: "cubic-bezier(.35,.1,.35,1)", fill: "forwards" });
-    if (mark) mark.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.28)", opacity: 0 }], { duration: 420, delay: T, easing: "cubic-bezier(.5,0,.75,0)", fill: "forwards" });
-    settle(L.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 460, delay: T + 60, easing: "ease-out", fill: "forwards" }), drop);
+    if (sheen) sheen.animate([{ transform: "translateX(20px)" }, { transform: "translateX(540px)" }], { duration: 1000, delay: 0, easing: "cubic-bezier(.35,.1,.35,1)", fill: "forwards" });
+    if (mark) mark.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.22)", opacity: 0 }], { duration: 720, delay: T, easing: "cubic-bezier(.45,0,.6,1)", fill: "forwards" });
+    settle(L.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 820, delay: T + 100, easing: "ease-out", fill: "forwards" }), drop);
 
-    const rise = (el, y, delay, dur) => el.animate([{ opacity: 0, transform: `translateY(${y}px)` }, { opacity: 1, transform: "none" }], { duration: dur || 620, delay, easing: ease, fill: "backwards" });
+    const rise = (el, y, delay, dur) => el.animate([{ opacity: 0, transform: `translateY(${y}px)` }, { opacity: 1, transform: "none" }], { duration: dur || 1000, delay, easing: ease, fill: "backwards" });
     const bar = document.querySelector(".appbar"), tabs = document.querySelector(".tabbar");
-    if (seen(bar)) rise(bar, -10, T + 80, 560);
-    if (seen(tabs)) rise(tabs, 22, T + 160, 620);
+    if (seen(bar)) rise(bar, -10, T + 150, 900);
+    if (seen(tabs)) rise(tabs, 22, T + 300, 1000);
     const wrap = document.querySelector(".wrap");
     const blocks = wrap ? [...wrap.children].flatMap(c => (c.classList.contains("grid") ? [...c.children] : [c])).filter(seen) : [];
-    blocks.forEach((el, i) => rise(el, 16, T + 140 + Math.min(i, 7) * 70));
+    blocks.forEach((el, i) => rise(el, 16, T + 250 + Math.min(i, 7) * 120));
     const board = document.querySelector(".board");
     if (seen(board)) {
-      const b = blocks.indexOf(board), d = T + 140 + Math.min(Math.max(b, 0), 7) * 70;
-      board.querySelectorAll(".kpi").forEach((k, i) => k.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: d + 90 + i * 45, easing: "ease-out", fill: "backwards" }));
+      const b = blocks.indexOf(board), d = T + 250 + Math.min(Math.max(b, 0), 7) * 120;
+      board.querySelectorAll(".kpi").forEach((k, i) => k.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: d + 150 + i * 80, easing: "ease-out", fill: "backwards" }));
     }
     const curve = document.getElementById("c-curve");
-    if (seen(curve)) curve.animate([{ clipPath: "inset(0 100% 0 0)", webkitClipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", webkitClipPath: "inset(0 0% 0 0)" }], { duration: 1000, delay: T + 420, easing: "cubic-bezier(.4,0,.2,1)", fill: "backwards" });
-    for (const sel of NUMS) { const el = document.querySelector(sel); if (seen(el)) count(el, 0, false, sel === "#ab-bal" || sel === "#k-bank" ? 1150 : 950, T + 200); }
+    if (seen(curve)) curve.animate([{ clipPath: "inset(0 100% 0 0)", webkitClipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", webkitClipPath: "inset(0 0% 0 0)" }], { duration: 1600, delay: T + 700, easing: "cubic-bezier(.4,0,.2,1)", fill: "backwards" });
+    for (const sel of NUMS) { const el = document.querySelector(sel); if (seen(el)) count(el, 0, false, sel === "#ab-bal" || sel === "#k-bank" ? 1800 : 1500, T + 350); }
   }
 
   try {
@@ -1745,5 +1755,6 @@ tr.det[hidden] { display: none !important; }
   } catch (e) { drop(); }
 })();
 </script>
+<!-- /vici-launch -->
 </body>
 </html>

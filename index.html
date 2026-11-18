@@ -548,12 +548,46 @@ tr.det[hidden] { display: none !important; }
   .panel, .board { animation-duration: .8s; }
   #dlg[open] { animation-duration: .45s; }
 }
+/* More motion across the app (Angus, 2026-11-18, "make it more animative"). motion.js adds html.vl-motion and drives the rest;
+   nothing here runs with Reduce Motion on. */
+.vl-pill { position: absolute; left: 0; top: 0; width: 56px; height: 32px; border-radius: 999px; pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 15%, transparent), color-mix(in srgb, var(--ink) 6%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 18%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 10%, transparent); }
+.vl-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--good) 55%, transparent), inset 0 0 28px color-mix(in srgb, var(--good) 20%, transparent); }
+.vl-flash.bad { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 55%, transparent), inset 0 0 28px color-mix(in srgb, var(--bad) 20%, transparent); }
+html.vl-motion .kpi { position: relative; }
+@media (prefers-reduced-motion: no-preference) {
+  /* motion.js slides sections in on a tab switch, so the CSS rise steps aside */
+  html.vl-motion .panel, html.vl-motion .board { animation: none; }
+  html.vl-sliding .wrap { overflow-x: clip; }
+  /* Taps press in and spring back */
+  html.vl-motion :is(.btn, .chip, .seg button, .cal-nav, .cal-cell.has, .tabbar button, .slip.cmp .sh, .ab-ask) {
+    transition: border-color .15s, background .15s, color .25s, box-shadow .2s, transform .45s cubic-bezier(.34,1.4,.5,1); }
+  html.vl-motion :is(.btn, .chip, .seg button, .cal-nav, .cal-cell.has, .tabbar button, .slip.cmp .sh, .ab-ask):active { transition-duration: .15s, .15s, .25s, .2s, .08s; }
+  html.vl-motion :is(.btn, .chip, .seg button, .cal-nav, .tabbar button):active { transform: scale(.94); }
+  html.vl-motion :is(.cal-cell.has, .ab-ask):active { transform: scale(.9); }
+  html.vl-motion .slip.cmp .sh:active { transform: scale(.985); }
+  html.vl-motion .tabbar .tb-add:active { transform: scale(.9) rotate(90deg); }
+  html.vl-motion .slip.cmp .sh .chev, html.vl-motion .panel.fold h2::after { transition: transform .5s cubic-bezier(.34,1.4,.5,1), margin-top .5s cubic-bezier(.34,1.4,.5,1), vertical-align .5s; }
+  /* The toast rises in, the sync dot pings when it goes live, the sheet's backdrop fades */
+  html.vl-motion .toast:not([hidden]) { animation: vl-toast .55s cubic-bezier(.2,.75,.2,1) backwards; }
+  @keyframes vl-toast { from { opacity: 0; transform: translate(-50%, 18px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0); } }
+  html.vl-motion .sync.live i { animation: vl-ping 1.6s ease-out 1; }
+  @keyframes vl-ping { from { box-shadow: 0 0 0 0 rgba(74,212,156,.6); } to { box-shadow: 0 0 0 9px rgba(74,212,156,0); } }
+  html.vl-motion #dlg[open]::backdrop { animation: vl-fade .45s ease-out; }
+  @keyframes vl-fade { from { opacity: 0; } }
+  /* A platinum shine across the wordmark and the balance after launch, and across the balance when it changes */
+  html.vl-motion .vl-shine, html.vl-motion .kpi.hero .v.vl-shine { background-image: linear-gradient(100deg, transparent 38%, rgba(255,255,255,.95) 50%, transparent 62%), var(--vl-base, var(--plat-text));
+    background-size: 300% 100%, 100% 100%; background-repeat: no-repeat; -webkit-background-clip: text; background-clip: text; color: transparent; animation: vl-shine 1.6s cubic-bezier(.4,0,.2,1); }
+  @keyframes vl-shine { from { background-position: 100% 0, 0 0; } to { background-position: 0% 0, 0 0; } }
+}
 </style>
 <!-- /vici-launch -->
 </head>
 <body>
 <!-- vici-launch -->
-<div id="launch" aria-hidden="true"><svg id="launch-mark" viewBox="129.5 124.9 253 262.2" width="84" height="87" focusable="false"><defs><linearGradient id="vl-pl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f8f7"/><stop offset=".38" stop-color="#d5d7db"/><stop offset=".68" stop-color="#a6aab1"/><stop offset="1" stop-color="#e8e9eb"/></linearGradient><linearGradient id="vl-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="vl-clip"><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z"/></clipPath></defs><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="url(#vl-pl)"/><g clip-path="url(#vl-clip)"><g id="launch-sheen"><rect x="20" y="110" width="96" height="290" transform="skewX(-20)" fill="url(#vl-sh)"/></g></g></svg></div>
+<div id="launch" aria-hidden="true"><svg id="launch-mark" viewBox="129.5 124.9 253 262.2" width="84" height="87" focusable="false"><defs><linearGradient id="vl-pl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f8f7"/><stop offset=".38" stop-color="#d5d7db"/><stop offset=".68" stop-color="#a6aab1"/><stop offset="1" stop-color="#e8e9eb"/></linearGradient><linearGradient id="vl-sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><radialGradient id="vl-gl"><stop offset="0" stop-color="#e8e9eb" stop-opacity=".22"/><stop offset=".55" stop-color="#d6d8dc" stop-opacity=".06"/><stop offset="1" stop-color="#d6d8dc" stop-opacity="0"/></radialGradient><filter id="vl-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter><clipPath id="vl-clip"><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z"/></clipPath></defs><circle id="launch-glow" cx="256" cy="262" r="250" fill="url(#vl-gl)" opacity="0"/><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="url(#vl-pl)"/><g clip-path="url(#vl-clip)"><g id="launch-sheen"><rect x="20" y="110" width="96" height="290" transform="skewX(-20)" fill="url(#vl-sh)"/></g></g><g id="launch-trace" opacity="0"><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round" pathLength="100" stroke-dasharray="16 84" filter="url(#vl-blur)"/><path d="M129.5 124.9H173.2L256 296.2L338.8 124.9H382.5L256 387.1Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round" pathLength="100" stroke-dasharray="16 84"/></g></svg></div>
 <!-- /vici-launch -->
 <div class="appbar">
   <div class="ab-l"><span class="ab-name">Vici</span><span class="sync connecting"><i></i><span class="sync-t">Syncing…</span></span></div>
@@ -1621,7 +1655,7 @@ tr.det[hidden] { display: none !important; }
   // ---------- Boot ----------
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => { });
   let rT; const reflow = () => { clearTimeout(rT); rT = setTimeout(render, 120); };
-  new ResizeObserver(reflow).observe($(".wrap"));
+  let vlW = -1; new ResizeObserver(es => { const w = Math.round(es[0].contentRect.width); if (w !== vlW) { vlW = w; reflow(); } }).observe($(".wrap")); // vici-launch: width only
   state.db = db;
   setupExport();
   if (sync.remote) publish(); else render();
@@ -1649,7 +1683,7 @@ tr.det[hidden] { display: none !important; }
 // Vici launch: the splash (same picture as the iOS launch screen) gets a platinum sheen across the V and opens up, then the app bar,
 // sections and tab bar ease in one after another, the key numbers count up and the balance curve draws in.
 // After launch, the key numbers glide to new values whenever a sync or a filter changes them.
-// With Reduce Motion on, the splash just fades and nothing moves or counts.
+// With Reduce Motion on, the splash just fades and nothing moves or counts. motion.js (loaded next) animates the rest of the app.
 (() => {
   const L = document.getElementById("launch");
   const mq = window.matchMedia ? matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -1718,7 +1752,7 @@ tr.det[hidden] { display: none !important; }
         if (s) { if (el.firstChild !== s.node) rewrite(el, s); continue; }
         const txt = el.textContent, before = shown.get(el); if (txt === before) continue;
         const a = before != null ? parse(before) : null, b = parse(txt);
-        if (a && b && !still() && seen(el)) count(el, val(a), a.plus, 1000, 0); else shown.set(el, txt);
+        if (a && b && !still() && seen(el)) { count(el, val(a), a.plus, 1000, 0); document.dispatchEvent(new CustomEvent("vici:num", { detail: { el, from: val(a), to: val(b) } })); } else shown.set(el, txt);
       }
     });
     for (const sel of NUMS) { const el = document.querySelector(sel); if (el) { shown.set(el, el.textContent); mo.observe(el, { childList: true, characterData: true, subtree: true }); } }
@@ -1736,9 +1770,15 @@ tr.det[hidden] { display: none !important; }
   }
   function play() {
     L.style.animation = "none";
-    const T = 800; // when the splash opens up; everything else is timed from here (slowed down at Angus's request, 2026-11-18)
+    const T = 950; // when the splash opens up; everything else is timed from here (slow and calm at Angus's request, 2026-11-18)
     setTimeout(() => { L.style.pointerEvents = "none"; }, T); // taps wait until the app starts to show
     const sheen = document.getElementById("launch-sheen"), mark = document.getElementById("launch-mark");
+    const glow = document.getElementById("launch-glow"), trace = document.getElementById("launch-trace");
+    if (glow) { glow.style.transformBox = "fill-box"; glow.style.transformOrigin = "center";
+      glow.animate([{ opacity: 0, transform: "scale(.7)" }, { opacity: 1, transform: "scale(1)", offset: .55 }, { opacity: .55, transform: "scale(1.08)" }], { duration: 1100, easing: "ease-out", fill: "forwards" }); }
+    if (trace) { // a point of light runs twice around the V
+      trace.animate([{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .82 }, { opacity: 0 }], { duration: 1000, delay: 40, easing: "linear", fill: "both" });
+      trace.querySelectorAll("path").forEach(p => p.animate([{ strokeDashoffset: 0 }, { strokeDashoffset: -200 }], { duration: 1000, delay: 40, easing: "cubic-bezier(.45,.05,.55,.95)", fill: "both" })); }
     if (sheen) sheen.animate([{ transform: "translateX(20px)" }, { transform: "translateX(540px)" }], { duration: 1000, delay: 0, easing: "cubic-bezier(.35,.1,.35,1)", fill: "forwards" });
     if (mark) mark.animate([{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.22)", opacity: 0 }], { duration: 720, delay: T, easing: "cubic-bezier(.45,0,.6,1)", fill: "forwards" });
     settle(L.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 820, delay: T + 100, easing: "ease-out", fill: "forwards" }), drop);
@@ -1758,13 +1798,193 @@ tr.det[hidden] { display: none !important; }
     const curve = document.getElementById("c-curve");
     if (seen(curve)) curve.animate([{ clipPath: "inset(0 100% 0 0)", webkitClipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", webkitClipPath: "inset(0 0% 0 0)" }], { duration: 1600, delay: T + 700, easing: "cubic-bezier(.4,0,.2,1)", fill: "backwards" });
     for (const sel of NUMS) { const el = document.querySelector(sel); if (seen(el)) count(el, 0, false, sel === "#ab-bal" || sel === "#k-bank" ? 1800 : 1500, T + 350); }
+    setTimeout(() => window.dispatchEvent(new Event("vici:launched")), T + 2250); // counts are done: motion.js runs the platinum shine
   }
 
   try {
-    if (!reduce && canAnimate) watchNumbers();
+    if (!reduce && canAnimate) { document.documentElement.classList.add("vl-motion"); watchNumbers(); }
     if (!L) return;
     if (reduce || !canAnimate || document.visibilityState === "hidden") quiet(); else play();
   } catch (e) { drop(); }
+})();
+</script>
+<script>
+// Vici motion ("make it more animative", Angus, 2026-11-18): calm, slow motion across the app once it is open.
+// Tabs slide in the direction you travel and a platinum highlight glides along the tab bar; taps press in and spring back;
+// charts grow, slips, calendar days and the day's entries cascade; the balance pulses and shines when it changes.
+// launch.js runs first (splash, count-up) and fires vici:num and vici:launched. Every effect checks Reduce Motion
+// when it runs, and launch.css holds the CSS half (press-in, toast, sync ping, shine), all behind html.vl-motion.
+(() => {
+  if (typeof Element.prototype.animate !== "function") return;
+  const root = document.documentElement;
+  const mq = window.matchMedia ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+  const still = () => !!(mq && mq.matches);
+  const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => [...(r || document).querySelectorAll(s)];
+  const seen = el => !!el && el.isConnected && el.getClientRects().length > 0;
+  const EASE = "cubic-bezier(.2,.75,.2,1)", SPRING = "cubic-bezier(.34,1.4,.5,1)";
+  const anim = (el, kf, o) => { try { return el.animate(kf, Object.assign({ easing: EASE, fill: "backwards" }, o)); } catch (e) { return null; } };
+  const rise = (el, delay, y, dur) => anim(el, [{ opacity: 0, transform: `translateY(${y == null ? 12 : y}px)` }, { opacity: 1, transform: "none" }], { duration: dur || 650, delay: delay || 0 });
+  const fade = (el, delay, dur) => anim(el, [{ opacity: 0 }, { opacity: 1 }], { duration: dur || 600, delay: delay || 0, easing: "ease-out" });
+  const pop = (el, delay, from) => anim(el, [{ opacity: 0, transform: `scale(${from || .6})` }, { opacity: 1, transform: "none" }], { duration: 620, delay: delay || 0, easing: SPRING });
+  root.classList.add("vl-motion");
+  document.addEventListener("touchstart", () => {}, { passive: true }); // lets the :active press-in show on iPhone
+
+  // ---------- Pieces that animate in ----------
+  function curveIn(d) {
+    const c = $("#c-curve"); if (!seen(c) || !c.querySelector("svg")) return;
+    anim(c, [{ clipPath: "inset(0 100% 0 0)", webkitClipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", webkitClipPath: "inset(0 0% 0 0)" }], { duration: 1300, delay: d, easing: "cubic-bezier(.4,0,.2,1)" });
+  }
+  function kpisIn(d) { $$(".board .kpi").filter(seen).forEach((k, i) => fade(k, d + i * 70, 700)); }
+  function barsIn(d) {
+    for (const sel of ["#c-format", "#c-sport"]) {
+      const host = $(sel); if (!seen(host)) continue;
+      $$("svg rect[height='16']", host).forEach((r, i) => {
+        r.style.transformBox = "fill-box"; r.style.transformOrigin = /bad/.test(r.getAttribute("fill") || "") ? "right center" : "left center";
+        anim(r, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 950, delay: d + i * 80, easing: "cubic-bezier(.25,.8,.25,1)" });
+      });
+      $$("svg text.val", host).forEach((t, i) => fade(t, d + 450 + i * 80, 500));
+    }
+    const edge = $("#edge"); if (!seen(edge)) return;
+    $$(".erow:not(.eaxis)", edge).forEach((row, i) => {
+      const g = $(".gap", row), me = $(".me", row), be = $(".be", row), at = d + i * 90;
+      if (g) { g.style.transformOrigin = "left center"; anim(g, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 900, delay: at + 150 }); }
+      if (be) fade(be, at, 500);
+      if (me) pop(me, at + 450, .2);
+    });
+  }
+  function slipsIn(d) { $$("#open-list .slip").filter(seen).slice(0, 14).forEach((s, i) => rise(s, d + i * 60, 10, 600)); }
+  function calIn(d) {
+    const cells = $$("#c-daily .cal-grid > .cal-cell");
+    cells.forEach((c, k) => { if (!c.classList.contains("blank")) anim(c, [{ opacity: 0, transform: "scale(.88)" }, { opacity: getComputedStyle(c).opacity, transform: "none" }], { duration: 520, delay: d + (Math.floor(k / 7) + k % 7) * 26 }); }); // future days end at their own 40%
+    logIn(d + 260);
+  }
+  function logIn(d) {
+    const h = $("#day-head"); if (seen(h) && h.firstChild) rise(h, d, 6, 500);
+    $$("#log-body > tr").filter(seen).slice(0, 12).forEach((r, i) => rise(r, d + 80 + i * 55, 8, 560));
+  }
+
+  // ---------- Tabs ----------
+  const TABS = ["home", "open", "history", "stats"];
+  const wrap = $(".wrap");
+  let tab = wrap ? wrap.dataset.tab : null, slideT = 0;
+  function enterTab(from, to) {
+    const dir = Math.sign(TABS.indexOf(to) - TABS.indexOf(from)) || 1;
+    const blocks = [...wrap.children].flatMap(c => (c.classList.contains("grid") ? [...c.children] : [c])).filter(el => el.hasAttribute("data-tabs") && seen(el));
+    root.classList.add("vl-sliding"); clearTimeout(slideT); slideT = setTimeout(() => root.classList.remove("vl-sliding"), 1400);
+    blocks.forEach((el, i) => anim(el, [{ opacity: 0, transform: `translateX(${dir * 26}px)` }, { opacity: 1, transform: "none" }], { duration: 720, delay: Math.min(i, 6) * 90 }));
+    const at = el => { const i = blocks.indexOf(el && el.closest(".panel, .board")); return Math.min(Math.max(i, 0), 6) * 90; };
+    if (to === "home") { kpisIn(at($(".board")) + 120); curveIn(at($("#c-curve")) + 220); }
+    if (to === "open") slipsIn(at($("#open-list")) + 140);
+    if (to === "history") calIn(at($("#c-daily")) + 120);
+    if (to === "stats") barsIn(Math.min(at($("#c-format")), at($("#edge"))) + 220);
+  }
+
+  // The platinum highlight under the current tab
+  const bar = $(".tabbar"), pill = document.createElement("span");
+  pill.className = "vl-pill"; pill.setAttribute("aria-hidden", "true");
+  if (bar) bar.prepend(pill);
+  let at0 = null;
+  function place(move) {
+    const b = bar && $("[data-go][aria-current='page']", bar);
+    if (!b || !seen(bar)) { pill.style.opacity = "0"; at0 = null; return; }
+    const ic = $("svg", b) || b, br = bar.getBoundingClientRect(), r = ic.getBoundingClientRect();
+    const x = r.left - br.left + r.width / 2 - 28, y = r.top - br.top + r.height / 2 - 16;
+    const to = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    if (move && at0 && at0.t !== to && !still()) {
+      const mid = `translate(${((at0.x + x) / 2).toFixed(1)}px, ${y.toFixed(1)}px) scaleX(1.45)`;
+      pill.animate([{ transform: at0.t }, { transform: mid, offset: .45 }, { transform: to }], { duration: 650, easing: "cubic-bezier(.3,.7,.25,1)" });
+    }
+    pill.style.transform = to; pill.style.opacity = "1"; at0 = { t: to, x };
+  }
+  if (bar) {
+    place(false);
+    if (window.ResizeObserver) new ResizeObserver(() => place(false)).observe(bar);
+    window.addEventListener("resize", () => place(false));
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => place(false), () => {});
+    window.addEventListener("vici:launched", () => place(false));
+  }
+  if (wrap) new MutationObserver(() => {
+    const to = wrap.dataset.tab; if (to === tab) return;
+    const from = tab; tab = to; place(true);
+    if (!still() && from) enterTab(from, to);
+  }).observe(wrap, { attributes: true, attributeFilter: ["data-tab"] });
+
+  // ---------- Taps ----------
+  let wasSel = false, picks0 = 0;
+  document.addEventListener("click", ev => { // what the page looked like before the app handles the tap
+    const t = ev.target instanceof Element ? ev.target : null, c = t && t.closest(".cal-cell.has");
+    wasSel = !!(c && c.classList.contains("sel")); picks0 = $$("#pickrows .pickrow:not(.hdr)").length;
+  }, true);
+  // Runs after the app's own handlers, so whatever they drew is already on the page
+  document.addEventListener("click", ev => {
+    if (still() || !(ev.target instanceof Element)) return;
+    const t = ev.target;
+    const go = t.closest(".tabbar button");
+    if (go) { const s = $("svg", go); if (s) anim(s, [{ transform: "scale(1)" }, { transform: "scale(.82)", offset: .22 }, { transform: "scale(1.14)", offset: .6 }, { transform: "scale(1)" }], { duration: 620, easing: "ease-in-out", fill: "none" }); return; }
+    const chip = t.closest(".chip");
+    if (chip) { anim(chip, [{ transform: "scale(.92)" }, { transform: "none" }], { duration: 520, easing: SPRING, fill: "none" }); curveIn(0); barsIn(60); return; }
+    const nav = t.closest(".cal-nav");
+    if (nav) { // a new month slides in from the side you're heading to
+      const dir = /prev/i.test(nav.getAttribute("aria-label") || "") ? -1 : 1;
+      const ttl = $("#c-daily .cal-title"); if (ttl) anim(ttl, [{ opacity: 0, transform: `translateX(${dir * 18}px)` }, { opacity: 1, transform: "none" }], { duration: 600 });
+      $$("#c-daily .cal-grid > .cal-cell").forEach((c, k) => { if (!c.classList.contains("blank")) anim(c, [{ opacity: 0, transform: `translateX(${dir * 22}px)` }, { opacity: getComputedStyle(c).opacity, transform: "none" }], { duration: 560, delay: Math.floor(k / 7) * 40 + (dir > 0 ? k % 7 : 6 - k % 7) * 14 }); });
+      logIn(200); return;
+    }
+    const cell = t.closest("#c-daily .cal-cell.has");
+    if (cell) { anim(cell, [{ transform: "scale(.88)" }, { transform: "scale(1.06)", offset: .55 }, { transform: "none" }], { duration: 560, easing: "ease-out", fill: "none" }); if (!wasSel) logIn(60); return; }
+    const sh = t.closest(".slip.cmp .sh");
+    if (sh) { const card = sh.closest(".slip"); if (card && card.classList.contains("open")) { const sb = $(".sb", card); if (sb) [...sb.children].flatMap(k => (k.tagName === "UL" ? [...k.children] : [k])).forEach((k, i) => rise(k, i * 55, 8, 520)); } return; }
+    const row = t.closest("#log-body tr.row");
+    if (row) { const det = row.nextElementSibling; if (row.classList.contains("open") && det && det.classList.contains("det")) $$(".det-in > *", det).forEach((k, i) => rise(k, i * 60, 8, 520)); return; }
+    const fh = t.closest(".panel.fold > .panel-head, .panel.fold > h2");
+    if (fh) { const p = fh.parentElement; if (p.classList.contains("open")) [...p.children].filter(k => k !== fh && seen(k)).forEach((k, i) => rise(k, i * 80, 10, 600)); return; }
+    if (t.closest("#add-pick")) { const rows = $$("#pickrows .pickrow:not(.hdr)"); const last = rows.length > picks0 && rows[rows.length - 1]; if (last) anim(last, [{ opacity: 0, transform: "translateY(-8px)" }, { opacity: 1, transform: "none" }], { duration: 480 }); }
+  });
+
+  // ---------- The entry sheet: its rows rise in one after another ----------
+  const dlg = $("#dlg");
+  if (dlg) new MutationObserver(() => {
+    if (!dlg.open || still()) return;
+    $$(".dlg .body > *", dlg).filter(seen).forEach((k, i) => rise(k, 120 + Math.min(i, 6) * 70, 14, 560));
+  }).observe(dlg, { attributes: true, attributeFilter: ["open"] });
+
+  // ---------- Balance: pulse when it changes, then a platinum shine ----------
+  function shine(el) {
+    if (!seen(el) || still()) return;
+    el.classList.remove("vl-shine"); void el.offsetWidth;
+    // Text drawn in a flat colour (the phone wordmark) keeps that colour under the shine instead of turning platinum for a moment
+    const c = getComputedStyle(el).color;
+    if (/^rgba\(.*,\s*0\)$|^transparent$/.test(c)) el.style.removeProperty("--vl-base"); else el.style.setProperty("--vl-base", `linear-gradient(${c}, ${c})`);
+    el.classList.add("vl-shine");
+    const off = () => el.classList.remove("vl-shine");
+    el.addEventListener("animationend", off, { once: true }); setTimeout(off, 2200);
+  }
+  function flash(kpi, good) {
+    if (!kpi) return;
+    let f = $(":scope > .vl-flash", kpi);
+    if (!f) { f = document.createElement("i"); f.className = "vl-flash"; f.setAttribute("aria-hidden", "true"); kpi.append(f); }
+    f.classList.toggle("bad", !good);
+    f.animate([{ opacity: 0 }, { opacity: 1, offset: .25 }, { opacity: 0 }], { duration: 1700, easing: "ease-in-out" });
+  }
+  document.addEventListener("vici:num", ev => {
+    const d = ev.detail || {}, el = d.el; if (!el || still()) return;
+    const up = d.to > d.from;
+    if (el.id === "ab-bal") {
+      el.style.transformOrigin = "100% 50%";
+      anim(el, [{ transform: "scale(1)" }, { transform: "scale(1.08)", offset: .3 }, { transform: "scale(1)" }], { duration: 900, easing: "ease-in-out", fill: "none" });
+      setTimeout(() => shine(el), 1000);
+    }
+    if (el.id === "k-bank" || el.id === "k-pnl") flash(el.closest(".kpi"), up);
+    if (el.id === "k-bank") setTimeout(() => shine(el), 1000);
+  });
+  window.addEventListener("vici:launched", () => {
+    if (still()) return;
+    [".ab-name", "#ab-bal", ".brand h1", "#k-bank"].map(s => $(s)).filter(seen).forEach((el, i) => setTimeout(() => shine(el), i * 220));
+  });
+
+  // ---------- Open-entry count on the tab bar pops when it changes ----------
+  const n = $("#tb-open");
+  if (n) { let last = n.textContent; new MutationObserver(() => { const v = n.textContent; if (v === last) return; last = v; if (!n.hidden && !still()) anim(n, [{ transform: "scale(.4)" }, { transform: "scale(1.25)", offset: .6 }, { transform: "none" }], { duration: 560, easing: "ease-out", fill: "none" }); }).observe(n, { childList: true, characterData: true, subtree: true }); }
 })();
 </script>
 <!-- /vici-launch -->

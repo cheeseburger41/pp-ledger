@@ -2,12 +2,14 @@
  *
  * Pure functions: no DOM, no network, no randomness, no clock (time only via build({now})).
  * Learns only from Vici's own graded picks (ai-picks.json; hit/miss only, push/void/pending excluded). Angus plays
- * only what Vici recommends (his call, 2026-11-17), so his own ledger legs are not a source.
+ * only what Vici recommends (his call, 2026-11-17), so his own ledger legs are not a source. From his ledger it takes
+ * only what PrizePicks actually pays (the To Win on his Power entries) and what Vici's own logged slips made.
  *
- *   ViciModel.build({journal, now}) -> Model   (model.track = what Vici predicted, Vici %, vs the actual results)
+ *   ViciModel.build({journal, ledger, now}) -> Model   (model.track = what Vici predicted, Vici %, vs the actual results)
  *   ViciModel.adjust(model, rawProb, {sport, stat, side, tier, features}) -> {p, parts, note}
  *   ViciModel.breakEven(n, type) / edge(p, n, type) / promptBlock(model)
  *   ViciModel.summary(model, sport?) / compact(model, sport?) / calibrated(model, p, sport?)   (sport: "NBA"; omitted = all)
+ *   ViciModel.payout(model, n) / slipPlan(model, n, hit) / kelly(hit, mult) / growth(hit, mult, f) / kellyScale(model)
  *
  * Statistics:
  *   - Hit rates: nested Beta shrinkage. global ~ Beta(10,10) + data; sport, sport|stat, sport|stat|side each use
@@ -17,6 +19,11 @@
  *   - Each sport also gets its own segments, trust/fade, predicted-vs-actual track and pending count (model.bySport,
  *     bot.bySport, track.bySport, bot.pendingBy, calibration.bySport; model.sports lists them in display order).
  *   - Factors: L2 (lambda=1) logistic regression on standardized features, n >= 40, SEs from the inverse Hessian.
+ *   - Profit (Angus, 2026-11-18: "Train the algorithm to help me gain the most profits"): payouts are learned from his
+ *     Power entries (To Win / stake against the standard multiplier, shrunk toward the standard with 4 entries' weight,
+ *     each size toward the pooled ratio). A slip's stake is a fraction of the Kelly stake: 1/4 while Vici's
+ *     probabilities are unproven, rising to 1/2 over its first 200 graded picks unless it has run too confident, and
+ *     never more than 5% of the Balance. Slips rank by the expected log growth of the Balance at that stake.
  */
 (function (root) {
   "use strict";
@@ -34,6 +41,10 @@
   const FACTOR_MIN = 40, LAMBDA = 1, LAMBDA0 = 1e-3;
   const RESID_MIN = 10, RESID_K = 30;
   const P_MIN = 0.30, P_MAX = 0.85;
+  const PAY_K = 4;                       // prior weight, in entries, of the standard multiplier (and of the pooled ratio per size)
+  const PAY_LO = 0.25, PAY_HI = 2.5;     // a To Win outside this share of the standard is a typo or a promo, not PrizePicks' pricing
+  const KELLY_LO = 0.25, KELLY_HI = 0.5, KELLY_RAMP = 200;   // share of the full Kelly stake, by graded picks
+  const STAKE_CAP = 0.05;                // never more than 5% of the Balance on one slip
   const BUCKETS = [
     { label: "50-55", lo: 0, hi: 0.55 },     // lowest bucket also holds anything under 50%
     { label: "55-60", lo: 0.55, hi: 0.60 },
@@ -521,6 +532,94 @@
     return { n, hits, misses: n - hits, pred, actual, gap: n ? actual - pred : null, buckets };
   }
 
+  // ---------- payouts, profit and stakes ----------
+  /** What PrizePicks actually pays Angus on Power entries: To Win ÷ stake against the standard multiplier, from his ledger.
+   *  Left out: bonus entries, slips the chat logged with a goblin or demon leg (their payout differs by design), any share
+   *  outside [0.25, 2.5], and a won entry without To Win whose payout is just the app's own standard fill-in (or flagged as
+   *  estimated): that is the app's guess, not PrizePicks'. Each size is shrunk toward the pooled share, and the pooled share
+   *  toward the standard, with PAY_K entries' weight. */
+  function fitPayouts(ledger) {
+    const rows = [];
+    for (const e of toList(ledger, "entries")) {
+      if (String(e.type || "").toLowerCase() !== "power" || e.bonus === true) continue;
+      if (/^\s*Vici:.*goblin\/demon/.test(String(e.notes || ""))) continue;
+      const picks = Array.isArray(e.picks) ? e.picks : [];
+      const n = picks.length, std = POWER[n], stake = toNum(e.stake);
+      if (!std || !(stake > 0)) continue;
+      let full = toNum(e.toWin);
+      if (!(full > 0)) {
+        const pay = toNum(e.payout), auto = Math.round(stake * std * 100) / 100;
+        full = pay > 0 && e.estPayout !== true && Math.abs(pay - auto) >= 0.005 && picks.every(p => canonResult(p && p.result) === "hit") ? pay : null;
+      }
+      if (!(full > 0)) continue;
+      const r = full / (stake * std);
+      if (r >= PAY_LO && r <= PAY_HI) rows.push({ n, r });
+    }
+    const N = rows.length, ratio = (sum(rows, x => x.r) + PAY_K) / (N + PAY_K);
+    const bySize = {};
+    for (const n of [2, 3, 4, 5, 6]) {
+      const g = rows.filter(x => x.n === n);
+      const r = (sum(g, x => x.r) + PAY_K * ratio) / (g.length + PAY_K);
+      const mult = Math.round(POWER[n] * r * 100) / 100;
+      bySize[n] = { n: g.length, mult, standard: POWER[n], be: Math.pow(1 / mult, 1 / n) };
+    }
+    return { n: N, ratio, bySize };
+  }
+  /** What Vici's own slips made: entries Angus logged from the chat (notes start "Vici:"), bonus entries left out. A Power
+   *  entry with a missed leg counts as lost even before its payout is set. expectedRoi: the EV the chat put in the notes,
+   *  weighted by stake, for the settled ones that have it. */
+  function fitProfit(ledger) {
+    let n = 0, won = 0, open = 0, staked = 0, back = 0, evW = 0, evStake = 0;
+    for (const e of toList(ledger, "entries")) {
+      const notes = String(e.notes || "");
+      if (!/^\s*Vici:/.test(notes) || e.bonus === true) continue;
+      const stake = toNum(e.stake);
+      if (!(stake > 0)) continue;
+      let pay = toNum(e.payout);
+      const picks = Array.isArray(e.picks) ? e.picks : [];
+      if (pay == null && String(e.type || "power").toLowerCase() === "power" && picks.some(p => canonResult(p && p.result) === "miss")) pay = 0;
+      if (pay == null) { open++; continue; }
+      n++; staked += stake; back += Math.max(0, pay);
+      if (pay > stake) won++;
+      const m = /EV ([+\u2212-]?)(\d+(?:\.\d+)?)%/.exec(notes);
+      if (m) { evW += (m[1] === "+" || m[1] === "" ? 1 : -1) * Number(m[2]) / 100 * stake; evStake += stake; }
+    }
+    return { n, won, open, staked, pnl: back - staked, roi: staked ? (back - staked) / staked : null, expectedRoi: evStake ? evW / evStake : null };
+  }
+  /** Full-Kelly share of the Balance for a slip that pays mult × stake with chance hit (0 when it doesn't pay off). */
+  function kelly(hit, mult) {
+    if (!isNum(hit) || !isNum(mult) || mult <= 1 || !(hit > 0) || !(hit < 1)) return 0;
+    return Math.max(0, (hit * mult - 1) / (mult - 1));
+  }
+  /** Expected log growth of the Balance from staking share f on that slip. */
+  function growth(hit, mult, f) {
+    if (!(f > 0) || !isNum(hit) || !isNum(mult)) return 0;
+    if (f >= 1) return -Infinity;
+    return hit * Math.log(1 + f * (mult - 1)) + (1 - hit) * Math.log(1 - f);
+  }
+  /** Share of the full Kelly stake: 1/4 while Vici's probabilities are unproven, up to 1/2 over its first 200 graded picks,
+   *  back to 1/4 whenever its probabilities have run too confident. */
+  function kellyScale(model) {
+    const c = (model && model.calibration) || {};
+    if (c.verdict === "over") return KELLY_LO;
+    const n = isNum(c.n) ? c.n : 0;
+    return KELLY_LO + (KELLY_HI - KELLY_LO) * Math.min(1, n / KELLY_RAMP);
+  }
+  /** The multiplier Angus usually gets on an n-pick Power slip (the standard one until his entries say otherwise). */
+  function payout(model, n) {
+    const b = model && model.payouts && model.payouts.bySize ? model.payouts.bySize[n] : null;
+    return b && isNum(b.mult) && b.mult > 1 ? b.mult : POWER[n] || null;
+  }
+  /** One n-pick Power slip with chance `hit`: what it pays, its EV per $1, per-leg break-even, the stake as a share of the
+   *  Balance (fractional Kelly, capped at 5%) and the expected log growth of the Balance at that stake. */
+  function slipPlan(model, n, hit) {
+    const mult = payout(model, n);
+    if (!mult || !isNum(hit)) return null;
+    const full = kelly(hit, mult);
+    const stake = Math.min(STAKE_CAP, kellyScale(model) * full);
+    return { n, mult, standard: POWER[n], be: Math.pow(1 / mult, 1 / n), hit, ev: hit * mult - 1, kelly: full, stake, growth: growth(hit, mult, stake) };
+  }
+
   // ---------- factor model ----------
   function rateOf(v) {
     if (Array.isArray(v) && v.length >= 2) {
@@ -670,11 +769,13 @@
     const sports = Object.keys(bySport).concat(Object.keys(J.pendingBy)).filter((x, i, a) => a.indexOf(x) === i).sort(sportSort);
     const be = { power: {}, flex: {} };
     for (const n of [2, 3, 4, 5, 6]) { be.power[n] = breakEven(n, "power"); if (FLEX[n]) be.flex[n] = breakEven(n, "flex"); }
+    const payouts = fitPayouts(o.ledger), profit = fitProfit(o.ledger);
     return roundDeep({
       version: 1,
       builtAt: nowMs == null ? null : new Date(nowMs).toISOString(),
-      params: { k: K, globalStrength: G_STRENGTH, thin: THIN, calMin: CAL_MIN, factorMin: FACTOR_MIN, lambda: LAMBDA, residK: RESID_K, residMin: RESID_MIN, clamp: [P_MIN, P_MAX] },
-      breakEven: be,
+      params: { k: K, globalStrength: G_STRENGTH, thin: THIN, calMin: CAL_MIN, factorMin: FACTOR_MIN, lambda: LAMBDA, residK: RESID_K, residMin: RESID_MIN, clamp: [P_MIN, P_MAX],
+        payK: PAY_K, kelly: [KELLY_LO, KELLY_HI, KELLY_RAMP], stakeCap: STAKE_CAP },
+      breakEven: be, payouts, profit,
       bot, track, calibration,
       factors: fit.factors,
       factorN: fit.n,
@@ -769,8 +870,19 @@
       const lift = Math.round(f.lift);
       mid.push("Factor: " + f.label + (f.kind === "sd" ? " +1 SD " : " ") + (lift >= 0 ? "+" : "-") + Math.abs(lift) + " pts (n=" + f.n + ").");
     }
-    const be = [2, 3, 4, 5, 6].map(n => "Power" + n + " " + (breakEven(n, "power") * 100).toFixed(1) + "%").join(", ");
-    const tail = "Break-even per leg: " + be + ".";
+    const pr = m.profit;
+    if (pr && pr.n) {
+      const usd = x => (x < 0 ? "−$" : "+$") + Math.abs(x).toFixed(2);
+      mid.unshift("Your slips he played: " + pr.n + " settled, " + pr.won + " won, " + usd(pr.pnl) + " (ROI " + pts(pr.roi) + "%" +
+        (isNum(pr.expectedRoi) ? ", EV said " + pts(pr.expectedRoi) + "%" : "") + ")" + (pr.open ? ", " + pr.open + " open" : "") + ".");
+    }
+    const P = m.payouts && m.payouts.bySize ? m.payouts : null;
+    const mx = x => (Math.round(x * 100) / 100) + "x";
+    const tail = P && P.n
+      ? "Payouts he gets (from " + P.n + " Power entries; standard 3/5/10/20/37.5x; est. = under 3 entries of that size, scaled by his other sizes) and break-even per leg: " +
+        [2, 3, 4, 5, 6].map(n => { const b = P.bySize[n]; return "Power" + n + " " + mx(b.mult) + (b.n < 3 ? " est." : "") + " " + (b.be * 100).toFixed(1) + "%"; }).join(", ") + "."
+      : "Payouts: the standard 3/5/10/20/37.5x until his Power entries show what he gets. Break-even per leg: " +
+        [2, 3, 4, 5, 6].map(n => "Power" + n + " " + (breakEven(n, "power") * 100).toFixed(1) + "%").join(", ") + ".";
     const lines = [head].concat(mid, [tail]);
     while (lines.join("\n").length > 1200 && lines.length > 2) lines.splice(lines.length - 2, 1);
     return lines.join("\n");
@@ -851,7 +963,12 @@
       trust: (m.trust || []).map(segOut), fade: (m.fade || []).map(segOut),
       factors: (m.factors || []).map(f => ({ f: f.label, n: f.n, liftPts: Math.round(f.lift * 10) / 10, sePts: Math.round(f.liftSE * 10) / 10, verdict: f.verdict })),
       segments: top(m.bot),
-      breakEven: m.breakEven || null
+      breakEven: m.breakEven || null,
+      // what PrizePicks pays him per Power size (learned from his entries) and the stake rule
+      payouts: m.payouts ? { from_entries: m.payouts.n, by_size: Object.keys(m.payouts.bySize || {}).reduce((o, k) => {
+        const b = m.payouts.bySize[k]; o[k] = { pays: b.mult, standard: b.standard, n: b.n, be: b.be }; return o; }, {}) } : null,
+      stake_rule: { kelly_share: kellyScale(m), cap: STAKE_CAP },
+      your_slips: m.profit && (m.profit.n || m.profit.open) ? m.profit : null
     };
   }
 
@@ -859,8 +976,9 @@
     version: 1,
     POWER, FLEX,
     breakEven, edge, build, adjust, promptBlock, summary, compact,
+    payout, slipPlan, kelly, growth, kellyScale,
     calibrated, canonStat, canonSport, canonSide, SPORT_ORDER, sportSort,
-    util: { logit, sigmoid, invert, inv2, betaPost, verdictOf }
+    util: { logit, sigmoid, invert, inv2, betaPost, verdictOf, fitPayouts, fitProfit }
   };
   if (root) root.ViciModel = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

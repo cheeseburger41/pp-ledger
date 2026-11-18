@@ -1213,12 +1213,21 @@
     if (opp != null) opp = Math.min(1, Math.max(0, opp));
     const trend = String(x.minutesTrend || "").toLowerCase();
     const w = x.weather && typeof x.weather === "object" ? { tempF: numOrNull(x.weather.tempF), windMph: numOrNull(x.weather.windMph), precipPct: numOrNull(x.weather.precipPct) } : null;
-    return {
+    const out = {
       l5: hitPair(x.l5), l10: hitPair(x.l10), seasonAvg: numOrNull(x.seasonAvg), last5Avg: numOrNull(x.last5Avg), projection: numOrNull(x.projection),
       gapPct: numOrNull(x.gapPct), oppRankPct: opp, restDays: numOrNull(x.restDays), b2b: boolOrNull(x.b2b),
       minutesTrend: trend === "up" || trend === "flat" || trend === "down" ? trend : null, injuryFlag: strOrNull(x.injuryFlag, 60),
       weather: w && (w.tempF != null || w.windMph != null || w.precipPct != null) ? w : null
     };
+    // line comparing (2026-11-18): the same prop's line at other books, how many, and the gap to the PrizePicks line.
+    // Only on picks that have them, so picks journaled before keep their shape.
+    const ml = numOrNull(x.marketLine), mb = numOrNull(x.marketBooks), mg = numOrNull(x.marketGapPct);
+    if (ml != null && ml > 0) {
+      out.marketLine = ml;
+      if (mb != null && mb >= 1) out.marketBooks = Math.min(20, Math.round(mb));
+      if (mg != null) out.marketGapPct = Math.min(100, Math.max(-100, mg));
+    }
+    return out;
   }
   function newId(now) { return "p" + Math.floor(now).toString(36) + Math.floor(env.random() * 1679616).toString(36).padStart(4, "0"); }
   /** Validate + fill a journal pick. -> {pick} or {error}. */

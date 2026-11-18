@@ -2158,7 +2158,7 @@ html.vl-motion .kpi { position: relative; }
     try { const st = window.ViciData && window.ViciData.journal.status(); return Number(st && st.pending) || 0; } catch (e) { return 0; }
   }
   function viciForget() { // Disconnect: Vici's key, chats, slip, usage and pick journal leave this device too. Never blocks > 3 s
-    const keys = ["anthropicKey", "chatDepth", "chatCurrent", "chatSlip", "usage", "usageOutbox", "journal", "journalOutbox"];
+    const keys = ["anthropicKey", "optimalLink", "chatDepth", "chatCurrent", "chatSlip", "usage", "usageOutbox", "journal", "journalOutbox"];
     const wipe = () => { keys.forEach(k => LS.del(k)); };
     let done;
     try {

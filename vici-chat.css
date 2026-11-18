@@ -15,18 +15,18 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 #vchat :focus { outline: none; }
 #vchat :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.vc-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .62); opacity: 0; transition: opacity .32s ease; }
+.vc-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .62); opacity: 0; transition: opacity .45s ease; }
 #vchat.on .vc-scrim { opacity: 1; }
 
 .vc-sheet { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
   background: var(--bg-deco) no-repeat, var(--bg);
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
-  transform: translate3d(0, 100%, 0); transition: transform .38s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
+  transform: translate3d(0, 100%, 0); transition: transform .5s cubic-bezier(.22, .8, .24, 1); will-change: transform; }
 #vchat.on .vc-sheet { transform: none; }
 
 /* ---------- header ---------- */
-.vc-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 56px;
-  padding: 4px 4px 4px 16px; border-bottom: 1px solid var(--line-2); }
+.vc-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 54px;
+  padding: 4px 6px 4px 18px; background: linear-gradient(90deg, transparent, var(--line) 18%, var(--line) 82%, transparent) no-repeat 0 100% / 100% 1px; }
 /* the wordmark and record (a plain div since the Model view went; the button reset stays for a cached older script) */
 .vc-brand { display: flex; align-items: center; min-width: 0; min-height: 44px; padding: 0 6px 0 0; border: 0; background: none; color: inherit;
   font: inherit; text-align: left; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -36,9 +36,12 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
   margin-right: -.2em; }
 .vc-stat { min-width: 0; font: 500 11px/1 var(--f-mono); letter-spacing: .02em; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vc-acts { flex: none; display: flex; align-items: center; }
+.vc-head .vc-ib { color: var(--ink-3); }
+.vc-head .vc-ib:hover, .vc-head .vc-close { color: var(--ink-2); }
+.vc-head .vc-ib svg { width: 20px; height: 20px; stroke-width: 1.5; }
 
 .vc-ib { width: 44px; height: 44px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 12px; background: none;
-  color: var(--ink-2); transition: color .15s, background-color .15s; }
+  color: var(--ink-2); transition: color .25s ease, background-color .25s ease; }
 .vc-ib:hover { color: var(--ink); background: var(--line-2); }
 .vc-ib[disabled] { opacity: .35; background: none; }
 .vc-ib svg, .vc-send svg, .vc-link svg { display: block; width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7;
@@ -48,33 +51,33 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 /* ---------- body + message list ---------- */
 .vc-body { position: relative; flex: 1; min-height: 0; }
 .vc-scroll { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-.vc-list { display: flex; flex-direction: column; gap: 16px; min-height: 100%; padding: 16px 16px 20px; }
+.vc-list { display: flex; flex-direction: column; gap: 24px; min-height: 100%; padding: 20px 16px 24px; }
 
 .vc-u { align-self: flex-end; display: grid; justify-items: end; gap: 6px; max-width: 86%; min-width: 0; }
-.vc-u .vc-txt { padding: 9px 14px; border: 1px solid var(--line); border-radius: 18px 18px 6px 18px;
+.vc-u .vc-txt { padding: 10px 15px; border: 1px solid var(--line); border-radius: 19px 19px 6px 19px; line-height: 1.45;
   background: var(--panel); background-image: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0));
   white-space: pre-wrap; overflow-wrap: anywhere; }
 .vc-imgs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .vc-imgs img { display: block; width: 92px; height: 92px; object-fit: cover; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
 
-.vc-a { display: grid; gap: 14px; min-width: 0; }
-.vc-m, .vc-livebox { display: grid; gap: 12px; min-width: 0; }
+.vc-a { display: grid; gap: 16px; min-width: 0; }
+.vc-m, .vc-livebox { display: grid; gap: 14px; min-width: 0; }
 .vc-m:empty { display: none; }   /* a tool-call-only assistant turn renders nothing: no extra gap */
 
 /* safe mini-markdown */
-.vc-md { min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+.vc-md { min-width: 0; overflow-wrap: anywhere; color: var(--ink); font-size: 15.5px; line-height: 1.6; }
 .vc-md > * { margin: 0; }
-.vc-md > * + * { margin-top: 9px; }
+.vc-md > * + * { margin-top: 12px; }
 .vc-md h3 { font-family: var(--f-display); font-weight: 400; font-size: 16px; letter-spacing: .06em; line-height: 1.3; }
 .vc-md h4 { font-size: 11.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); }
-.vc-md * + h3, .vc-md * + h4 { margin-top: 16px; }
+.vc-md * + h3, .vc-md * + h4 { margin-top: 20px; }
 .vc-md strong { font-weight: 600; color: #fff; }
 .vc-md em { font-style: italic; }
 .vc-md code { font-family: var(--f-mono); font-size: .86em; padding: 1px 5px; border-radius: 5px; background: var(--line-2); border: 1px solid var(--line); }
 .vc-md pre { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); overflow-x: auto; }
 .vc-md pre code { padding: 0; border: 0; background: none; font-size: 12.5px; white-space: pre; }
 .vc-md ul, .vc-md ol { padding-left: 20px; }
-.vc-md li + li { margin-top: 5px; }
+.vc-md li + li { margin-top: 7px; }
 .vc-md li > ul, .vc-md li > ol { margin-top: 5px; }
 .vc-md li::marker { color: var(--ink-3); }
 .vc-md a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--ink-3); text-underline-offset: 2px; }
@@ -106,47 +109,55 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 
 /* streaming caret on the text being written */
 .vc-live > .vc-md:last-child > :last-child::after { content: ""; display: inline-block; width: 7px; height: 1.05em; margin-left: 3px;
-  vertical-align: -.15em; border-radius: 1px; background: var(--accent); animation: vc-blink 1s steps(2, start) infinite; }
-.vc-cards-ph { display: grid; gap: 8px; }
-.vc-cards-ph i { display: block; height: 92px; border: 1px solid var(--line-2); border-radius: 14px;
+  vertical-align: -.15em; border-radius: 1px; background: var(--accent); animation: vc-breathe 1.6s ease-in-out infinite; }
+.vc-cards-ph { display: grid; gap: 6px; }
+.vc-cards-ph i { display: block; height: 58px; border: 1px solid var(--line-2); border-radius: 14px;
   background: linear-gradient(100deg, var(--panel) 30%, var(--accent-soft) 50%, var(--panel) 70%); background-size: 300% 100%;
-  animation: vc-shim 1.6s linear infinite; }
+  animation: vc-shim 2.6s linear infinite; }
 
 /* the one activity line */
-.vc-act { display: flex; align-items: center; gap: 10px; min-height: 22px; min-width: 0; font-size: 12.5px; letter-spacing: .02em; color: var(--ink-3); }
-.vc-act i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: vc-pulse 1.3s ease-in-out infinite; }
+.vc-act { display: flex; align-items: center; gap: 11px; min-height: 28px; min-width: 0; font-size: 13.5px; letter-spacing: .01em; color: var(--ink-2); }
+.vc-act[hidden] { display: none; }
+.vc-act i { flex: none; width: 15px; height: 15px; border: 1.5px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
+  animation: vc-spin 1.5s linear infinite; }
 .vc-act span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  background: linear-gradient(90deg, var(--ink-3) 0%, var(--ink-3) 35%, var(--ink) 50%, var(--ink-3) 65%, var(--ink-3) 100%);
-  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: vc-shim 2.4s linear infinite; }
+  background: linear-gradient(90deg, var(--ink-2) 0%, var(--ink-2) 38%, #fff 50%, var(--ink-2) 62%, var(--ink-2) 100%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: vc-shim 3.6s linear infinite; }
 
-/* ---------- pick cards ---------- */
-.vc-cards { display: grid; gap: 8px; }
-.vc-card { display: grid; gap: 4px; min-width: 0; padding: 12px 10px 4px 14px; border: 1px solid var(--line); border-radius: 14px;
-  background: var(--panel); background-image: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0) 64px);
-  box-shadow: var(--shadow); transition: border-color .2s, box-shadow .2s; }
+/* ---------- pick cards: one row per pick; a tap opens the reason and the numbers ---------- */
+.vc-cards { display: grid; gap: 6px; }
+.vc-card { min-width: 0; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--panel); background-image: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0) 58px);
+  box-shadow: var(--shadow); transition: border-color .3s ease, box-shadow .3s ease; }
 .vc-card.sel { border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent), var(--shadow); }
-.vc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; min-width: 0; padding-right: 4px; }
+.vc-line { display: flex; align-items: center; min-width: 0; padding-right: 9px; }
+.vc-top { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; min-height: 58px;
+  padding: 9px 10px 9px 13px; border: 0; border-radius: 13px; background: none; text-align: left; }
 .vc-who { display: grid; gap: 5px; min-width: 0; }
 .vc-pl { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.vc-pl .nm { min-width: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vc-pl .nm { min-width: 0; font-size: 15px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vc-tier { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--line); border-radius: 6px;
   font: 600 11px/1 var(--f-mono); color: var(--ink-3); }
 .vc-tier.tA { border-color: transparent; background: var(--accent-grad); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
 .vc-tier.tB { border-color: var(--ink-3); color: var(--ink); }
-.vc-ln { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px; min-width: 0; font-size: 13px; color: var(--ink-2); }
+.vc-chev { flex: none; width: 7px; height: 7px; margin: -4px 2px 0 0; border: solid var(--ink-3); border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg); transition: transform .35s ease, margin .35s ease; }
+.vc-card.open .vc-chev { margin-top: 4px; transform: rotate(225deg); }
+.vc-ln { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; min-width: 0; font-size: 13px; line-height: 1.25; color: var(--ink-2); }
 .vc-ln .sd { align-self: center; padding: 3px 6px; border-radius: 5px; font: 600 10px/1.1 var(--f-body); letter-spacing: .09em; }
 .vc-ln .sd.over { background: var(--accent-grad); color: var(--on-accent); }
 .vc-ln .sd.under { border: 1px solid var(--ink-3); color: var(--ink); padding: 2px 5px; }
-.vc-ln .num { font: 500 15px/1 var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.vc-ln .num { font: 500 14.5px/1 var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
 .vc-ln .st { min-width: 0; overflow-wrap: anywhere; }
 .vc-ln .lt { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--warn); }
 .vc-ln .lt.goblin { color: var(--good); }
 .vc-ln .lt.demon { color: var(--bad); }
 .vc-pct { flex: none; display: grid; justify-items: end; gap: 5px; }
-.vc-pct b { font-family: var(--f-display); font-weight: 300; font-size: 27px; line-height: 1; font-variant-numeric: tabular-nums;
+.vc-pct b { font-family: var(--f-display); font-weight: 300; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums;
   background: var(--plat-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.vc-edge { font: 500 11.5px/1 var(--f-mono); color: var(--ink-3); white-space: nowrap; }
+.vc-edge { font: 500 11px/1 var(--f-mono); color: var(--ink-3); white-space: nowrap; }
+.vc-edge:empty { display: none; }
 .vc-edge.up { color: var(--good); }
 .vc-edge.dn { color: var(--bad); }
 .vc-res { padding: 4px 8px; border-radius: 999px; font: 600 10.5px/1 var(--f-body); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
@@ -154,30 +165,45 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 .vc-res.hit { background: var(--good-soft); color: var(--good); }
 .vc-res.miss { background: var(--bad-soft); color: var(--bad); }
 .vc-res.push { background: var(--warn-soft); color: var(--warn); }
-.vc-keys { display: flex; flex-wrap: wrap; gap: 4px 12px; min-width: 0; padding: 2px 4px 0 0; }
-.vc-keys span { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; max-width: 100%; }
-.vc-keys i { font-style: normal; font-size: 9.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
-.vc-keys b { font: 500 12.5px/1.2 var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vc-bot { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.vc-why { flex: 1; min-width: 0; min-height: 44px; padding: 6px 0; border: 0; background: none; text-align: left; font-size: 13px; line-height: 1.4;
-  color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vc-why:hover { color: var(--ink); }
-.vc-why[aria-expanded="true"] { white-space: normal; color: var(--ink); }
-.vc-add { position: relative; flex: none; min-width: 74px; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px;
-  background: transparent; font-size: 12.5px; font-weight: 600; letter-spacing: .02em; color: var(--ink); white-space: nowrap;
-  transition: background-color .15s, border-color .15s, color .15s; }
-.vc-add::after { content: ""; position: absolute; inset: -5px -3px; }
+/* add to the slip: a round + that turns into a platinum check */
+.vc-add { position: relative; flex: none; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 50%;
+  background: transparent; color: var(--ink); transition: background-color .3s ease, border-color .3s ease, color .3s ease; }
+.vc-add::after { content: ""; position: absolute; inset: -11px -9px; }
+.vc-add svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.vc-add svg + svg, .vc-add[aria-pressed="true"] svg:first-child { display: none; }
+.vc-add[aria-pressed="true"] svg + svg { display: block; stroke-width: 2.2; }
 .vc-add:hover { border-color: var(--ink-3); }
 .vc-add[aria-pressed="true"] { border-color: transparent; background: var(--accent-grad); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
 .vc-add[disabled] { opacity: .3; }
-.vc-card.graded .vc-add { display: none; }   /* graded: the result chip says it all, the reason gets the full width */
-.vc-feats { display: grid; gap: 8px; padding: 10px 4px 10px 0; border-top: 1px solid var(--line-2); }
+.vc-card.graded .vc-add { display: none; }   /* graded: the result chip says it all */
+.vc-card.graded .vc-line { padding-right: 3px; }
+.vc-feats { display: grid; gap: 12px; margin: 0 13px; padding: 12px 0 14px; border-top: 1px solid var(--line-2); animation: vc-fade .4s ease both; }
 .vc-feats[hidden] { display: none; }
-.vc-fgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 8px; }
+.vc-why { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.vc-fgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px 8px; }
 .vc-fgrid div { display: grid; gap: 3px; min-width: 0; }
+.vc-fgrid div.w2 { grid-column: span 2; }
 .vc-fgrid span { font-size: 9.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
 .vc-fgrid b { font: 500 13px/1.2 var(--f-mono); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vc-note { font-size: 12px; color: var(--ink-3); }
+
+/* ---------- Vici's slip: the recommended slip, one tap from the tray ---------- */
+.vc-rec { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 9px 9px 9px 14px; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line)); border-radius: 14px; background: var(--hero-bg, var(--panel)); box-shadow: var(--shadow);
+  animation: vc-rise .5s cubic-bezier(.22, .8, .24, 1) both; }
+.vc-rec[hidden] { display: none; }
+.vc-rec::before { content: ""; position: absolute; inset: 0 0 auto; height: 1.5px; background: var(--accent-grad); opacity: .85; }
+.vc-rt { flex: 1; display: grid; gap: 6px; min-width: 0; }
+.vc-rh { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.vc-rn { min-width: 0; font: 500 10.5px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vc-rk { flex: none; font-family: var(--f-display); font-weight: 400; font-size: 12px; line-height: 1; letter-spacing: .24em; text-transform: uppercase; white-space: nowrap;
+  background: var(--plat-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.vc-rt small { font: 400 11.5px/1.25 var(--f-mono); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vc-radd { position: relative; flex: none; min-width: 68px; min-height: 40px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--accent-grad); color: var(--on-accent);
+  font-size: 13.5px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6);
+  transition: background-color .3s ease, color .3s ease, box-shadow .3s ease; }
+.vc-radd::after { content: ""; position: absolute; inset: -4px -2px; }
+.vc-radd[aria-pressed="true"] { background: transparent; color: var(--ink-2); font-weight: 600; box-shadow: inset 0 0 0 1px var(--line); }
 
 /* ---------- notes (stopped, refusal, cut off, errors) ---------- */
 .vc-mark { display: grid; gap: 8px; min-width: 0; }
@@ -198,7 +224,7 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 .vc-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .vc-chip { min-height: 52px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 14px; text-align: left; font-size: 14px; line-height: 1.25; color: var(--ink);
   background: var(--panel); background-image: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0));
-  transition: border-color .15s, transform .15s; }
+  transition: border-color .25s ease, transform .25s ease; }
 .vc-chip:hover { border-color: var(--ink-3); }
 .vc-chip:active { transform: scale(.98); }
 
@@ -225,7 +251,7 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 
 /* ---------- panel: settings ---------- */
 .vc-panel { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; background: var(--bg-deco) no-repeat, var(--bg);
-  animation: vc-panel .24s cubic-bezier(.2, .8, .2, 1); }
+  animation: vc-panel .38s cubic-bezier(.22, .8, .24, 1); }
 .vc-panel[hidden] { display: none; }
 .vc-ph { flex: none; display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 4px; border-bottom: 1px solid var(--line-2); }
 .vc-ph h2 { flex: 1; margin: 0; text-align: center; font-family: var(--f-display); font-weight: 300; font-size: 14px; letter-spacing: .3em;
@@ -238,19 +264,20 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 .vc-set .k { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .vc-set .v { min-width: 0; font: 400 13px/1.2 var(--f-mono); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vc-set.end { justify-content: flex-start; padding-top: 18px; border-bottom: 0; }
-.vc-kform { display: flex; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
-.vc-kform .vc-in { flex: 1; }
-.vc-kform + .vc-err { padding-top: 8px; }
+.vc-kform, .vc-oform { display: flex; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
+.vc-kform .vc-in, .vc-oform .vc-in { flex: 1; }
+.vc-kform + .vc-err, .vc-oform + .vc-err { padding-top: 8px; }
+.vc-oend { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
 
 /* ---------- footer: slip tray + composer ---------- */
-.vc-foot { flex: none; display: grid; gap: 8px; padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line-2);
-  background: color-mix(in srgb, var(--bg) 94%, transparent); }
+.vc-foot { flex: none; display: grid; gap: 8px; padding: 9px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(90deg, transparent, var(--line) 18%, var(--line) 82%, transparent) no-repeat 0 0 / 100% 1px, color-mix(in srgb, var(--bg) 94%, transparent); }
 .vc-foot[hidden] { display: none; }
 #vchat.kb .vc-foot { padding-bottom: 8px; }
 .vc-sheet:has(.vc-panel:not([hidden])) .vc-foot { display: none; }   /* panels get the full height */
 
 .vc-slip { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 4px 7px 10px; overflow: hidden;
-  border: 1px solid var(--line); border-radius: 16px; background: var(--hero-bg, var(--panel)); box-shadow: var(--shadow); animation: vc-rise .26s cubic-bezier(.2, .8, .2, 1); }
+  border: 1px solid var(--line); border-radius: 16px; background: var(--hero-bg, var(--panel)); box-shadow: var(--shadow); animation: vc-rise .45s cubic-bezier(.22, .8, .24, 1); }
 .vc-slip[hidden] { display: none; }
 .vc-slip::before { content: ""; position: absolute; inset: 0 0 auto; height: 1.5px; background: var(--accent-grad); opacity: .85; }
 .vc-sn { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-grad); color: var(--on-accent);
@@ -277,7 +304,7 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 .vc-tx:hover { background: var(--ink); color: var(--bg); }
 .vc-tx svg { width: 13px; height: 13px; stroke-width: 2.4; }
 .vc-row { display: flex; align-items: flex-end; gap: 4px; min-width: 0; padding: 3px; border: 1px solid var(--line); border-radius: 25px; background: var(--panel);
-  transition: border-color .15s; }
+  transition: border-color .3s ease; }
 .vc-row:focus-within { border-color: var(--ink-3); }
 .vc-att { border-radius: 50%; }
 .vc-ta { flex: 1; min-width: 0; min-height: 44px; max-height: 148px; margin: 0; padding: 11px 2px; border: 0; outline: none; resize: none; background: transparent;
@@ -285,7 +312,7 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 .vc-ta::placeholder { color: var(--ink-3); }
 #vchat .vc-ta:focus-visible { outline: none; }
 .vc-send { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%;
-  background: var(--accent-grad); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6); transition: opacity .15s, transform .15s; }
+  background: var(--accent-grad); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6); transition: opacity .3s ease, transform .2s ease; }
 .vc-send svg { width: 20px; height: 20px; stroke-width: 2.2; }
 .vc-send:active { transform: scale(.94); }
 .vc-send[disabled] { opacity: .22; }
@@ -301,24 +328,128 @@ html.vchat-open, html.vchat-open body { overflow: hidden; overscroll-behavior: n
 }
 @media (max-width: 360px) {
   .vc-fgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .vc-pct b { font-size: 24px; }
-  .vc-odds { display: none; }
+  .vc-pct b { font-size: 21px; }
+  .vc-top { gap: 8px; padding-left: 11px; padding-right: 8px; }
+  .vc-slip .vc-odds { display: none; }   /* the tray only: Vici's slip keeps its chance to hit */
+}
+@media (max-width: 359px) {
+  .vc-rec .vc-odds { display: none; }    /* narrower still: the bar needs the room for its size and stake */
 }
 
 /* ---------- motion ---------- */
-.vc-u, .vc-card, .vc-mark { animation: vc-rise .3s cubic-bezier(.2, .8, .2, 1) both; }
-.vc-card:nth-child(2) { animation-delay: .04s; }
-.vc-card:nth-child(3) { animation-delay: .08s; }
-.vc-card:nth-child(n+4) { animation-delay: .12s; }
-@keyframes vc-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes vc-panel { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
-@keyframes vc-pulse { 0%, 100% { opacity: .3; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
+/* calm and slow (Angus): things ease in over about half a second; nothing blinks, bounces or pulses hard */
+.vc-u, .vc-card, .vc-mark { animation: vc-rise .5s cubic-bezier(.22, .8, .24, 1) both; }
+.vc-card:nth-child(2) { animation-delay: .06s; }
+.vc-card:nth-child(3) { animation-delay: .12s; }
+.vc-card:nth-child(n+4) { animation-delay: .18s; }
+@keyframes vc-rise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@keyframes vc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vc-panel { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+@keyframes vc-spin { to { transform: rotate(360deg); } }
 @keyframes vc-shim { from { background-position: 100% 0; } to { background-position: 0% 0; } }
-@keyframes vc-blink { to { visibility: hidden; } }
+@keyframes vc-breathe { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
   #vchat *, #vchat *::before, #vchat *::after { animation: none !important; transition: none !important; }
   .vc-sheet, #vchat .vc-sheet { transform: none !important; transition: none !important; }
   .vc-scrim { transition: none !important; }
   .vc-act span { background: none; color: var(--ink-2); }
+  .vc-act i { border-top-color: var(--line); background: radial-gradient(circle, var(--accent) 0 3px, transparent 3.5px); }   /* a still mark, no spin */
+}
+
+/* ---------- Editorial finish (Angus, 2026-11-18: "Make the interface more premium" -> Editorial) ----------
+ * The app's look, carried into the chat: no boxes, hairlines and air, tiny tracked caps, thin numbers; platinum only on
+ * the wordmark and the primary buttons. Rules use the app's --ed-* tokens (the fallbacks are the same mixes). */
+#vchat { --vr: var(--ed-rule, color-mix(in srgb, var(--ink) 18%, var(--bg))); --vr2: var(--ed-rule-2, color-mix(in srgb, var(--ink) 14%, var(--bg)));
+  --vrin: var(--ed-rule-in, color-mix(in srgb, var(--ink) 40%, var(--bg))); --vwash: var(--ed-wash, rgba(255, 255, 255, .035)); }
+.vc-scrim { background: rgba(0, 0, 0, .78); }
+.vc-sheet, .vc-panel { background: var(--bg); }
+.vc-head { background: none; border-bottom: 1px solid var(--vr); }
+.vc-ib { border-radius: 50%; }
+.vc-ib:not(.vc-tx):hover { background: var(--vwash); }
+
+/* his message: no bubble, set to the right behind a hairline */
+.vc-u .vc-txt { padding: 2px 14px 2px 0; border: 0; border-right: 1px solid var(--vrin); border-radius: 0; background: none; color: var(--ink-2); text-align: right; }
+.vc-imgs img, .vc-thumb img { border-color: var(--vr); border-radius: 2px; }
+.vc-md code { border: 0; border-radius: 2px; background: var(--vwash); }
+.vc-md pre { border: 0; border-top: 1px solid var(--vr2); border-bottom: 1px solid var(--vr2); border-radius: 0; background: none; padding-left: 0; padding-right: 0; }
+.vc-md blockquote { border-left-color: var(--vr); }
+.vc-md hr { border-top-color: var(--vr2); }
+.vc-md h4 { font-size: 10.5px; font-weight: 500; letter-spacing: .22em; color: var(--ink-3); }
+.vc-tbl { border: 0; border-top: 1px solid var(--vr); border-radius: 0; }
+.vc-tbl th { font-weight: 500; letter-spacing: .16em; border-bottom-color: var(--vr2); }
+.vc-tbl td { border-bottom-color: var(--vr2); }
+.vc-tbl th:first-child, .vc-tbl td:first-child { padding-left: 0; }
+.vc-src a { border-color: var(--vr); }
+.vc-cards-ph { gap: 0; }
+.vc-cards-ph i { height: 61px; border: 0; border-top: 1px solid var(--vr2); border-radius: 0;
+  background: linear-gradient(100deg, transparent 30%, var(--vwash) 50%, transparent 70%); background-size: 300% 100%; }
+
+/* pick cards: rows under a rule */
+.vc-cards { gap: 0; border-bottom: 1px solid var(--vr2); }
+.vc-cards:empty { display: none; }
+.vc-card { border: 0; border-top: 1px solid var(--vr2); border-radius: 0; background: none; box-shadow: none; transition: background-color .3s ease; }
+.vc-card:first-child { border-top-color: var(--vr); }
+.vc-card.sel { border-color: var(--vr2); box-shadow: none; background: var(--vwash); }
+.vc-card.sel:first-child { border-top-color: var(--vr); }
+.vc-line { padding-right: 6px; }
+.vc-top { min-height: 60px; padding: 10px 10px 10px 4px; border-radius: 0; }
+.vc-pl .nm { font-weight: 500; }
+.vc-tier { width: 19px; height: 19px; border: 0; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--vr); font-weight: 500; font-size: 10.5px; }
+.vc-tier.tA { background: none; color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent); }
+.vc-tier.tB { color: var(--ink-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-2) 50%, transparent); }
+.vc-ln .sd, .vc-ln .sd.under { padding: 3px 6px; border: 0; border-radius: 999px; background: none; font: 500 9.5px/1.1 var(--f-body); letter-spacing: .14em; }
+.vc-ln .sd.over { background: none; color: var(--ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 50%, transparent); }
+.vc-ln .sd.under { color: var(--ink-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-2) 50%, transparent); }
+.vc-ln .num { font-size: 15px; }
+.vc-ln .lt { font-weight: 500; letter-spacing: .14em; }
+.vc-pct b { font-size: 26px; background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--ink); }
+.vc-res { padding: 4px 8px; background: none; font-weight: 500; letter-spacing: .14em; color: var(--ink-3); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-3) 50%, transparent); }
+.vc-res.hit { background: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--good) 50%, transparent); }
+.vc-res.miss { background: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 50%, transparent); }
+.vc-res.push { background: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 50%, transparent); }
+.vc-add { border-color: var(--vr); }
+.vc-add:not([aria-pressed="true"]):hover { border-color: var(--vrin); }
+.vc-feats { margin: 0 4px; border-top-color: var(--vr2); }
+.vc-fgrid span { font-weight: 500; letter-spacing: .16em; }
+
+/* Vici's slip and the tray: a hairline pill and a ruled row; platinum stays on the one button */
+.vc-rec { padding: 8px 8px 8px 20px; border: 1px solid var(--vr); border-radius: 999px; background: none; box-shadow: none; }
+.vc-rec::before, .vc-slip::before { content: none; }
+.vc-rk { font-weight: 500; background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--ink); }
+.vc-rn { letter-spacing: .14em; }
+.vc-radd, .vc-log { min-height: 40px; border-radius: 999px; font-size: 13px; font-weight: 600; letter-spacing: .04em; }
+.vc-radd[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--vr); }
+.vc-mini { border-color: var(--vr); background: none; font-weight: 500; }
+.vc-mini:hover { border-color: var(--vrin); }
+
+.vc-chip { min-height: 48px; border-color: var(--vr); border-radius: 2px; background: none; color: var(--ink-2); }
+.vc-chip:hover { border-color: var(--vrin); color: var(--ink); }
+.vc-lbl { font-size: 10.5px; letter-spacing: .22em; }
+.vc-in { padding: 10px 0; border: 0; border-bottom: 1px solid var(--vrin); border-radius: 0; background: none; }
+.vc-in:focus { border-bottom-color: var(--ink); }
+.vc-btn { padding: 0 18px; border-color: var(--vr); border-radius: 999px; background: none; font-size: 13px; font-weight: 500; }
+.vc-btn:not(.pri):hover { border-color: var(--vrin); }
+.vc-btn.pri { font-weight: 600; }
+
+/* settings */
+.vc-ph { border-bottom-color: var(--vr); }
+.vc-ph h2 { font-weight: 500; font-size: 15px; letter-spacing: .24em; padding-left: .24em; }
+.vc-set { border-bottom-color: var(--vr2); }
+.vc-set .k { font-size: 10.5px; letter-spacing: .22em; }
+.vc-kform, .vc-oform { align-items: flex-end; gap: 14px; border-bottom-color: var(--vr2); }
+
+/* footer: a rule, the tray as a row, the composer on an underline */
+.vc-foot { background: var(--bg); border-top: 1px solid var(--vr); padding-left: 16px; padding-right: 16px; }
+.vc-slip { padding: 5px 0 9px; border: 0; border-bottom: 1px solid var(--vr2); border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+.vc-sn { background: none; color: var(--ink); font-weight: 500; box-shadow: inset 0 0 0 1px var(--vrin); }
+.vc-st b { font-weight: 500; }
+.vc-odds b { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--ink); }
+.vc-row { padding: 3px 0; border: 0; border-bottom: 1px solid var(--vrin); border-radius: 0; background: none; }
+.vc-row:focus-within { border-bottom-color: var(--ink-2); }
+.vc-att { margin-left: -10px; }
+.vc-send { margin-bottom: 1px; }
+
+@media (min-width: 701px) {
+  .vc-sheet { border-left-color: var(--vr); box-shadow: 0 40px 100px rgba(0, 0, 0, .7); }
 }

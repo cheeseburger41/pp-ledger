@@ -9,6 +9,7 @@
  *   ViciModel.adjust(model, rawProb, {sport, stat, side, tier, features}) -> {p, parts, note}
  *   ViciModel.breakEven(n, type) / edge(p, n, type) / promptBlock(model)
  *   ViciModel.summary(model, sport?) / compact(model, sport?) / calibrated(model, p, sport?)   (sport: "NBA"; omitted = all)
+ *   ViciModel.calShare(model, sport?)   (how much of an upward calibration counts for that sport, 0..1)
  *   ViciModel.payout(model, n) / slipPlan(model, n, hit) / kelly(hit, mult) / growth(hit, mult, f) / kellyScale(model)
  *
  * Statistics:
@@ -16,6 +17,15 @@
  *     Beta(k*m, k*(1-m)) with m = parent's posterior mean, k = 15. 80% interval = normal approx to the Beta.
  *   - Calibration by sport: logit(p*) = (a+da_s) + (b+db_s)*logit(p), one joint MAP fit by damped Newton, priors
  *     a~N(0,.35^2), b~N(1,.25^2) (the pooled fit, used for a sport with no picks), da_s~N(0,.25^2), db_s~N(0,.15^2).
+ *   - Earned raises (Angus, 2026-11-18: "The NBA picks are generally far worse than the NFL ones in success rate").
+ *     Those priors let six graded picks, all hits, add 8 points to every NBA chance and 6 to every other sport's, so
+ *     a 54% leg would have led a slip. adjust() now weighs the two corrections together (the calibration, and a
+ *     segment's shift once it has ten graded picks): what they add above the bot's own number counts only as far as
+ *     that sport's own graded picks have earned it, n/(n+30) of it (calShare: nothing for a sport with no picks,
+ *     half at 30); a net cut counts in full, and so does whatever only brings a cut chance back toward the bot's
+ *     number. So Vici % is never above what the full corrections say and equals it whenever that is at or under the
+ *     bot's prob. The share is the sport's: a stat's own segment still joins at its own tenth pick. The fit, the
+ *     segments, their diagnostics and the Learning lines are unchanged.
  *   - Each sport also gets its own segments, trust/fade, predicted-vs-actual track and pending count (model.bySport,
  *     bot.bySport, track.bySport, bot.pendingBy, calibration.bySport; model.sports lists them in display order).
  *   - Factors: L2 (lambda=1) logistic regression on standardized features, n >= 40, SEs from the inverse Hessian.
@@ -23,10 +33,13 @@
  *     Power entries (To Win / stake against the standard multiplier, shrunk toward the standard with 4 entries' weight,
  *     each size toward the pooled ratio). Slips carry the expected log growth of the Balance at their stake.
  *   - Stakes (SAFE_STAKES, off). Angus, 2026-11-18: "By minimise risk I meant spread out the picks, not use a low
- *     budget". So a stake is 1/4 of the Kelly stake rising to 1/2 over the first 200 graded picks (back to 1/4 when
- *     Vici has run too confident), at most 5% of the Balance on a slip, and there is no day limit (dayLimit gives
- *     null). SAFE_STAKES on is what v31 shipped on the wrong reading of "minimise risk": a quarter whatever the
- *     record, 3% a slip, a day's entries together at most 10% of the Balance he started that day with.
+ *     budget". So a stake is 1/2 of the Kelly stake (1/4 while Vici's record says it has run too confident), at
+ *     most 5% of the Balance on a slip, and there is no day limit (dayLimit gives null). Until v33 the share rose
+ *     from 1/4 to 1/2 over the first 200 graded picks, on chances the unearned raise had inflated; with the raise
+ *     earned (above), 1/2 keeps a slip that leads clearly at the stake it had instead of halving it (one that only
+ *     just leads is staked lower: its chance was overstated). SAFE_STAKES on is what v31 shipped on the wrong
+ *     reading of "minimise risk": a quarter whatever the record, 3% a slip, a day's entries together at most 10%
+ *     of the Balance he started that day with.
  */
 (function (root) {
   "use strict";
@@ -41,6 +54,7 @@
   const CAL_MIN = 15;           // calibration verdict needs this many graded bot picks
   const CAL_SA = 0.35, CAL_SB = 0.25;
   const CAL_SAS = 0.25, CAL_SBS = 0.15;  // how far one sport's calibration may sit from the pooled one (prior SDs)
+  const CAL_RAMP = 30;          // a calibration that raises a chance counts n/(n+CAL_RAMP), n = that sport's own graded picks
   const FACTOR_MIN = 40, LAMBDA = 1, LAMBDA0 = 1e-3;
   const RESID_MIN = 10, RESID_K = 30;
   const P_MIN = 0.30, P_MAX = 0.85;
@@ -48,7 +62,7 @@
   const LINKED_NOTE = /\blinked\b/i;      // how the chat marks a logged slip of linked legs (notes "Vici: … · linked")
   const PAY_LO = 0.25, PAY_HI = 2.5;     // a To Win outside this share of the standard is a typo or a promo, not PrizePicks' pricing
   const SAFE_STAKES = false;             // off: Angus, 2026-11-18: "By minimise risk I meant spread out the picks, not use a low budget"
-  const KELLY_LO = 0.25, KELLY_HI = SAFE_STAKES ? 0.25 : 0.5, KELLY_RAMP = 200;   // share of the full Kelly stake, by graded picks
+  const KELLY_LO = 0.25, KELLY_HI = SAFE_STAKES ? 0.25 : 0.5;   // share of the full Kelly stake: HI, and LO while the record says "too confident"
   const STAKE_CAP = SAFE_STAKES ? 0.03 : 0.05;   // never more than this share of the Balance on one slip
   const DAY_CAP = SAFE_STAKES ? 0.1 : null;      // never more than this share of the day's starting Balance on one day's entries
   const BUCKETS = [
@@ -510,13 +524,26 @@
     });
     return Object.assign({ n, a: th[0], b: th[1], sdA: Math.sqrt(cov[0][0]), sdB: Math.sqrt(cov[1][1]), identity: n === 0 }, all, { bySport });
   }
-  /** The calibrated probability for a sport (its own fit when it has history, else the pooled one). */
+  /** The calibrated probability for a sport (its own fit when it has history, else the pooled one): what the fit says,
+   *  before adjust() weighs a raise by calShare. */
   function calibrated(model, p, sport) {
     const c = model && model.calibration;
     const own = c && c.bySport && sport != null ? c.bySport[canonSport(sport)] : null;
     const src = own && isNum(own.a) && isNum(own.b) ? own : c;
     const a = src && isNum(src.a) ? src.a : 0, b = src && isNum(src.b) ? src.b : 1;
     return sigmoid(a + b * logit(clamp(p, 0.01, 0.99)));
+  }
+  /** How much of a correction that raises a chance counts, 0..1: n/(n+CAL_RAMP), n = the graded picks (with a prob) of
+   *  that sport alone. A sport with none gets no raise, however the others have done: each sport earns its own. With no
+   *  sport named (none, or a blank), the count of all graded picks. A correction that lowers a chance always counts in
+   *  full (adjust). */
+  function calShare(model, sport) {
+    const c = model && model.calibration;
+    if (!c) return 0;
+    if (sport != null && String(sport).trim() === "") sport = null;
+    const own = c.bySport && sport != null ? c.bySport[canonSport(sport)] : null;
+    const n = sport == null ? c.n : own ? own.n : 0;
+    return isNum(n) && n > 0 ? n / (n + CAL_RAMP) : 0;
   }
 
   // ---------- predicted vs actual (what Angus sees) ----------
@@ -609,14 +636,12 @@
     if (f >= 1) return -Infinity;
     return hit * Math.log(1 + f * (mult - 1)) + (1 - hit) * Math.log(1 - f);
   }
-  /** Share of the full Kelly stake: KELLY_LO while Vici's probabilities are unproven, up to KELLY_HI over its first
-   *  KELLY_RAMP graded picks, back to KELLY_LO whenever its probabilities have run too confident. With SAFE_STAKES the
-   *  two are the same: a quarter, always. */
+  /** Share of the full Kelly stake: KELLY_HI, and KELLY_LO while Vici's graded picks say its probabilities have run
+   *  too confident. With SAFE_STAKES the two are the same: a quarter, always. (Until v33 it rose from LO to HI over the
+   *  first 200 graded picks; see Stakes at the top.) */
   function kellyScale(model) {
     const c = (model && model.calibration) || {};
-    if (c.verdict === "over") return KELLY_LO;
-    const n = isNum(c.n) ? c.n : 0;
-    return KELLY_LO + (KELLY_HI - KELLY_LO) * Math.min(1, n / KELLY_RAMP);
+    return c.verdict === "over" ? KELLY_LO : KELLY_HI;
   }
   /** The multiplier Angus usually gets on an n-pick Power slip (the standard one until his entries say otherwise).
    *  linked === true: for a slip of linked legs, that payout times what his linked slips have paid of it (1 until he
@@ -816,7 +841,7 @@
       version: 1,
       builtAt: nowMs == null ? null : new Date(nowMs).toISOString(),
       params: { k: K, globalStrength: G_STRENGTH, thin: THIN, calMin: CAL_MIN, factorMin: FACTOR_MIN, lambda: LAMBDA, residK: RESID_K, residMin: RESID_MIN, clamp: [P_MIN, P_MAX],
-        payK: PAY_K, kelly: [KELLY_LO, KELLY_HI, KELLY_RAMP], stakeCap: STAKE_CAP, dayCap: DAY_CAP },
+        calRamp: CAL_RAMP, payK: PAY_K, kelly: [KELLY_LO, KELLY_HI], stakeCap: STAKE_CAP, dayCap: DAY_CAP },
       breakEven: be, payouts, profit,
       bot, track, calibration,
       factors: fit.factors,
@@ -829,7 +854,13 @@
 
   // ---------- adjust ----------
   const pts = x => { const v = Math.round(x * 100); return (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v); };
-  /** Vici %: raw prob through its sport's calibration + shrunk residual of the most specific bot segment with ≥10 graded picks, clamped. */
+  /** Vici %: raw prob through its sport's calibration + the shrunk residual of the most specific bot segment with ≥10
+   *  graded picks, clamped. The two are weighed together: with net = what they add to the bot's own prob in full, a net
+   *  cut counts in full and a net raise only as far as that sport's graded picks have earned it (calShare), so
+   *  p = raw + net (net <= 0) or raw + net x share. parts.fit is what the fitted calibration says, parts.calibrated what
+   *  counted of it and parts.calShare that part as a share; parts.segment is the segment's shift as it counted and
+   *  parts.segmentShare its share of the full shift. A pick with no sport is read as "Other" when the journal has such
+   *  picks (their segments are measured against that fit), else on the pooled fit. */
   function adjust(model, rawProb, ctx) {
     const c = ctx || {};
     let raw = toNum(rawProb);
@@ -837,7 +868,11 @@
     const noRaw = raw == null || !(raw > 0 && raw < 1);
     if (noRaw) raw = 0.5;
     const sport = canonSport(c.sport), st = canonStat(sport, c.stat), side = canonSide(c.side);
-    const cal = calibrated(model, raw, sport);
+    const named = c.sport != null && String(c.sport).trim() !== "";
+    const bySport = model && model.calibration && model.calibration.bySport;
+    const own = named || (bySport && bySport[sport]) ? sport : null;
+    const fit = calibrated(model, raw, own);
+    const earned = calShare(model, own);
     const segs = (model && model.bot && Array.isArray(model.bot.segments)) ? model.bot.segments : [];
     const keys = [];
     if (side) keys.push(sport + "|" + st.key + "|" + side);
@@ -848,7 +883,17 @@
       if (s && s.nP >= RESID_MIN && isNum(s.resid)) { seg = s; break; }
     }
     const w = seg ? seg.nP / (seg.nP + RESID_K) : 0;
-    const segAdj = seg ? w * seg.resid : 0;
+    // A raise has to be earned, a cut counts in full, and the two corrections are weighed together (the segment's
+    // residual is measured against the full fit). Pulling the same way: both by the earned share when they raise, both
+    // in full when they cut. Pulling against each other: the one that cuts counts in full, and the other in full as
+    // far as it only makes up for that cut (room) and by the share beyond it.
+    const fitAdj = fit - raw, segFull = seg ? w * seg.resid : 0;
+    let share = 1, segShare = 1;
+    if (fitAdj >= 0 && segFull >= 0) { if (fitAdj > 0) share = earned; if (segFull > 0) segShare = earned; }
+    else if (fitAdj < 0 && segFull > 0) { const room = -fitAdj; if (segFull > room) segShare = (room + (segFull - room) * earned) / segFull; }
+    else if (fitAdj > 0 && segFull < 0) { const room = -segFull; if (fitAdj > room) share = (room + (fitAdj - room) * earned) / fitAdj; }
+    const cal = raw + fitAdj * share;
+    const segAdj = segFull * segShare;
     const unclamped = cal + segAdj;
     const p = clamp(unclamped, P_MIN, P_MAX);
     const bits = [];
@@ -861,8 +906,8 @@
     return {
       p,
       parts: {
-        raw, calibrated: cal, segment: segAdj,
-        segmentKey: seg ? seg.key : null, segmentLabel: seg ? seg.label : null, segmentN: seg ? seg.nP : 0, segmentWeight: w
+        raw, fit, calShare: share, calibrated: cal, segment: segAdj,
+        segmentKey: seg ? seg.key : null, segmentLabel: seg ? seg.label : null, segmentN: seg ? seg.nP : 0, segmentWeight: w, segmentShare: segShare
       },
       note
     };
@@ -961,13 +1006,14 @@
   /** Trimmed model for the `vici_model` tool (small JSON): all sports, or one sport's own model. */
   function compact(model, sport) {
     const m = model || build({});
+    const r2 = x => Math.round(x * 100) / 100;
     const segOut = s => ({ seg: s.label.trim(), n: s.n, hits: s.hits, raw: s.raw, post: s.post, lo80: s.lo80, hi80: s.hi80, verdict: s.verdict });
     const top = src => (src && src.segments ? src.segments.filter(s => s.n >= THIN).slice(0, 12).map(segOut) : []);
     const trackOut = t => (t ? { n: t.n, predicted: t.pred, actual: t.actual,
       buckets: (t.buckets || []).filter(b => b.n).map(b => ({ b: b.label, n: b.n, pred: b.pred, actual: b.actual })) } : null);
     const calOut = (c, pooled) => Object.assign({ n: c.n },
       // all sports: a, b are the pooled fit, which only a sport with no graded picks uses; each sport has its own
-      pooled ? { pooled_a: c.a, pooled_b: c.b, note: "pooled_a/b apply only to a sport with no graded picks; each sport's own fit is in by_sport" } : { a: c.a, b: c.b },
+      pooled ? { pooled_a: c.a, pooled_b: c.b, note: "pooled_a/b apply only to a sport with no graded picks; each sport's own fit is in by_sport. What the fit and a segment's shift together add above the bot's prob counts raise_counts of it (n/(n+" + CAL_RAMP + ") on that sport's own graded picks, 0 for a sport with none); a net cut counts in full" } : { a: c.a, b: c.b },
       { verdict: c.verdict, gapPts: isNum(c.gap) ? Math.round(c.gap * 1000) / 10 : null, brier: c.brier,
         buckets: (c.buckets || []).filter(b => b.n).map(b => ({ b: b.label, n: b.n, pred: b.pred, actual: b.actual })) });
     const c = m.calibration || {};
@@ -985,7 +1031,8 @@
         bot: seg ? { n: seg.n, hits: seg.hits, raw: seg.raw, post: seg.post, lo80: seg.lo80, hi80: seg.hi80 } : { n: 0 },
         pending: (bot.pendingBy && bot.pendingBy[sp]) || 0,
         predicted_vs_actual: trackOut(m.track && m.track.bySport ? m.track.bySport[sp] : null),
-        calibration: cs ? calOut(cs) : { n: 0, note: "no graded " + sp + " picks with a prob yet: the pooled calibration applies" },
+        calibration: cs ? Object.assign(calOut(cs), { raise_counts: r2(calShare(m, sp)) })
+          : { n: 0, raise_counts: 0, note: "no graded " + sp + " picks with a prob yet: the pooled calibration applies, and only where it lowers a chance" },
         trust: mine.trust.map(segOut), fade: mine.fade.map(segOut),
         segments: segs.slice(0, 12).map(segOut),
         breakEven: m.breakEven || null
@@ -995,7 +1042,8 @@
     for (const s of ((m.bot && m.bot.segments) || []).filter(x => x.level === "sport")) {
       const t = m.track && m.track.bySport ? m.track.bySport[s.sport] : null, cs = c.bySport ? c.bySport[s.sport] : null;
       bySp[s.sport] = { n: s.n, hits: s.hits, raw: s.raw, predicted: t && t.n ? t.pred : null, calib: cs ? cs.verdict : "—",
-        gapPts: cs && isNum(cs.gap) ? Math.round(cs.gap * 1000) / 10 : null, a: cs ? cs.a : null, b: cs ? cs.b : null };
+        gapPts: cs && isNum(cs.gap) ? Math.round(cs.gap * 1000) / 10 : null, a: cs ? cs.a : null, b: cs ? cs.b : null,
+        raise_counts: r2(calShare(m, s.sport)) };
     }
     return {
       builtAt: m.builtAt || null,
@@ -1021,8 +1069,8 @@
     POWER, FLEX,
     breakEven, edge, build, adjust, promptBlock, summary, compact,
     payout, slipPlan, kelly, growth, kellyScale, dayLimit,
-    stakeRule: { kelly: [KELLY_LO, KELLY_HI, KELLY_RAMP], cap: STAKE_CAP, dayCap: DAY_CAP },
-    calibrated, canonStat, canonSport, canonSide, SPORT_ORDER, sportSort,
+    stakeRule: { kelly: [KELLY_LO, KELLY_HI], cap: STAKE_CAP, dayCap: DAY_CAP },
+    calibrated, calShare, canonStat, canonSport, canonSide, SPORT_ORDER, sportSort,
     util: { logit, sigmoid, invert, inv2, betaPost, verdictOf, fitPayouts, fitProfit }
   };
   if (root) root.ViciModel = api;

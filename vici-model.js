@@ -11,6 +11,8 @@
  *   ViciModel.summary(model, sport?) / compact(model, sport?) / calibrated(model, p, sport?)   (sport: "NBA"; omitted = all)
  *   ViciModel.calShare(model, sport?)   (how much of an upward calibration counts for that sport, 0..1)
  *   ViciModel.payout(model, n) / slipPlan(model, n, hit) / kelly(hit, mult) / growth(hit, mult, f) / kellyScale(model)
+ *   ViciModel.altFactor(model, "goblin") / altValue(model, "goblin", p, stdP, appFactor) / altSplit(model, R, types)
+ *     (goblin and demon legs)
  *
  * Statistics:
  *   - Hit rates: nested Beta shrinkage. global ~ Beta(10,10) + data; sport, sport|stat, sport|stat|side each use
@@ -32,6 +34,18 @@
  *   - Profit (Angus, 2026-11-18: "Train the algorithm to help me gain the most profits"): payouts are learned from his
  *     Power entries (To Win / stake against the standard multiplier, shrunk toward the standard with 4 entries' weight,
  *     each size toward the pooled ratio). Slips carry the expected log growth of the Balance at their stake.
+ *   - Goblins and demons (Angus, 2026-11-19: "the algo always goes for goblins instead of going for normal lines where
+ *     my profits are so low it is not worth it"). A goblin leg is easier, and PrizePicks cuts the slip's payout for it
+ *     (his slips: a Power 3 from 6x to 4.25x, a Power 2 from 3x to 2.6x). A Power slip's EV is its payout times the
+ *     product over legs of chance x that leg's payout factor, so ranking legs by chance alone makes goblins look best.
+ *     fitAltLines learns the factor per goblin leg and per demon leg from his Power entries whose notes say which legs
+ *     were goblins or demons: ln(To Win / (stake x his usual multiplier for that size)) = goblins x ln g + demons x ln d,
+ *     a ridge fit toward g = 0.8, d = 1.2 with the weight of PAY_K one-leg entries (an entry is one payout, so one
+ *     with k goblins counts k squared; entries with a player twice, a part-game leg, a promo or "linked" are left out).
+ *     altValue counts such a leg at chance x factor, and without the app's own factor never above the same prop's
+ *     chance at its standard line: PrizePicks prices the cut to about cancel the easier line, and a deep goblin costs
+ *     more than the average one, so an estimate never makes a goblin (or a demon) look better than the standard line.
+ *     altSplit turns the multiplier the app shows for a lineup into its goblin and demon legs' factors.
  *   - Stakes (SAFE_STAKES, off). Angus, 2026-11-18: "By minimise risk I meant spread out the picks, not use a low
  *     budget". So a stake is 1/2 of the Kelly stake (1/4 while Vici's record says it has run too confident), at
  *     most 5% of the Balance on a slip, and there is no day limit (dayLimit gives null). Until v33 the share rose
@@ -61,6 +75,8 @@
   const PAY_K = 4;                       // prior weight, in entries, of the standard multiplier (and of the pooled ratio per size)
   const LINKED_NOTE = /\blinked\b/i;      // how the chat marks a logged slip of linked legs (notes "Vici: … · linked")
   const PAY_LO = 0.25, PAY_HI = 2.5;     // a To Win outside this share of the standard is a typo or a promo, not PrizePicks' pricing
+  const ALT_PRIOR = { goblin: 0.8, demon: 1.2 };              // payout factor per goblin / demon leg until his entries show his own
+  const ALT_BOUNDS = { goblin: [0.25, 1], demon: [1, 3] };     // a factor outside these is not a goblin's (or a demon's)
   const SAFE_STAKES = false;             // off: Angus, 2026-11-18: "By minimise risk I meant spread out the picks, not use a low budget"
   const KELLY_LO = 0.25, KELLY_HI = SAFE_STAKES ? 0.25 : 0.5;   // share of the full Kelly stake: HI, and LO while the record says "too confident"
   const STAKE_CAP = SAFE_STAKES ? 0.03 : 0.05;   // never more than this share of the Balance on one slip
@@ -604,6 +620,186 @@
     const share = Math.min(1, (sum(links, x => x.r / usual[x.n]) + PAY_K) / (links.length + PAY_K));
     return { n: N, ratio, bySize, linked: { n: links.length, share: Math.round(share * 1000) / 1000 } };
   }
+  // ---------- goblin and demon legs ----------
+  const ALT_WORD = /\b(goblin|demon)s?\b/gi;
+  const ALT_NUM = { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+  // a sentence with a goblin or demon word and one of these says they were taken off, swapped or avoided, not played
+  // ("Took the two goblins off", "all goblins were removed", "<leg> was a goblin, swapped to standard", "goblin-free").
+  // Not "cut" ("(std 8.5, cut to 2.6x)" is a goblin's payout), "free" alone (Free Throws) or "taken" (Sacks Taken)
+  const ALT_UNDO = /\b(?:off|out|remov(?:e|ed|es|ing)|drop(?:s|ped|ping)?|swap(?:s|ped|ping)?|replac(?:e|ed|es|ing)|pull(?:s|ed|ing)?|avoid(?:s|ed|ing)?|switch(?:ed|es|ing)?|chang(?:e|ed|es|ing)|gone|instead|without|(?:goblin|demon)s?[- ]free|(?:for|to|into|now)\s+(?:the\s+)?standard)\b/i;
+  const ABBR = /^(?:jr|sr|st|mr|dr|vs|[a-z]|(?:[a-z]\.)+[a-z])$/i;   // a full stop after these doesn't end a list
+  /** Where a list that starts at `from` ends: " · ", a full stop (not a decimal point, an initial, Jr. or St.), the next
+   *  "Goblin:" / "Demon:", or the end. */
+  function listEnd(s, from) {
+    const next = /\b(?:goblin|demon)s?\s*:/ig;
+    next.lastIndex = from;
+    const k = next.exec(s), stop = k ? k.index : s.length;
+    for (let i = from; i < stop; i++) {
+      if (s[i] === "\u00b7") return i;
+      if (s[i] === "." && (i + 1 === s.length || /\s/.test(s[i + 1]))) {
+        const w = /([A-Za-z.]+)$/.exec(s.slice(from, i));
+        if (!(w && ABBR.test(w[1]))) return i;
+      }
+    }
+    return stop;
+  }
+  const FOLD = { "\u00f8": "o", "\u0142": "l", "\u00e6": "ae", "\u0153": "oe", "\u00df": "ss", "\u0111": "d", "\u0131": "i", "\u00f0": "d", "\u00fe": "th" };
+  const plainLow = x => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\u00f8\u0142\u00e6\u0153\u00df\u0111\u0131\u00f0\u00fe]/g, c => FOLD[c]);
+  /** The words that name an entry's players (3 letters or more, 2 for a name with no longer word; Jr., II... and
+   *  bracketed parts such as a team code left out), to tell a leg in a list from a tail such as ", 2.6x", ", placed 6:43
+   *  PM PT" or "both standard" (a nickname alone, "OG", names no one: that entry teaches nothing). null without players. */
+  function nameWords(players) {
+    const out = new Set();
+    (Array.isArray(players) ? players : []).forEach(p => {
+      const w = plainLow(String(p || "").replace(/\([^)]*\)/g, " ")).split(/[^a-z]+/).filter(x => x && !/^(?:jr|sr|ii|iii|iv)$/.test(x));
+      const long = w.filter(x => x.length >= 3);
+      (long.length ? long : w.filter(x => x.length >= 2)).forEach(x => out.add(x));
+    });
+    return out.size ? out : null;
+  }
+  /** How many legs a list names: its pieces at , ; and "and" (and "&" with the entry's players), not inside brackets
+   *  unless the whole list is one bracket group. With the entry's name words, only a piece that names one of its players
+   *  counts. 0 for "none"; null when it names none. alt (a "Goblin:" / "Demon:" list): null when a part names a player
+   *  and calls him standard ("Goblin: A 6.5, B and C standard"). */
+  const nameIn = (names, x) => plainLow(x).split(/[^a-z]+/).some(w => names.has(w));
+  const STD_WORD = /\b(?:standard|std|regular|normal)\b(?!\s*(?:line\s*)?\d)/i;   // "standard", not "std 8.5"
+  function listItems(t, names, alt) {
+    const whole = /^\s*\(([^()]*)\)\W*$/.exec(t);
+    const segs = (whole ? whole[1] : t).replace(/\([^)]*\)/g, m => m.replace(/[,;&]|\band\b/gi, " ")).split(/\s*[,;]\s*/);
+    const bits = [].concat(...segs.map(x => x.split(names ? /\s*(?:\band\b|&)\s*/i : /\s*\band\b\s*/i))).filter(x => /[A-Za-z]/.test(x));
+    if (bits.length && bits.every(x => /^\W*(?:none|no|n\/a)\W*$/i.test(x))) return 0;
+    if (!names) return bits.length || null;
+    const named = x => nameIn(names, x);
+    if (alt && segs.some(x => named(x) && STD_WORD.test(x.replace(/\([^)]*\)/g, " ")))) return null;
+    const k = bits.filter(named).length;
+    return k || null;
+  }
+  /** How many legs of an n-leg entry were goblins and how many demons, from its notes: {goblin, demon}, both 0 when the
+   *  notes name neither, null when they mention one that can't be counted (the chat's old "· goblin/demon", "a demon
+   *  Flex partial"...). Reads "Goblin: <leg>" and "Demons: <leg>, <leg>" (the Log form and the threads), "<leg> is a
+   *  goblin line", "(goblin)", "2 goblins", "all six legs are demons", "Demon lines except <leg>". players: the entry's
+   *  player names; with them a list item counts only when it names one (see listItems). */
+  function altCounts(notes, n, players) {
+    let s = String(notes || "");
+    const orig = s;   // s with nothing blanked: what a list says before other passes took their tags out
+    const c = { goblin: 0, demon: 0 };
+    if (!(s.match(ALT_WORD) || []).length) return c;
+    if (!Number.isInteger(n) || n < 1) return null;
+    const kind = w => (/^g/i.test(w) ? "goblin" : "demon");
+    const blank = (a, b) => { s = s.slice(0, a) + " ".repeat(b - a) + s.slice(b); };
+    const each = (re, fn) => { let m; while ((m = re.exec(s))) { if (fn(m) === false) return false; } return true; };
+    const names = nameWords(players);
+    // the entry's player names taken out, for the checks that read words (a goblin, demon or "Out" in a name is none)
+    const unNamed = t => (Array.isArray(players) ? players : []).reduce((x, p) => {
+      const w = String(p || "").split(/[^\p{L}\p{N}']+/u).filter(Boolean);
+      return w.length ? x.replace(new RegExp(w.join("[^\\p{L}\\p{N}']+"), "giu"), " ") : x;
+    }, t);
+    if (unNamed(s).split(/\.(?!\d)|[!?\u00b7\n]/).some(t => /\b(?:goblin|demon)/i.test(t) && ALT_UNDO.test(t))) return null;   // taken off, not played
+    // every leg but the ones listed (a "(goblin)" among them is one)
+    if (!each(/\b(?:all\s+(?:the\s+)?)?(goblin|demon)s?(?:\s+(?:lines?|legs?|picks?))?\s+except\s+/i, m => {
+      const from = m.index + m[0].length, end = listEnd(s, from), part = s.slice(from, end), own = kind(m[1]);
+      const tags = (part.match(/\((goblin|demon)\)/gi) || []).map(x => kind(x.slice(1)));
+      if (tags.indexOf(own) >= 0 || /\b(?:goblin|demon)s?\b/i.test(unNamed(part).replace(/\((?:goblin|demon)\)/gi, " "))) return false;
+      const ex = listItems(part, names);
+      if (!ex || ex >= n) return false;
+      c[own] += n - ex; tags.forEach(t => { c[t] += 1; }); blank(m.index, end);
+    })) return null;
+    // "all goblins", "all six legs are demons", "Flex 6, all demon lines", "Power 6 — all demons": "all" opens a clause (or
+    // follows a dash or "Power N") and only count words come between it and the word ("all standard but one goblin",
+    // "took all the goblins off" don't count here); a number among them is the count
+    each(/(^|[.,;:(\u00b7\n]\s*|\s[-\u2013\u2014]+\s*|\b(?:power|flex)\s*[2-6]\s+)all((?:\s+(?:the|of|my|his|them|[1-6]|one|two|three|four|five|six|legs?|lines?|picks?|are|were))*)\s+(goblin|demon)s?\b(?!\s+(?:(?:are|were|got|been|being)\s+)?(?:off|out|removed|dropped|swapped|replaced|gone|pulled|cut|for|to|into|but|besides|other|minus|save|apart|except|bar|excluding|aside)\b)/i, m => {
+      const num = /\b([1-6]|one|two|three|four|five|six)\b/i.exec(m[2]);
+      c[kind(m[3])] += num ? ALT_NUM[num[1].toLowerCase()] : n;
+      blank(m.index + m[1].length, m.index + m[0].length);
+    });
+    each(/\b([1-6]|one|two|three|four|five|six)\s+(goblin|demon)s?\b/i, m => { c[kind(m[2])] += ALT_NUM[m[1].toLowerCase()]; blank(m.index, m.index + m[0].length); });
+    each(/\b(?:is|was|as)\s+(?:a|an|the)\s+(goblin|demon)\b|\((goblin|demon)\)/i, m => { c[kind(m[1] || m[2])] += 1; blank(m.index, m.index + m[0].length); });
+    if (!each(/\b(goblin|demon)s?\s*:\s*/i, m => {
+      const from = m.index + m[0].length, end = listEnd(s, from), k = listItems(s.slice(from, end), names, true);
+      if (k == null || /\b(?:goblin|demon)s?\b/i.test(unNamed(orig.slice(from, end)))) return false;
+      c[kind(m[1])] += k; blank(m.index, end);
+    })) return null;
+    if ((s.match(ALT_WORD) || []).length) return null;   // a mention none of the shapes above could count
+    // every leg counted, yet a sentence calls one of the entry's players standard ("All goblins. Ann Mock was standard")
+    if (names && c.goblin + c.demon === n && orig.split(/\.(?!\d)|[!?;\u00b7\n]/).some(t => nameIn(names, t) && STD_WORD.test(t.replace(/\([^)]*\)/g, " ")))) return null;
+    return c.goblin + c.demon <= n ? c : null;
+  }
+  const normP = x => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\b(?:jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z]/g, "");
+  const ALT_SKIP = /\b(?:linked|live|in[- ]game|half[- ]?time|first half|second half|[12]H|[1-4]Q|Q[1-4]|promo|boost(?:ed)?|discount(?:ed)?|taco|power[- ]?up|free (?:entry|play|pick|square))\b/i;
+  const PART_STAT = /\b(?:[12]H|[1-4]Q|Q[1-4]|1st|2nd|3rd|4th|half|quarter|period|live)\b/i;
+  /** What a goblin leg and a demon leg do to his Power payouts, from his ledger: {goblin: {n, legs, factor}, demon: {...}}
+   *  (n = entries with one, legs = how many, factor = the slip's payout with one such leg ÷ his usual payout for that size).
+   *  An entry counts when its notes say how many legs were goblins and demons (altCounts) and it is a Power entry with a
+   *  stake and a To Win (or a won payout that isn't the app's own fill-in), no bonus, no player twice, no part-game leg
+   *  and no live, promo or "linked" note; its share of his usual payout (payouts.bySize) must be within [0.25, 2.5] of
+   *  what ALT_PRIOR expects such a slip to pay (0.8 per goblin, 1.2 per demon), so a slip of many goblins isn't dropped
+   *  for its expected cut. The two log factors come from one ridge fit, each pulled toward ALT_PRIOR with the weight of
+   *  PAY_K one-leg entries (an entry is one payout: one with k goblins counts k squared). */
+  function fitAltLines(ledger, payouts) {
+    const P = payouts || fitPayouts(ledger), rows = [];
+    for (const e of toList(ledger, "entries")) {
+      if (String(e.type || "").toLowerCase() !== "power" || e.bonus === true) continue;
+      const notes = String(e.notes || ""), picks = Array.isArray(e.picks) ? e.picks : [];
+      const n = picks.length, std = POWER[n], stake = toNum(e.stake);
+      if (!std || !(stake > 0) || ALT_SKIP.test(notes)) continue;
+      const ct = altCounts(notes, n, picks.map(p => p && p.player));
+      if (!ct || !(ct.goblin + ct.demon)) continue;
+      const who = picks.map(p => normP(p && p.player));
+      if (who.some(w => !w) || new Set(who).size < n || picks.some(p => PART_STAT.test(String((p && p.stat) || "")))) continue;
+      let full = toNum(e.toWin);
+      if (!(full > 0)) {
+        const pay = toNum(e.payout), auto = Math.round(stake * std * 100) / 100;
+        full = pay > 0 && e.estPayout !== true && Math.abs(pay - auto) >= 0.005 && picks.every(p => canonResult(p && p.result) === "hit") ? pay : null;
+      }
+      if (!(full > 0)) continue;
+      const b = P && P.bySize ? P.bySize[n] : null;
+      const r = full / (stake * (b && isNum(b.mult) && b.mult > 1 ? b.mult : std));
+      const ex = Math.pow(ALT_PRIOR.goblin, ct.goblin) * Math.pow(ALT_PRIOR.demon, ct.demon);
+      if (r >= PAY_LO * ex && r <= PAY_HI * ex) rows.push({ g: ct.goblin, d: ct.demon, y: Math.log(r) });
+    }
+    let gg = PAY_K, dd = PAY_K, gd = 0, gy = PAY_K * Math.log(ALT_PRIOR.goblin), dy = PAY_K * Math.log(ALT_PRIOR.demon);
+    for (const r of rows) { gg += r.g * r.g; dd += r.d * r.d; gd += r.g * r.d; gy += r.g * r.y; dy += r.d * r.y; }
+    const det = gg * dd - gd * gd, a = (dd * gy - gd * dy) / det, b = (gg * dy - gd * gy) / det;
+    const out = (t, lf, key) => ({ n: rows.filter(r => r[key]).length, legs: sum(rows, r => r[key]),
+      factor: Math.round(clamp(Math.exp(lf), ALT_BOUNDS[t][0], ALT_BOUNDS[t][1]) * 1000) / 1000 });
+    return { goblin: out("goblin", a, "g"), demon: out("demon", b, "d") };
+  }
+  /** The payout factor one goblin (or demon) leg brings: what his entries have shown, ALT_PRIOR before any. 1 for a
+   *  standard line. */
+  function altFactor(model, type) {
+    if (type !== "goblin" && type !== "demon") return 1;
+    const A = model && model.alt ? model.alt[type] : null;
+    return clamp(A && isNum(A.factor) ? A.factor : ALT_PRIOR[type], ALT_BOUNDS[type][0], ALT_BOUNDS[type][1]);
+  }
+  /** What a goblin or demon leg is worth in a Power slip, for comparing it with the same prop's standard line: its
+   *  chance p times its payout factor (appFactor: this leg's share of the multiplier the app showed for his lineup, from
+   *  altSplit, when Angus gave it; otherwise altFactor). With
+   *  a learned factor the value is never above stdP, the prop's chance at its standard line (see the header).
+   *  Returns {factor, value, std, capped, standardBetter, fromApp}; standardBetter (the standard line is worth at least
+   *  as much) is null without stdP. null without a chance or for a standard line. */
+  function altValue(model, type, p, stdP, appFactor) {
+    if ((type !== "goblin" && type !== "demon") || !isNum(p) || !(p > 0) || !(p < 1)) return null;
+    const B = ALT_BOUNDS[type];
+    const app = isNum(appFactor) && appFactor >= B[0] && appFactor <= B[1] ? appFactor : null;
+    const factor = app != null ? app : altFactor(model, type);
+    const std = isNum(stdP) && stdP > 0 && stdP < 1 ? stdP : null;
+    let value = p * factor, capped = false;
+    if (app == null && std != null && value > std) { value = std; capped = true; }
+    return { factor, value, std, capped, standardBetter: std == null ? null : value <= std + 1e-12, fromApp: app != null };
+  }
+  /** The multiplier the app shows for a lineup, split into its goblin and demon legs' payout factors. R: that multiplier
+   *  divided by his usual one for the lineup's size; types: the lineup's goblin / demon legs, in order. Each leg keeps its
+   *  learned factor's share, f_i = altFactor_i x (R / product of altFactor)^(1/k), so k legs of one kind get R's k-th root
+   *  and the factors multiply back to R. null when R is no ratio or a leg's factor falls outside its bounds. */
+  function altSplit(model, R, types) {
+    const ts = Array.isArray(types) ? types : [];
+    if (!ts.length || ts.some(t => t !== "goblin" && t !== "demon") || !isNum(R) || !(R > 0)) return null;
+    const base = ts.map(t => altFactor(model, t)), scale = Math.pow(R / base.reduce((a, x) => a * x, 1), 1 / ts.length);
+    const f = base.map(x => x * scale);
+    if (!f.every((x, i) => x >= ALT_BOUNDS[ts[i]][0] - 1e-9 && x <= ALT_BOUNDS[ts[i]][1] + 1e-9)) return null;
+    return f.map((x, i) => clamp(x, ALT_BOUNDS[ts[i]][0], ALT_BOUNDS[ts[i]][1]));
+  }
   /** What Vici's own slips made: entries Angus logged from the chat (notes start "Vici:"), bonus entries left out. A Power
    *  entry with a missed leg counts as lost even before its payout is set. expectedRoi: the EV the chat put in the notes,
    *  weighted by stake, for the settled ones that have it. */
@@ -836,13 +1032,13 @@
     const sports = Object.keys(bySport).concat(Object.keys(J.pendingBy)).filter((x, i, a) => a.indexOf(x) === i).sort(sportSort);
     const be = { power: {}, flex: {} };
     for (const n of [2, 3, 4, 5, 6]) { be.power[n] = breakEven(n, "power"); if (FLEX[n]) be.flex[n] = breakEven(n, "flex"); }
-    const payouts = fitPayouts(o.ledger), profit = fitProfit(o.ledger);
+    const payouts = fitPayouts(o.ledger), profit = fitProfit(o.ledger), alt = fitAltLines(o.ledger, payouts);
     return roundDeep({
       version: 1,
       builtAt: nowMs == null ? null : new Date(nowMs).toISOString(),
       params: { k: K, globalStrength: G_STRENGTH, thin: THIN, calMin: CAL_MIN, factorMin: FACTOR_MIN, lambda: LAMBDA, residK: RESID_K, residMin: RESID_MIN, clamp: [P_MIN, P_MAX],
-        calRamp: CAL_RAMP, payK: PAY_K, kelly: [KELLY_LO, KELLY_HI], stakeCap: STAKE_CAP, dayCap: DAY_CAP },
-      breakEven: be, payouts, profit,
+        calRamp: CAL_RAMP, payK: PAY_K, kelly: [KELLY_LO, KELLY_HI], stakeCap: STAKE_CAP, dayCap: DAY_CAP, altPrior: ALT_PRIOR },
+      breakEven: be, payouts, alt, profit,
       bot, track, calibration,
       factors: fit.factors,
       factorN: fit.n,
@@ -965,12 +1161,15 @@
     }
     const P = m.payouts && m.payouts.bySize ? m.payouts : null;
     const mx = x => (Math.round(x * 100) / 100) + "x";
-    const tail = P && P.n
+    const A = m.alt && m.alt.goblin && m.alt.demon ? m.alt : null;
+    const altTxt = A ? " One goblin leg makes a slip pay \u00d7" + (Math.round(A.goblin.factor * 100) / 100) + " of that and one demon leg \u00d7" +
+      (Math.round(A.demon.factor * 100) / 100) + " (from " + A.goblin.n + " and " + A.demon.n + " of his entries; \u00d70.8 and \u00d71.2 before any)." : "";
+    const tail = (P && P.n
       ? "Payouts he gets (from " + P.n + " Power entries; standard 3/5/10/20/37.5x; est. = under 3 entries of that size, scaled by his other sizes) and break-even per leg: " +
         [2, 3, 4, 5, 6].map(n => { const b = P.bySize[n]; return "Power" + n + " " + mx(b.mult) + (b.n < 3 ? " est." : "") + " " + (b.be * 100).toFixed(1) + "%"; }).join(", ") + "." +
         (P.linked && P.linked.n && P.linked.share < 1 ? " Linked slips have paid " + Math.round(P.linked.share * 100) + "% of that (" + P.linked.n + " logged)." : "")
       : "Payouts: the standard 3/5/10/20/37.5x until his Power entries show what he gets. Break-even per leg: " +
-        [2, 3, 4, 5, 6].map(n => "Power" + n + " " + (breakEven(n, "power") * 100).toFixed(1) + "%").join(", ") + ".";
+        [2, 3, 4, 5, 6].map(n => "Power" + n + " " + (breakEven(n, "power") * 100).toFixed(1) + "%").join(", ") + ".") + altTxt;
     const lines = [head].concat(mid, [tail]);
     while (lines.join("\n").length > 1200 && lines.length > 2) lines.splice(lines.length - 2, 1);
     return lines.join("\n");
@@ -1059,6 +1258,10 @@
       payouts: m.payouts ? { from_entries: m.payouts.n, by_size: Object.keys(m.payouts.bySize || {}).reduce((o, k) => {
         const b = m.payouts.bySize[k]; o[k] = { pays: b.mult, standard: b.standard, n: b.n, be: b.be }; return o; }, {}),
         linked_slips: m.payouts.linked && m.payouts.linked.n ? { n: m.payouts.linked.n, share_of_usual: m.payouts.linked.share } : null } : null,
+      // what one goblin or demon leg does to a slip's payout (learned from his entries) and how suggest_picks counts it
+      alt_lines: m.alt ? { goblin: { factor: m.alt.goblin.factor, from_entries: m.alt.goblin.n },
+        demon: { factor: m.alt.demon.factor, from_entries: m.alt.demon.n },
+        rule: "a goblin or demon leg counts at its chance x factor; with this learned factor never above the same prop's chance at its standard line" } : null,
       stake_rule: { kelly_share: kellyScale(m), cap: STAKE_CAP, day_cap: DAY_CAP },
       your_slips: m.profit && (m.profit.n || m.profit.open) ? m.profit : null
     };
@@ -1068,10 +1271,10 @@
     version: 1,
     POWER, FLEX,
     breakEven, edge, build, adjust, promptBlock, summary, compact,
-    payout, slipPlan, kelly, growth, kellyScale, dayLimit,
+    payout, slipPlan, kelly, growth, kellyScale, dayLimit, altFactor, altValue, altSplit,
     stakeRule: { kelly: [KELLY_LO, KELLY_HI], cap: STAKE_CAP, dayCap: DAY_CAP },
     calibrated, calShare, canonStat, canonSport, canonSide, SPORT_ORDER, sportSort,
-    util: { logit, sigmoid, invert, inv2, betaPost, verdictOf, fitPayouts, fitProfit }
+    util: { logit, sigmoid, invert, inv2, betaPost, verdictOf, fitPayouts, fitProfit, fitAltLines, altCounts }
   };
   if (root) root.ViciModel = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -211,11 +211,11 @@
     "- Your slips he played: what the slips he logged from you actually made, against the EV the app gave them. Under about 10 settled slips it is noise; only a gap that holds over many slips means your probabilities run high.",
     "Aim for the most profit over time (Angus's rule: \"help me gain the most profits\"). Profit starts with honest probabilities: rank candidate legs by Vici %, send every " + (RISK.legs ? "steady " : "") + "leg that clears (MORE picks first, as above), and never inflate a prob to make a slip work. The app then picks the slip to lead with (" + (RISK.slips ? "among the slips with a clear edge, an all-MORE slip first, then the one most likely to hit; never a long shot" : "an all-MORE slip that pays off first, then the one that grows his Balance fastest, weighing the chance to hit against what PrizePicks pays him") + ") and sizes the stake.",
     "PrizePicks often pays him less than the standard 3/5/10/20/37.5x. The Learning section's Payouts line gives what he gets per size, from his own entries (a size marked est. has under 3 entries and is scaled from his other sizes), and the per-leg break-even at that payout. Recommend only legs at or above the lowest of those break-evens, in a slip with positive EV. If nothing pays off, say Pass and why in one line. Passing is a good answer.",
-    "Goblin and demon legs change the slip's payout, so those break-evens don't apply to a slip with one; the To Win Angus sees in the app is the truth.",
+    "Standard lines first (Angus's rule: \"the algo always goes for goblins instead of going for normal lines where my profits are so low it is not worth it\"). A goblin line is easier, but PrizePicks cuts the slip's payout for it (the Payouts line says how much one goblin leg has cost him), and the cut takes the easier line's gain back. A leg's worth in a Power slip is its chance times the payout factor it brings, never its chance alone. So build from standard lines. For a goblin or demon leg also send std_prob, your honest probability for the same prop at its standard line: suggest_picks counts the leg at vici_pct \u00d7 payout_factor, and with the learned factor never above the standard line's chance, so it refuses a goblin or demon that is worth no more than its standard line: without app_multiplier that is every goblin or demon, unless alt_asked; send the same prop at its standard PrizePicks line instead (a different line: never send a goblin's or demon's own line as standard; if Angus says a line you sent as a goblin or demon is his standard line, send it as standard with angus_standard). Set alt_asked when Angus asked for goblin or demon lines himself, or about a specific one (a goblin or demon leg in a lineup he sent counts), on every suggest_picks call that answers that ask (a re-send included, and a follow-up such as \"any more?\"); a later ask that names no goblin or demon doesn't carry it; standard_better in the result still says whether the standard line is the better play: tell him. When he tells you the multiplier the app shows for a lineup with one (or his screenshot shows it), send that lineup's picks in a call of their own with app_multiplier and app_legs (how many legs that lineup has): every leg of it, a leg you would drop or already sent included (its card shows its edge; say in your text which legs you would drop), and no leg of your own. The app splits the multiplier into each goblin or demon leg's payout factor against what that size usually pays him, so a missing or an extra leg would price it wrong. Never send two lines of one prop. A demon is the same test the other way: its higher payout against its lower chance. A slip with a goblin or demon leg gets no slip numbers from the app: give the multiplier it needs (1 \u00f7 its combined chance) and say that its payout is an estimate; the To Win Angus sees in the app is the truth.",
     "",
     "# suggest_picks: journal every recommended pick",
-    "Every concrete pick you recommend (player, stat, line, side) goes through suggest_picks in the same turn, before your final text. That is how Angus sees the cards, adds them to a slip and logs the entry, and how the app grades the pick after the game and learns from it. Never recommend a pick in text that you didn't send to suggest_picks, and don't send picks you are only discussing or rejecting.",
-    "Every pick needs its game: gameTime (the ISO start from espn_scoreboard, with Z or an offset) or eventId, preferably both; the app grades against that game. Fill in everything else you researched: league slug, athleteId, team and opponent abbreviations, home, lineType, line_source, prob, tier, and reasons (200 characters at most; the decisive reason first; numbers over adjectives, e.g. \"8/10 over 24.5; ORL allow 4th-most PG points; Suggs out\"). Then features:",
+    "Every concrete pick you recommend (player, stat, line, side) goes through suggest_picks in the same turn, before your final text. That is how Angus sees the cards, adds them to a slip and logs the entry, and how the app grades the pick after the game and learns from it. Never recommend a pick in text that you didn't send to suggest_picks, and don't send picks you are only discussing or rejecting (except a leg of the lineup an app_multiplier call is for: that call holds all of its legs).",
+    "Every pick needs its game: gameTime (the ISO start from espn_scoreboard, with Z or an offset) or eventId, preferably both; the app grades against that game. Fill in everything else you researched: league slug, athleteId, team and opponent abbreviations, home, lineType (with std_prob for a goblin or demon), line_source, prob, tier, and reasons (200 characters at most; the decisive reason first; numbers over adjectives, e.g. \"8/10 over 24.5; ORL allow 4th-most PG points; Suggs out\"). Then features:",
     "- l5, l10: [hits, games] against this exact line and side, from espn_gamelog with stat, line and side.",
     "- seasonAvg, last5Avg: averages of the stat.",
     "- projection when you have one, and gapPct = 100 × (projection − line) / line, with the sign flipped for LESS so a positive gap supports the pick.",
@@ -276,6 +276,8 @@
     stat: str("PrizePicks stat label, e.g. Points, Pts+Rebs+Asts, Pass Yards, Shots On Target"),
     line: num("The current PrizePicks line"), side: { type: "string", enum: ["over", "under"] },
     lineType: { type: "string", enum: ["standard", "goblin", "demon"] },
+    std_prob: num("Goblin or demon leg only, and required for one: your honest probability that the same prop (same player, stat and side) hits at its standard PrizePicks line, 0 to 1"),
+    angus_standard: { type: "boolean", description: "Only for a standard pick at a line this chat sent as a goblin or demon in an earlier answer, and only when Angus has said since that this exact line is his standard line (it was tagged by mistake)" },
     line_source: { type: "string", enum: LINE_SOURCES, description: "Where the PrizePicks line came from: angus = he typed it or it is on his screenshot; prizepicks_optimal = the PrizePicks entry of an Optimal get_player_prop_odds lookup (with prop_type) in this chat; prizepicks_web = PrizePicks' own line found on the web today. Sportsbook or consensus lines are not allowed." },
     prob: num("Your honest probability that the pick hits, 0 to 1"),
     tier: { type: "string", enum: ["A", "B", "C"] },
@@ -318,8 +320,11 @@
       "The app's learning model, built from your graded picks (plus payouts: what PrizePicks pays him per Power size, from his entries; your_slips: what the slips he logged from you made): what you predicted (Vici %) vs the actual results, hit rates by segment with shrinkage and 80% intervals, trust and fade segments, calibration of your probabilities (buckets, Brier score, verdict) and factor lifts. Without sport: everything, with a by_sport summary. With sport: that sport's own record, calibration, trust, fade and segments.",
       { sport: { type: "string", enum: ["NBA", "NFL", "CFB", "Soccer"], description: "Only this sport's model" } }, []),
     tool("suggest_picks",
-      "Journal the picks you recommend and show them to Angus as cards he can add to a slip and log. Call it once per answer with every recommended pick (at most " + MAX_PICKS + "); a later call in the same answer adds its picks to the same slips. Returns, for each pick, its journal id, vici_pct (your prob after the app's learned calibration and segment adjustment) and edge_pts against the Power 2 break-even at the payout he usually gets (the Learning section's Payouts line); edge_pts is null for goblin and demon legs (their payout differs). When every pick in the call is from one team, the first result carries lineup_note: those picks can't make a lineup on their own. With two or more standard-line picks in this answer, the first pick that saved also carries slips: for each Power size, a two-team lineup of this answer's picks (all MORE when such a lineup can lead, otherwise the highest chance to hit; a size where no lineup can lead still lists one, not recommended): legs, hit_pct, pays (what that size usually pays him), standard_pays (when that differs), ev_pct (expected profit per dollar staked), every_leg_clears (each leg at or above that size's per-leg break-even), stake_pct and stake (the suggested stake as a share of the Balance and in dollars; stake is left out when the Balance is unknown, when the stake is under 50 cents or when the Balance is too small for a one-dollar stake: balance_too_small on that result" + (DAY_ON ? "; day_limit_cut on a slip means the day limit lowered its stake, and its stake_pct and growth_pct are the lowered stake's" : "") + "), growth_pct (expected growth of the Balance per slip at that stake), and recommended on the one to lead with: " + LEAD_RULE + ", an all-MORE slip ahead of any with a LESS leg (unless unders_asked)." + (DAY_ON ? " day_limit_reached on that result: less than one dollar of the day limit is left, so no slip has a stake and none is recommended." : "") + " spread (on that result, when two or more slips can be played together): the recommended slip, then the best slip from the players no earlier one uses (other games first), and so on (at most " + MAX_SPREAD + "), so no leg and no player is in two of them; each with legs, hit_pct, pays, ev_pct, stake_pct and stake, the stake worked out on the Balance left after the slips before it. linked: the corr labels a slip's legs share, when the app built that size from legs that tend to hit together; such a slip's pays is what linked slips have paid him.",
+      "Journal the picks you recommend and show them to Angus as cards he can add to a slip and log. Call it once per answer with every recommended pick (at most " + MAX_PICKS + "); a later call in the same answer adds its picks to the same slips. A lineup Angus gave the app's multiplier for goes in a call of its own, with app_multiplier and app_legs, every leg of it included. Returns, for each pick, its journal id, vici_pct (your prob after the app's learned calibration and segment adjustment) and edge_pts against the Power 2 break-even at the payout he usually gets (the Learning section's Payouts line). A goblin or demon leg also gets std_pct (std_prob after the same adjustment), payout_factor (what this leg does to a slip's payout: learned from his entries, or its share of app_multiplier), value_pct (vici_pct \u00d7 payout_factor; with the learned factor never above std_pct) and standard_better, and its edge_pts is on value_pct; one worth no more than its standard line comes back as an error unless alt_asked. When every pick in the call is from one team, the first result carries lineup_note: those picks can't make a lineup on their own. With two or more standard-line picks in this answer, the first pick that saved also carries slips: for each Power size, a two-team lineup of this answer's picks (all MORE when such a lineup can lead, otherwise the highest chance to hit; a size where no lineup can lead still lists one, not recommended): legs, hit_pct, pays (what that size usually pays him), standard_pays (when that differs), ev_pct (expected profit per dollar staked), every_leg_clears (each leg at or above that size's per-leg break-even), stake_pct and stake (the suggested stake as a share of the Balance and in dollars; stake is left out when the Balance is unknown, when the stake is under 50 cents or when the Balance is too small for a one-dollar stake: balance_too_small on that result" + (DAY_ON ? "; day_limit_cut on a slip means the day limit lowered its stake, and its stake_pct and growth_pct are the lowered stake's" : "") + "), growth_pct (expected growth of the Balance per slip at that stake), and recommended on the one to lead with: " + LEAD_RULE + ", an all-MORE slip ahead of any with a LESS leg (unless unders_asked)." + (DAY_ON ? " day_limit_reached on that result: less than one dollar of the day limit is left, so no slip has a stake and none is recommended." : "") + " spread (on that result, when two or more slips can be played together): the recommended slip, then the best slip from the players no earlier one uses (other games first), and so on (at most " + MAX_SPREAD + "), so no leg and no player is in two of them; each with legs, hit_pct, pays, ev_pct, stake_pct and stake, the stake worked out on the Balance left after the slips before it. linked: the corr labels a slip's legs share, when the app built that size from legs that tend to hit together; such a slip's pays is what linked slips have paid him.",
       { picks: { type: "array", items: PICK, maxItems: MAX_PICKS },
+        alt_asked: { type: "boolean", description: "true when the message you are answering asks for goblin or demon lines, or about a specific one (a goblin or demon leg in a lineup he sent counts), or follows up on such an ask; set it on every suggest_picks call in that answer (a re-send included). A later ask that names no goblin or demon doesn't carry it. Without it a goblin or demon leg that is worth no more than its standard line is refused." },
+        app_multiplier: num("Only when Angus told you the multiplier the app shows for one lineup with a goblin or demon leg (or his screenshot shows it): that multiplier, e.g. 4.25 for 4.25x. This call then holds every leg of that lineup (2 to 6; a leg you would drop or already sent included) and no other pick, with app_legs. The app splits it into each goblin or demon leg's payout factor, against what that size usually pays him"),
+        app_legs: { type: "integer", description: "With app_multiplier, and required with it: how many legs the lineup that multiplier is for has (his Power 3 = 3). It must equal the number of picks in this call: every leg of that lineup is in it." },
         unders_asked: { type: "boolean", description: "true only when Angus asked in this message for unders, asked about a specific LESS pick, or sent a lineup of his own with a LESS leg. The slips then treat MORE and LESS alike: each size is the lineup with the highest chance to hit, and " + (RISK.slips ? "the highest chance to hit" : "the most growth") + " leads." } }, ["picks"]),
     tool("grade_picks",
       "Grade your pending picks whose games are over, from ESPN box scores. Returns what was graded and the updated record.",
@@ -768,6 +773,8 @@
   }
   const defaultLeague = sport => ({ NBA: "nba", NFL: "nfl", CFB: "college-football" })[sport] || null;
   const normName = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z ]/g, "").trim();
+  // a stat label with its digits kept: "Points (1H)" and "Points (2H)" are two props
+  const propStat = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   // ---- PrizePicks lineups need players from at least two teams (Angus's rule, 2026-11-18)
   const NO_TEAM = /^(n\/?a|unk(nown)?|tbd|none|null|\?+|-+)$/i;
   const TEAM_ABBR = new Map();   // "NBA|golden state warriors" -> "GS": full names espn_scoreboard gave an abbreviation for
@@ -1193,13 +1200,56 @@
       const now = new Date();
       const out = [], save = [], at = [];
       let pp = null;   // PrizePicks' lines in this chat's Optimal lookups, read once
+      const picksIn = Array.isArray(i.picks) ? i.picks.slice(0, MAX_PICKS) : [];
+      // The multiplier the app shows for this lineup (app_multiplier): split into each goblin or demon leg's payout
+      // factor against what that size usually pays him (ViciModel.altSplit), so the factors multiply back to it.
+      let appF = null;
+      if (i.app_multiplier != null) {
+        const am = i.app_multiplier, n = picksIn.length, types = picksIn.map(q => (q && isAltLine(q.lineType) ? q.lineType : null));
+        const pf = payFor(n, model);
+        if (!(am > 1) || am > 1000) throw new Error("app_multiplier must be the multiplier the app shows for the lineup, e.g. 4.25");
+        if (n < 2 || n > 6) throw new Error("app_multiplier is for one lineup: send that lineup's 2 to 6 picks, and only them, in this call");
+        if (!Number.isInteger(i.app_legs)) throw new Error("app_legs is required with app_multiplier: how many legs the lineup the multiplier is for has");
+        if (i.app_legs !== n) throw new Error("app_legs is " + i.app_legs + " but this call has " + n + " picks: an app_multiplier call holds every leg of that lineup (a leg you would drop or already sent included) and no other pick. Send the whole lineup again with app_multiplier, and any other pick in a call of its own");
+        if (!types.some(Boolean)) throw new Error("app_multiplier is only for a lineup with a goblin or demon leg; a standard lineup's payout is his usual one");
+        const split = VM && typeof VM.altSplit === "function" && pf ? VM.altSplit(model, am / pf.mult, types.filter(Boolean)) : null;
+        if (!split) throw new Error("app_multiplier " + am + "x doesn't fit this " + n + "-pick lineup's goblin and demon legs against the " + round(pf ? pf.mult : 0, 2) + "x that size usually pays him: check the multiplier, and that this call holds exactly that lineup's picks");
+        appF = [];
+        let j = 0;
+        types.forEach((t, k) => { appF[k] = t ? split[j++] : null; });
+      }
+      // lines sent as a goblin or demon in this chat, this call included: never the standard line (graded as standard, an
+      // easier line would teach the calibration wrong, and its slip would be priced at the standard payout). key -> true
+      // -> {now: sent in this answer (since Angus's last message), stat: the label it was first sent with}: only a line from
+      // an earlier answer that he has said since is his standard line (angus_standard) can go through, saved with that
+      // label so the journal finds its pick and makes it standard
+      const lineKey = q => [normName(plain(q.player, 60)), propStat(plain(q.stat, 48)), sideOf(q.side), Number(q.line)].join("|");
+      const altLines = new Map();
+      const msgs = (ctx && ctx.conv && Array.isArray(ctx.conv.messages)) ? ctx.conv.messages : [];
+      let lastAngus = -1;
+      msgs.forEach((m, ix) => { if (m && m.role === "user" && (!Array.isArray(m.content) || m.content.some(b => b && b.type !== "tool_result"))) lastAngus = ix; });
+      msgs.forEach((m, ix) => {
+        if (!m || m.role !== "assistant" || !Array.isArray(m.content)) return;
+        m.content.forEach(b => {
+          if (b && b.type === "tool_use" && b.name === "suggest_picks" && b.input && Array.isArray(b.input.picks)) {
+            b.input.picks.forEach(q => {
+              if (!q || !isAltLine(q.lineType)) return;
+              const was = altLines.get(lineKey(q));
+              altLines.set(lineKey(q), { now: !!(was && was.now) || ix > lastAngus, stat: was ? was.stat : q.stat });
+            });
+          }
+        });
+      });
+      picksIn.forEach(q => { if (q && isAltLine(q.lineType)) { const was = altLines.get(lineKey(q)); altLines.set(lineKey(q), { now: true, stat: was ? was.stat : q.stat }); } });
       // Errors and results name the pick by its position, never by echoing what the bot sent (see TOOLS: web_fetch).
-      (Array.isArray(i.picks) ? i.picks.slice(0, MAX_PICKS) : []).forEach((raw, k) => {
+      picksIn.forEach((raw, k) => {
         const p = Object.assign({}, raw);
         p.side = sideOf(p.side);
         if (typeof p.prob === "number" && p.prob > 1 && p.prob <= 100) p.prob = p.prob / 100;
+        if (typeof p.std_prob === "number" && p.std_prob > 1 && p.std_prob <= 100) p.std_prob = p.std_prob / 100;
         let err = validate(PICK, p, "picks[" + k + "]");
-        const player = plain(p.player, 60), stat = plain(p.stat, 48);
+        const player = plain(p.player, 60);
+        let stat = plain(p.stat, 48);
         if (!err && (!player || URLISH.test(player))) err = "picks[" + k + "].player must be the player's name";
         if (!err && (!stat || URLISH.test(stat))) err = "picks[" + k + "].stat must be a PrizePicks stat label";
         const team = teamName(p.sport, p.team);
@@ -1222,11 +1272,47 @@
             err = "picks[" + k + "].line is not PrizePicks' line for this player in the Optimal lookup (" + Array.from(new Set(mine.reduce((a, x) => a.concat(x.lines), []))).slice(0, 6).join(", ") + "). Use PrizePicks' own line, never the consensus or another book's";
           }
         }
+        // a goblin or demon leg is weighed against the same prop's standard line (Angus, 2026-11-19: goblins)
+        const alt = isAltLine(p.lineType);
+        if (!err && alt) {
+          const sp = p.std_prob, gob = p.lineType === "goblin";
+          if (!isNum(sp) || !(sp > 0) || !(sp < 1)) err = "picks[" + k + "].std_prob is required for a goblin or demon leg: your honest probability that the same prop hits at its standard PrizePicks line, 0 to 1";
+          else if (gob ? sp > p.prob + 1e-9 : sp < p.prob - 1e-9) err = "picks[" + k + "].std_prob: a " + p.lineType + " line is " + (gob ? "easier" : "harder") + " than the standard one, so std_prob can't be " + (gob ? "above" : "below") + " prob";
+        }
+        // the stat with its digits: "Points (1H)" and "Points (2H)" are two props
+        const propKey = [normName(player), propStat(stat), p.side].join("|");
+        if (!err) {
+          const twin = save.findIndex(s => [normName(s.player), propStat(s.stat), s.side].join("|") === propKey && s.line !== Number(p.line));
+          if (twin >= 0) err = "picks[" + k + "] is the same prop as picks[" + at[twin] + "] at another line: send one line per prop (the standard one unless Angus asked for a goblin or demon)";
+        }
+        if (!err && !alt && altLines.has(lineKey(p))) {
+          const was = altLines.get(lineKey(p)), thisAnswer = was.now;
+          if (!thisAnswer && p.angus_standard === true) stat = plain(was.stat, 48) || stat;
+          else err = "picks[" + k + "]: this line was sent as a goblin or demon " + (thisAnswer ? "in this answer, so it is not the standard line" : "earlier in this chat") +
+            ". If it is that goblin or demon, send it with its lineType and std_prob. " + (thisAnswer ? "" : "If Angus has said since that this exact line is his standard line (it was tagged by mistake), send it as standard with angus_standard true. ") +
+            "Otherwise send the same prop at its standard PrizePicks line (a different line), or leave the pick out";
+        }
         if (err) { out[k] = { pick: k, error: err }; return; }
         const prob = clamp(p.prob, 0.01, 0.99);
         const features = cleanFeatures(p.features, p.line, p.side, p.lineType);
         let adj = { p: prob, note: "" };
         if (VM) { try { adj = VM.adjust(model, prob, { sport: p.sport, stat, side: p.side, tier: p.tier, features }); } catch (e) { adj = { p: prob, note: "" }; } }
+        // its worth in a Power slip: chance x payout factor, with the learned factor never above the standard line's chance
+        let worth = null;
+        if (alt && VM && typeof VM.altValue === "function") {
+          try {
+            const sa = VM.adjust(model, clamp(p.std_prob, 0.01, 0.99), { sport: p.sport, stat, side: p.side, tier: p.tier, features });
+            worth = VM.altValue(model, p.lineType, adj.p, sa.p, appF && isNum(appF[k]) ? appF[k] : undefined);
+          } catch (e) { worth = null; }
+        }
+        if (worth && worth.standardBetter && i.alt_asked !== true) {
+          const by = worth.fromApp ? " from the app's multiplier" : "";
+          out[k] = { pick: k, error: "picks[" + k + "]: as a " + p.lineType + " this leg is worth " + (worth.capped
+            ? "its chance \u00d7 payout factor " + round(worth.factor, 2) + " = " + round(adj.p * worth.factor * 100, 1) + "%, counted at no more than its standard line's " + round(worth.std * 100, 1) + "% (the factor is his average, and " + (p.lineType === "goblin" ? "a deeper line costs more" : "a demon this near its standard line adds less than that") + ")"
+            : round(worth.value * 100, 1) + "% (its chance \u00d7 payout factor " + round(worth.factor, 2) + by + "), no more than its standard line's " + round(worth.std * 100, 1) + "%") +
+            ". Send the same prop at its standard PrizePicks line instead (a different line from this one; lineType standard, prob = your std_prob); without that line, find it or leave the pick out. A goblin or demon only when Angus asked for one (alt_asked) or the app's multiplier for his lineup shows it is worth more (app_multiplier)" };
+          return;
+        }
         const gameTime = when ? when.gameTime : null;
         const jp = {
           id: uid("p"), createdAt: now.toISOString(), convId: ctx && ctx.conv ? ctx.conv.id : null,
@@ -1240,13 +1326,17 @@
           result: "pending", actual: null, gradedAt: null, gradedBy: null
         };
         save.push(jp); at.push(k);
-        // a goblin or demon leg changes the slip's multiplier: an edge against the Power 2 break-even would lie
-        const alt = isAltLine(jp.lineType);
+        // a goblin or demon leg changes the slip's multiplier: its edge is on its worth (chance x payout factor), and
+        // without one (no model) an edge against the Power 2 break-even would lie
+        const be2 = (payFor(2, model) || { be: BE2 }).be;
         out[k] = {
           id: jp.id, player: jp.player, stat: jp.stat, line: jp.line, side: jp.side,
-          vici_pct: round(adj.p * 100, 1), edge_pts: alt ? null : round((adj.p - (payFor(2, model) || { be: BE2 }).be) * 100, 1), note: adj.note || ""
+          vici_pct: round(adj.p * 100, 1), edge_pts: !alt ? round((adj.p - be2) * 100, 1) : worth ? round((worth.value - be2) * 100, 1) : null, note: adj.note || ""
         };
-        if (alt) out[k].edge_note = "goblin/demon: payout differs, standard break-even doesn't apply";
+        if (alt && worth) {
+          Object.assign(out[k], { std_pct: round(worth.std * 100, 1), payout_factor: round(worth.factor, 2), value_pct: round(worth.value * 100, 1),
+            standard_better: worth.standardBetter, edge_note: worth.standardBetter ? "worth no more than its standard line (kept: alt_asked)" : "worth more than its standard line at the app's payout" });
+        } else if (alt) out[k].edge_note = "goblin/demon: payout differs, standard break-even doesn't apply";
       });
       if (save.length) {
         const J = root.ViciData && root.ViciData.journal;
@@ -2335,9 +2425,10 @@
       const word = { hit: "Hit", miss: "Miss", push: "Push", void: "Void" }[r] || cap(r);
       return h("span", { class: "vc-res " + r, text: word + (jp.actual != null && r !== "void" ? " " + jp.actual : "") });
     }
-    if (alt) return h("small", { class: "vc-edge", title: "Goblin/demon: payout varies", text: "—" });
+    if (alt && !isNum(edge)) return h("small", { class: "vc-edge", title: "Goblin/demon: payout varies", text: "—" });
     if (!isNum(edge)) return h("small", { class: "vc-edge", text: "" });
-    return h("small", { class: "vc-edge " + (edge >= 0 ? "up" : "dn"), title: "vs Power 2 break-even", text: (edge >= 0 ? "+" : "−") + Math.abs(edge).toFixed(1) });
+    return h("small", { class: "vc-edge " + (edge >= 0 ? "up" : "dn"), title: alt ? "Chance × payout factor, vs Power 2 break-even" : "vs Power 2 break-even",
+      text: (edge >= 0 ? "+" : "−") + Math.abs(edge).toFixed(1) });
   }
   /** A whole percentage with its sign; one that rounds to zero has none ("0%", never "+0%" or "−0%"). */
   const signedPct = v => { const g = Math.round(v); return (g > 0 ? "+" : g < 0 ? "−" : "") + Math.abs(g) + "%"; };
@@ -2372,8 +2463,10 @@
   function cardNode(p, r) {
     const id = r.id;
     const sc = shownChance(p, r), vp = sc.vp, rEdge = sc.edge, rNote = sc.note, today = sc.today;
-    const alt = isAltLine(p.lineType);   // goblin / demon: no edge against the standard break-even (older results had one)
-    const edge = alt ? null : isNum(rEdge) ? rEdge : vp != null ? (vp - (payFor(2) || { be: BE2 }).be) * 100 : null;
+    // goblin / demon: only the edge its answer worked out on its worth (chance x payout factor, v37); none against the
+    // standard break-even (older results had one)
+    const alt = isAltLine(p.lineType);
+    const edge = alt ? (isNum(rEdge) && isNum(r.payout_factor) ? rEdge : null) : isNum(rEdge) ? rEdge : vp != null ? (vp - (payFor(2) || { be: BE2 }).be) * 100 : null;
     const side = sideOf(p.side);
     const jp = journalById(id);
     // the slip checks the two-team rule with these
@@ -2381,6 +2474,12 @@
     const pick = { id, sport: p.sport, player: String(p.player || ""), team, athleteId: aid ? String(aid) : null, stat: String(p.stat || ""),
       line: Number(p.line), side, p: vp, lineType: alt ? p.lineType : "standard" };
     if (today) pick.cal = CAL_V;   // without the mark the tray reads the pick again from the journal (slipPicks)
+    // the tray's payout estimate: the factor its worth was counted at (held to its standard line's chance, value_pct ÷
+    // vici_pct is below the learned factor; the app's own factor is never held)
+    if (alt && isNum(r.payout_factor) && r.payout_factor > 0) {
+      const eff = isNum(r.value_pct) && isNum(r.vici_pct) && r.vici_pct > 0 ? r.value_pct / r.vici_pct : null;
+      pick.factor = eff != null && eff < r.payout_factor - 0.01 ? eff : r.payout_factor;
+    }
     const corr = linkTags(p.corr).join(";");
     if (corr) pick.corr = corr;
     const graded = jp && resultOf(jp) !== "pending";
@@ -2757,9 +2856,12 @@
       sub = n >= 6 ? "swap one for another team" : "add another team";
     }
     else if (picks.some(p => isAltLine(p.lineType))) {
-      // a goblin or demon leg changes the multiplier: the standard Xx and its break-even would be wrong
-      title = "Power " + n;
-      sub = "payout varies";
+      // a goblin or demon leg changes the multiplier: the standard Xx and its break-even would be wrong. What it likely
+      // pays (his usual payout x the factor each such leg's worth was counted at, "~") and what it needs to pay off
+      // (1 / its chance); the app's To Win is the truth
+      const pf = payFor(n), fs = picks.map(p => (!isAltLine(p.lineType) ? 1 : isNum(p.factor) && p.factor > 0 ? p.factor : null));
+      title = "Power " + n + (pf && fs.every(isNum) ? " · ~" + Math.round(pf.mult * fs.reduce((a, x) => a * x, 1) * 10) / 10 + "x" : "");
+      sub = comb != null && comb > 0 ? "needs " + Math.round(10 / comb) / 10 + "x" : "payout varies";
     } else {
       // what PrizePicks usually pays him for this size ("~" when that's his own average, not the standard)
       const link = linkedPicks(picks);
@@ -2785,6 +2887,9 @@
       h("button", { type: "button", class: "vc-log", text: "Log", disabled: n < 2 || n > 6 || same ? true : null, onclick: logSlip }),
       iconBtn("close", "Clear slip", () => { S.slip.clear(); saveSlip(); refreshSlip(); }, "vc-sx"));
   }
+  // a name or stat in the Log notes: letters, digits, + ' - only, "and" as "&" (the model splits the legs at , ; and "and"
+  // and a list ends at a full stop)
+  const noteWords = v => String(v == null ? "" : v).replace(/[^\p{L}\p{N}+'\- ]/gu, " ").replace(/\band\b/gi, "&").replace(/\s+/g, " ").trim();
   function logSlip() {
     if (pruneSlip()) { refreshSlip(); return; }   // a leg was graded since the tray was drawn
     const picks = slipPicks();
@@ -2805,7 +2910,10 @@
         (ev != null ? " · EV " + (ev > 0 ? "+" : ev < 0 ? "−" : "") + Math.abs(ev) + "%" : "") +
         // the model doesn't learn PrizePicks' usual payout from these (their payout differs by design); a slip of
         // linked legs is learned on its own (what linked slips pay him)
-        (alt ? " · goblin/demon" : link ? " · linked" : "")
+        (alt ? ["goblin", "demon"].map(t => {
+          const g = picks.filter(p => p.lineType === t);
+          return g.length ? " · " + cap(t) + ": " + g.map(p => noteWords(p.player) + " " + noteWords(String(p.stat).replace(/\b(?:goblin|demon)s?\b/gi, " ")) + " " + fmtLine(p.line)).join(", ") : "";
+        }).join("") : link ? " · linked" : "")
     };
     if (usd != null) draft.stake = usd;
     const before = new Set(entries().map(entryKey));

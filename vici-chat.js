@@ -32,9 +32,28 @@
   const MAX_PICKS = 12;          // per suggest_picks call
   const MAX_SPREAD = 6;          // slips in one spread set (the slips to play together)
   const LONG_CHAT = 150000;      // input tokens of the last request: past this, the next message starts a new chat
-  // idleMs: no bytes from the stream for this long and the connection is gone. optimalRetryMs: how long requests go
-  // without Optimal after it failed to connect, before it is tried again. (Tests shorten both.)
-  const CFG = { idleMs: 150000, optimalRetryMs: 10 * 60000 };
+  // idleMs: no bytes from the stream for this long and the connection is gone (180 s, as Anthropic's own client
+  // allows; pings count). optimalRetryMs: how long requests go without Optimal after it failed to connect, before it
+  // is tried again.
+  // Picking an answer back up (Angus, 2026-11-19: "App says connection lost when using chat", after he "Left the
+  // app"): iOS suspends a web app that is left and cuts its connection, so a request that was cut is sent again by
+  // the app once he is back, instead of stopping with a note.
+  //   rejoin      re-sends in a row with nothing new finished, when leaving the app doesn't explain the cut
+  //   rejoinAll   the most re-sends one message gets
+  //   rejoinMs    the pause before a re-send (a request fired the instant the phone wakes the app fails again)
+  //   rejoinFor   a request first sent longer ago than this is not sent again by the app: the note asks instead
+  //               (keep it above idleMs: the watchdog then ends a request silent that long before the SDK's own
+  //               retries could send it again)
+  //   onlineMs    how long a re-send waits for a phone that says it is offline (it is often wrong) before trying
+  //   frozenMs    the app's own timer stood still this long: the phone had suspended it
+  //   backMs      back from a freeze with a reply still open: no byte for this long and the stream is taken for dead
+  //               (wide on purpose: ending a live reply costs its thinking and the whole wait again; the lost-back
+  //               and quiet-* counts show whether it can come down)
+  //   staleMs     Retry on a note older than this builds his message's "Now:" line again
+  // The windows are estimates (the API documents no ping interval); the silent counts in the usage file show the
+  // real gaps. (Tests shorten these.)
+  const CFG = { idleMs: 180000, optimalRetryMs: 10 * 60000, rejoin: 2, rejoinAll: 8, rejoinMs: 900, rejoinFor: 10 * 60000,
+    onlineMs: 8000, frozenMs: 5000, backMs: 60000, staleMs: 5 * 60000 };
   const TZ = "America/Los_Angeles";
   const LS = {
     key: "ppl.anthropicKey", depth: "ppl.chatDepth", cur: "ppl.chatCurrent", slip: "ppl.chatSlip",
@@ -1442,24 +1461,31 @@
   /** The connection dropped while the reply was streaming: the browser's body read failed (iOS backgrounding the PWA,
    *  lost signal). The SDK hands that on as a plain AnthropicError whose cause is the browser's TypeError. */
   const NET_MSG = /Load failed|network connection was lost|Failed to fetch|NetworkError|network error|Error in body stream|ERR_(NETWORK|INTERNET|CONNECTION)/i;
+  // the body ended without an error but the reply never finished (WebKit can report a cut connection as a clean end)
+  const CUT_MSG = /stream ended without producing a Message|request ended without sending any chunks/i;
+  /** "cut": a known wording of a dropped connection, or a body that ended early. "odd": a TypeError in no known
+   *  wording (the browser's own text for a failed read, perhaps in his phone's language; possibly a slip in the app).
+   *  "" when the error is not the connection's. */
   function bodyDropped(err) {
     for (let e = err, k = 0; e && k < 4; e = e.cause, k++) {
-      if (typeof e.status === "number") return false;   // an HTTP / API error, not the connection
+      if (typeof e.status === "number") return "";   // an HTTP / API error, not the connection
       const msg = String(e.message || "");
-      if (NET_MSG.test(msg)) return true;
-      if (e.name === "TypeError" && !/is not|of undefined|of null|undefined|null|not iterable|Cannot|Invalid|JSON/i.test(msg)) return true;
+      if (NET_MSG.test(msg) || CUT_MSG.test(msg)) return "cut";
+      if (e.name === "TypeError" && !/is not|of undefined|of null|undefined|null|not iterable|Cannot|Invalid|JSON/i.test(msg)) return "odd";
     }
-    return false;
+    return "";
   }
   function mapError(err, A, quiet) {   // quiet: this send carried his Optimal link, so nothing the API wrote back is shown
     const name = (err && err.name) || "";
     const is = cls => !!(A && A[cls] && err instanceof A[cls]);
     const off = HAS_DOM && root.navigator && root.navigator.onLine === false;
     if (is("APIUserAbortError") || name === "APIUserAbortError" || name === "AbortError") return { kind: "stopped" };
+    // why: "reach" no answer at all (before the response began), "cut" / "odd" the answer broke off (bodyDropped)
     if (is("APIConnectionError") || name === "APIConnectionError" || name === "APIConnectionTimeoutError") {
-      return { kind: "error", code: "offline", text: off ? "Offline" : "Can't reach Claude", retry: true };
+      return { kind: "error", code: "offline", why: "reach", text: off ? "Offline" : "Can't reach Claude", retry: true };
     }
-    if (!is("APIError") && bodyDropped(err)) return { kind: "error", code: "offline", text: off ? "Offline" : "Connection lost", retry: true };
+    const dropped = is("APIError") ? "" : bodyDropped(err);
+    if (dropped) return { kind: "error", code: "offline", why: dropped, text: off ? "Offline" : "Connection lost", retry: true };
     const status = err && err.status;
     const body = (err && err.error && err.error.error) || {};
     const type = (err && err.type) || body.type || null;
@@ -1502,7 +1528,7 @@
     conv: null, busy: false, stopped: false, ac: null, act: null, group: null, nodes: new Map(),
     atts: [], slip: new Map(), expanded: new Set(), panel: null, forgetArmed: false,
     model: null, names: {}, lastGrade: 0, client: null, clientKey: null, sdkP: null,
-    beat: 0, logged: null, asks: new Set(), picks: new Map(),
+    beat: 0, quiet: 0, logged: null, asks: new Set(), picks: new Map(),
     optimalDown: 0   // when Optimal last failed to connect (ms): requests go without it for a while (optimalDown())
   };
 
@@ -1603,10 +1629,141 @@
   };
   function getClient(Anthropic, key) {
     if (!S.client || S.clientKey !== key) {
-      S.client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true, maxRetries: 2, fetch: watchFetch(() => { S.beat = Date.now(); }) });
+      S.client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true, maxRetries: 2, fetch: watchFetch(() => {
+        const n = Date.now();
+        if (S.beat && n - S.beat > S.quiet) S.quiet = n - S.beat;   // the longest silence of the request under way
+        S.beat = n;
+      }) });
       S.clientKey = key;
     }
     return S.client;
+  }
+
+  // ---------------------------------------------------------------- staying connected while an answer is on its way
+  const slip = e => { try { console.error("vici-chat:", e); } catch (x) { /* ignore */ } };
+  /** The screen locking suspends the app and cuts the answer (an iPhone locks after 30 s without a touch unless he
+   *  changed that), so the screen is kept awake while Vici works: the Screen Wake Lock API, where the browser has it
+   *  (a home-screen app: iOS 18.4 and later). The system lets go of the lock whenever the app is left; it is asked
+   *  for again when he is back (wake.again). Nothing here is awaited by a turn, and nothing it throws reaches one. */
+  const wake = {
+    n: 0, lock: null, asking: false,
+    again() {
+      try {
+        if (this.lock && this.lock.released) this.lock = null;   // let go of by the system without its event reaching the page
+        const wl = HAS_DOM && root.navigator && root.navigator.wakeLock;
+        if (!this.n || this.lock || this.asking || !wl || typeof wl.request !== "function" || document.visibilityState !== "visible") return;
+        const p = wl.request("screen");
+        this.asking = true;
+        Promise.resolve(p).then(l => {
+          this.asking = false;
+          if (!l || typeof l.release !== "function") return;
+          if (!this.n) { this.drop(l); return; }   // the answer ended while the lock was being asked for
+          this.lock = l;
+          const got = Date.now();
+          // let go of by the system: asked for again when Vici is in sight (a release can land after the return).
+          // Not for a lock that was taken back as soon as it was given: that would ask in a loop.
+          try { l.addEventListener("release", () => { if (this.lock === l) { this.lock = null; if (Date.now() - got > 10000) this.again(); } }); } catch (e) { /* ignore */ }
+        }, () => { this.asking = false; });
+      } catch (e) { this.asking = false; }
+    },
+    drop(l) { try { Promise.resolve(l.release()).catch(() => {}); } catch (e) { /* ignore */ } },
+    on() { this.n++; this.again(); },
+    off() {
+      this.n = Math.max(0, this.n - 1);
+      if (this.n) return;
+      const l = this.lock;
+      this.lock = null;
+      if (l) this.drop(l);
+    }
+  };
+  const inSight = () => !HAS_DOM || document.visibilityState === "visible";
+  const online = () => !(HAS_DOM && root.navigator && root.navigator.onLine === false);
+  /** What a cut costs against CFG.rejoin: nothing when Vici was out of sight (leaving explains it); one when the
+   *  answer broke off or never began in sight; the whole allowance (so: one more try) when the stream went silent,
+   *  the error has no known wording, or the phone says it is offline. */
+  const rejoinCost = (why, away, off) => (away ? 0 : (why === "cut" || why === "reach") && !off ? 1 : Math.max(1, CFG.rejoin));
+  /** May the app send a cut request again by itself? st: { rejoins, strikes, cost, age } (age: ms since this step was
+   *  first sent). */
+  const mayRejoin = st => st.rejoins < CFG.rejoinAll && st.age <= CFG.rejoinFor && st.strikes + st.cost <= CFG.rejoin;
+  /** Before a cut request is sent again: Vici is in sight, and stays so for `ms`. Out of sight it waits as long as he
+   *  is away (a re-send from the background would only be cut again). A phone that says it is offline is given
+   *  CFG.onlineMs to say otherwise, then the request goes anyway (that word is often wrong in a home-screen app, and
+   *  the request itself tells). Resolves true to send, false when the turn was stopped. */
+  function comeBack(signal, ms) {
+    return new Promise(resolve => {
+      let t = 0, seen = 0, over = false;
+      const done = v => {
+        if (over) return;
+        over = true;
+        clearTimeout(t);
+        document.removeEventListener("visibilitychange", look);
+        root.removeEventListener("online", look);
+        root.removeEventListener("pageshow", look);
+        if (signal) signal.removeEventListener("abort", stopNow);
+        resolve(v);
+      };
+      const stopNow = () => done(false);
+      function look() {
+        clearTimeout(t); t = 0;
+        if (over) return;
+        if (signal && signal.aborted) return done(false);
+        // away: wait for him. The event that says he is back can fail to come, so it also looks again by itself
+        // (the timer stands still while the phone has the app suspended).
+        if (!inSight()) { seen = 0; t = setTimeout(look, 1500); return; }
+        if (!seen) seen = Date.now();
+        const ready = online() || Date.now() - seen >= CFG.onlineMs;
+        t = setTimeout(ready ? () => (inSight() ? done(true) : look()) : look, ready ? Math.max(0, ms || 0) : Math.min(500, CFG.onlineMs));
+      }
+      document.addEventListener("visibilitychange", look);
+      root.addEventListener("online", look);
+      root.addEventListener("pageshow", look);
+      if (signal) signal.addEventListener("abort", stopNow);
+      look();
+    });
+  }
+  /** The finished message a stream already holds: the whole reply arrived and only the connection's end went wrong. */
+  function wholeOf(stream) {
+    try {
+      const ms = stream && stream.receivedMessages;
+      const m = Array.isArray(ms) && ms.length ? ms[ms.length - 1] : null;
+      return m && m.stop_reason && Array.isArray(m.content) ? m : null;
+    } catch (e) { return null; }
+  }
+  /** While a turn runs this page holds a Web Lock, so that another tab of this browser can tell a turn that is still
+   *  running (the lock is held) from one whose page went away (the lock went with it). Returns the function that lets
+   *  go. Without the Locks API nothing is held, and a leftover mark always reads as a turn that was interrupted. */
+  const TURN_LOCK = "vici-chat-turn";
+  const locksApi = () => {
+    try { const L = HAS_DOM && root.navigator && root.navigator.locks; return L && typeof L.request === "function" ? L : null; }
+    catch (e) { return null; }
+  };
+  function holdTurn() {
+    let letGo = () => {};
+    try {
+      const L = locksApi();
+      if (L) {
+        const over = new Promise(r => { letGo = r; });
+        Promise.resolve(L.request(TURN_LOCK, () => over)).catch(() => {});
+      }
+    } catch (e) { /* ignore */ }
+    return () => letGo();
+  }
+  /** Is a turn running in another page of this app right now? */
+  async function turnElsewhere() {
+    try {
+      const L = locksApi();
+      return L ? !!(await L.request(TURN_LOCK, { ifAvailable: true }, l => !l)) : false;
+    } catch (e) { return false; }
+  }
+  /** Counted silently with the day's usage (days[day].tags[tag].calls), never shown anywhere: how often an answer was
+   *  cut and why, and how often the note had to ask. lost-away: cut while Vici was out of sight or suspended.
+   *  lost-back: ended by the app because the reply stayed silent after a return (CFG.backMs). lost-cut / lost-reach /
+   *  lost-idle / lost-odd: in sight (the answer broke off, never began, went silent, an unknown wording). lost-shown:
+   *  the app gave up and showed the note. lost-reload: the page went away mid-answer. quiet-20 / -30 / -60 / -120: a
+   *  request that finished, in sight, after a silence longer than that many seconds. */
+  function noteLost(tag) {
+    if (dead) return;
+    try { usage.add(ymdPT(new Date()), {}, tag); if (!S.busy) usage.schedule(8000); } catch (e) { /* ignore */ }
   }
 
   // ---------------------------------------------------------------- conversation storage (IndexedDB, memory fallback)
@@ -1883,9 +2040,9 @@
     }
   };
   /** tag: a request made through ViciChat.ask. It adds to the day's tokens and cost but is not a chat reply. */
-  function recordUsage(u, tag) {
-    usage.add(ymdPT(new Date()), { replies: tag ? 0 : 1, input: u.input, output: u.output, cacheRead: u.cacheRead, cacheWrite: u.cacheWrite, searches: u.searches, usd: u.usd }, tag || null);
-    usage.schedule(8000);
+  function recordUsage(u, tag, more) {   // more: a further part of a reply that is already counted
+    usage.add(ymdPT(new Date()), { replies: tag || more ? 0 : 1, input: u.input, output: u.output, cacheRead: u.cacheRead, cacheWrite: u.cacheWrite, searches: u.searches, usd: u.usd }, tag || null);
+    if (!S.busy) usage.schedule(8000);   // a turn under way sends its counts once, when it ends (runLoop)
   }
 
   // ---------------------------------------------------------------- DOM helpers
@@ -2402,7 +2559,12 @@
     const row = h("div", { class: "vc-note-row" }, h("span", { class: "vc-dot" }), h("span", { text: label }));
     const isLast = c && mk === (c.marks || [])[c.marks.length - 1] && mk.at === c.messages.length;
     if (isLast && !mk.done) {
-      if (mk.retry) row.append(h("button", { type: "button", class: "vc-mini", text: "Retry", onclick: () => { mk.done = true; box.querySelectorAll(".vc-mini").forEach(b => b.remove()); tellOld(c); runLoop(c); } }));
+      if (mk.retry) row.append(h("button", { type: "button", class: "vc-mini", text: "Retry", onclick: () => {
+        if (S.busy || mk.done || mk.at !== c.messages.length) return;   // the chat has moved on since this note
+        mk.done = true; box.querySelectorAll(".vc-mini").forEach(b => b.remove());
+        if (tellOld(c, mk)) renderAll();
+        runLoop(c);
+      } }));
       // a declined message is back in the composer: Retry sends it again (the fallback model was busy, not refusing)
       if (mk.action === "resend") row.append(h("button", { type: "button", class: "vc-mini", text: "Retry", onclick: () => {
         if (S.busy || !S.dom || (!S.dom.ta.value.trim() && !S.atts.length)) return;
@@ -2862,10 +3024,14 @@
     if (dropPaused(c)) renderAll();
     const empty = S.dom.list.querySelector(".vc-empty");
     if (empty) empty.remove();
+    // an earlier note's buttons go: its Retry would re-send a chat that no longer ends where the note stands
+    (c.marks || []).forEach(mk => { mk.done = true; });
+    S.dom.list.querySelectorAll(".vc-mark .vc-mini").forEach(b => b.remove());
     const content = [{ type: "text", text: contextBlock(new Date(), c) }];
     atts.forEach(a => content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: a.data } }));
     if (text) content.push({ type: "text", text });
     c.messages.push({ role: "user", content });
+    c.stepAt = Date.now();
     if (!c.title) c.title = titleOf(text, atts.length);
     appendMessage(c, c.messages.length - 1);
     scrollEnd(true);
@@ -2873,12 +3039,29 @@
     await runLoop(c);
   }
 
-  /** Retry sends his last message as it stands. In a chat from before v34 that hasn't been told yet, that message's
-   *  context is built again so that it carries the line (nothing follows the message, so nothing is bound to it). */
-  function tellOld(c) {
-    const m = c && Array.isArray(c.messages) ? c.messages[c.messages.length - 1] : null;
-    const b = m && m.role === "user" && Array.isArray(m.content) && !isToolResults(m) ? m.content.find(isContext) : null;
-    if (b && hadOldChances(c) && !toldOldChances(c)) b.text = contextBlock(new Date(), Object.assign({}, c, { messages: c.messages.slice(0, -1) }));
+  /** Retry sends the chat again as it stands, with two exceptions that keep its "Now:" true:
+   *  - Finished steps after his message that have stood for more than CFG.staleMs (c.stepAt: when the chat last grew)
+   *    are as old as that "Now:": the scoreboard they read may show games that have since started. The answer starts
+   *    over from his message; what those steps had said and their cards stay on the note (dropTail). Returns true
+   *    then: the chat has to be drawn again.
+   *  - His message's context is built again (nothing follows the message, so nothing is bound to it) when that
+   *    happened, when the note has stood for more than CFG.staleMs (mk.t: when its turn began), and in a chat from
+   *    before v34 that hasn't been told yet, so that it carries the line. */
+  function tellOld(c, mk) {
+    const ms = c && Array.isArray(c.messages) ? c.messages : [];
+    const own = x => !!x && x.role === "user" && Array.isArray(x.content) && !isToolResults(x);
+    const late = !!(mk && isNum(mk.t) && Date.now() - mk.t > CFG.staleMs);
+    const grew = c ? (isNum(c.stepAt) ? c.stepAt : Date.parse(c.updatedAt || "")) : NaN;
+    let cut = false;
+    if (mk && Date.now() - grew > CFG.staleMs && ms.length && !own(ms[ms.length - 1])) {
+      let i = ms.length;
+      while (i > 0 && !own(ms[i - 1])) i--;
+      if (i > 0) { dropTail(c, i, true); cut = true; S.turnLegs = new Map(); S.turnUnders = false; }   // their legs go too
+    }
+    const m = ms[ms.length - 1];
+    const b = own(m) ? m.content.find(isContext) : null;
+    if (b && (late || cut || (hadOldChances(c) && !toldOldChances(c)))) b.text = contextBlock(new Date(), Object.assign({}, c, { messages: c.messages.slice(0, -1) }));
+    return cut;
   }
   async function runLoop(c) {
     const key = getKey();
@@ -2887,6 +3070,11 @@
     // what it prices from here on is today's, so there is nothing to tell it about
     if (oldChances(c) && !c.calTold && !anyBlock(c, pricedBlock)) c.calTold = true;
     if (repairHistory(c)) saveConv(c);
+    const began = Date.now();
+    // saved with the chat for as long as the turn runs: a page that doesn't live to finish it (iOS closes a web app
+    // it has suspended, a reload) leaves the mark, and the chat then opens with a note that offers the answer again
+    c.running = began;
+    saveConv(c, true);
     S.busy = true;
     S.stopped = false;
     const ac = new AbortController();
@@ -2897,19 +3085,71 @@
     g.append(S.act);
     setActivity("Thinking");
     scrollEnd(true);
-    let Anthropic = null, live = null, lastText = "", calls = 0, inflight = null, ctx = 0, rerender = false;
+    let Anthropic = null, live = null, lastText = "", calls = 0, inflight = null, ctx = 0, rerender = false, gaveUp = null;
+    let kept = "";   // the text a cut request of this step had shown before it was sent again
     // Idle watchdog: the SDK's timeout ends when the headers arrive, so a stream that stalls without an error (a dead
     // socket after iOS suspends the app) would say "Thinking" forever. No bytes for CFG.idleMs: abort, retryable.
     let streaming = false, idle = false;
+    // Each request has its own controller: the watchdog ends one request (it is then sent again), Stop ends the turn.
+    let rq = null;
+    const endReq = () => { try { if (rq) rq.abort(); } catch (e) { /* ignore */ } };
+    ac.signal.addEventListener("abort", endReq);
+    // away: Vici was out of sight, or suspended, at some point of this request (iOS then cuts it). backAt: when the
+    // app was first seen in sight again after a freeze, with a reply still open. sentAt: when this step was first
+    // sent. rejoins / strikes: see CFG.rejoinAll and CFG.rejoin.
+    let away = false, froze = false, backAt = 0, backEnd = false, sentAt = 0, rejoins = 0, strikes = 0;
+    const onSight = () => { if (inSight()) wake.again(); else away = true; };
+    if (HAS_DOM) document.addEventListener("visibilitychange", onSight);
+    wake.on();
+    const endTurn = holdTurn();
+    const TICK = Math.max(100, Math.min(1000, Math.floor(Math.min(CFG.idleMs, CFG.backMs) / 4)));
+    let lastTick = Date.now();
+    // the timer itself stood still: the phone had suspended the app (the "hidden" event can come late, or not at all)
+    const stoodStill = now => now - lastTick > TICK + CFG.frozenMs;
     const wd = setInterval(() => {
-      if (streaming && !idle && Date.now() - (S.beat || 0) > CFG.idleMs) { idle = true; try { ac.abort(); } catch (e) { /* ignore */ } }
-    }, Math.max(200, Math.min(5000, Math.floor(CFG.idleMs / 4))));
+      const now = Date.now();
+      if (stoodStill(now)) { froze = true; if (streaming) away = true; }
+      lastTick = now;
+      if (!streaming || idle) return;
+      if (froze && inSight()) { froze = false; backAt = now; }
+      const beat = S.beat || 0;
+      // no bytes for idleMs; or back from a freeze and none since (one in the first second may be from before it)
+      if (now - beat > CFG.idleMs) { idle = true; endReq(); }
+      else if (backAt && beat < backAt + 1000 && now - backAt > CFG.backMs) { idle = true; backEnd = true; endReq(); }
+    }, TICK);
     const turn = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, searches: 0, usd: 0 };
+    // What the turn has spent goes to the usage counts as it goes: the page may not live to end the turn (iOS closes
+    // an app it has suspended while the turn waits to be sent again). The reply itself is counted once.
+    let booked = false;
+    const book = () => {
+      if (!calls) return;
+      recordUsage(turn, null, booked);
+      booked = true;
+      calls = 0;
+      Object.keys(turn).forEach(k => { turn[k] = 0; });
+    };
+    const countInflight = () => {   // input tokens are billed from message_start even if the reply is stopped or fails
+      if (inflight && inflight.usage) {
+        const u = usageOf(inflight);
+        Object.keys(turn).forEach(k => { turn[k] += u[k]; });
+        calls++;
+      }
+      inflight = null;
+    };
+    /** The connection's part in an error of the request `mine`: null when it had none. An abort nobody here asked
+     *  for is the system cutting the load (a suspended app's request can end that way), not a Stop. */
+    const lostHow = (err, mine) => {
+      if (idle) return { kind: "error", code: "lost", why: "idle", text: "Connection lost", retry: true };
+      const m = mapError(err, Anthropic, sentOptimal);
+      if (m.kind === "stopped") return mine.signal.aborted ? null : { kind: "error", code: "offline", why: "cut", text: online() ? "Connection lost" : "Offline", retry: true };
+      return m.kind === "error" && m.code === "offline" ? m : null;
+    };
     let optimalRetry = false;   // this request repeats one the API rejected with Optimal attached
     let optimalBlame = false;   // ... and that rejection points at Optimal itself (his link or its server)
     let sentOptimal = false;    // some request of this send carried his Optimal link (an error then shows no API text)
     const mark = mk => {
       mk.at = c.messages.length;
+      mk.t = began;
       (c.marks || (c.marks = [])).push(mk);
       if (S.conv === c) place(markNode(mk, c));
     };
@@ -2937,6 +3177,8 @@
           lastText = textOf(snap.content);
           if (near) scrollEnd(true);
         };
+        // a repeat without Optimal stays one, however long it waited to be sent again
+        if (optimalRetry) S.optimalDown = Date.now();
         // Going without Optimal (not connecting, or removed mid-turn) while the chat ends in a paused turn that holds
         // its lookups: with those left out the turn would be sent as a prefill, which the API rejects. The open turn
         // is dropped instead, and the answer starts again from his message.
@@ -2947,15 +3189,20 @@
           rerender = true;
         }
         S.beat = Date.now();
+        S.quiet = 0;
+        if (!sentAt) sentAt = S.beat;
+        idle = false;
+        away = !inSight();
+        froze = false;
+        backAt = 0;
+        backEnd = false;
+        lastTick = S.beat;   // a standstill from before this request is not held against it
+        const mine = rq = new AbortController();
         streaming = true;
         const params = buildParams(c), withOptimal = !!params.mcp_servers;
         if (withOptimal) sentOptimal = true;
-        const stream = client.beta.messages.stream(params, { signal: ac.signal });
-        stream.on("streamEvent", (ev, s) => {
-          S.beat = Date.now();
-          inflight = s;   // input tokens are billed from message_start even if the reply is stopped or fails
-          if (S.stopped || S.ac !== ac) return;
-          snap = s;
+        const stream = client.beta.messages.stream(params, { signal: mine.signal });
+        const showEvent = (ev, s) => {
           if (ev.type === "content_block_start") {
             const b = ev.content_block || {};
             curName = b.type === "mcp_tool_use" ? "optimal:" + (b.name || "") : b.name || null;
@@ -2967,19 +3214,64 @@
             const last = s && s.content ? s.content[s.content.length - 1] : null;
             if (last && last.type !== "text") curName = null;
           }
+        };
+        stream.on("streamEvent", (ev, s) => {
+          if (rq !== mine) return;   // a request already given up for a re-send
+          S.beat = Date.now();
+          inflight = s;   // input tokens are billed from message_start even if the reply is stopped or fails
+          if (S.stopped || S.ac !== ac) return;
+          snap = s;
+          // a slip while showing an event must not end the reply (the SDK would hand it on as a stream error)
+          try { showEvent(ev, s); } catch (e) { slip(e); }
           if (!raf) raf = requestAnimationFrame(paint);
         });
         stream.on("inputJson", (partial, parsed) => {
-          if (S.stopped || S.ac !== ac || !curName) return;
-          setActivity(toolLabel(curName, parsed && typeof parsed === "object" ? parsed : {}));
+          if (rq !== mine || S.stopped || S.ac !== ac || !curName) return;
+          try { setActivity(toolLabel(curName, parsed && typeof parsed === "object" ? parsed : {})); } catch (e) { slip(e); }
         });
         let final;
         try { final = await stream.finalMessage(); }
         catch (err) {
+          streaming = false;
+          const ours = !S.stopped && S.ac === ac && !dead;
+          // The whole reply had arrived and only the connection's end went wrong: it is taken as it stands.
+          final = ours ? wholeOf(stream) : null;
+          if (final) err = null;
+          // The connection was cut (he left the app, the screen locked, the signal dropped) or the stream went
+          // silent. The reply never finished, so nothing of it joined the chat and the same request is valid to send
+          // again: the app does that itself once he is back in it, within the limits in CFG, instead of stopping
+          // with a note. A retry without Optimal that is under way stays what it is (the re-send is the same request).
+          const how = err && ours ? lostHow(err, mine) : null;
+          if (how) {
+            if (!inSight() || stoodStill(Date.now())) away = true;   // the error can come before the event or the tick
+            noteLost(backEnd ? "lost-back" : away ? "lost-away" : "lost-" + how.why);
+            const cost = rejoinCost(how.why, away, !online());
+            if (mayRejoin({ rejoins, strikes, cost, age: Date.now() - sentAt })) {
+              rejoins++;
+              strikes += cost;
+              countInflight();
+              book();
+              if (raf) { cancelAnimationFrame(raf); raf = 0; }
+              if (live) { live.remove(); live = null; }
+              // what this try had shown: back on the note if no later try gets as far
+              const had = snap ? textOf(snap.content) : "";
+              if (had) kept = had;
+              setActivity("Reconnecting");
+              if (await comeBack(ac.signal, CFG.rejoinMs * Math.max(1, strikes))) {
+                // the wait lasts as long as he is away: the age is looked at again before the request goes
+                if (Date.now() - sentAt <= CFG.rejoinFor) { iter--; continue; }
+                gaveUp = how.code === "offline" ? Object.assign({}, how, { text: online() ? "Connection lost" : "Offline" }) : how;
+              }
+            } else gaveUp = how;
+            // given up, or stopped while waiting: a repeat without Optimal that was under way proved nothing about it
+            if (optimalRetry) { optimalRetry = false; S.optimalDown = 0; }
+            throw err;
+          }
+          if (!err) { /* the reply is whole: carry on below */ }
           // Rejected with Optimal attached (its server didn't answer, his link is no longer good, or the API won't take
           // it): the same request goes once more without Optimal, so the answer still comes. Rejected again without
           // it: Optimal wasn't the cause, and it stays attached for the next message.
-          if (optimalRetry) { optimalRetry = false; S.optimalDown = 0; }
+          else if (optimalRetry) { optimalRetry = false; S.optimalDown = 0; }
           else if (withOptimal && !snap && !S.stopped && !idle && S.ac === ac && optimalRejected(err, Anthropic)) {
             optimalRetry = true;
             // Optimal is to blame when the rejection names it, or when attaching it was the only difference (the
@@ -2991,7 +3283,7 @@
             iter--;
             continue;
           }
-          throw err;
+          if (err) throw err;
         }
         finally {
           streaming = false;
@@ -3008,9 +3300,15 @@
           refreshOptimalRow();
         }
         inflight = null;
+        strikes = 0;   // a step finished: the next one starts with a clean count
+        sentAt = 0;
+        kept = "";
+        if (!inSight() || stoodStill(Date.now())) away = true;
+        if (!away && S.quiet > 20000) noteLost(S.quiet > 120000 ? "quiet-120" : S.quiet > 60000 ? "quiet-60" : S.quiet > 30000 ? "quiet-30" : "quiet-20");
         const u = usageOf(final);
         Object.keys(turn).forEach(k => { turn[k] += u[k]; });
         calls++;
+        book();
         ctx = contextSize(final) || ctx;
         const sr = final.stop_reason;
         const content = echoContent(clone(final.content || []));
@@ -3023,6 +3321,7 @@
           const by = servedBy(final);
           if (by) (c.served || (c.served = {}))[idx] = by;
           if (S.conv === c) { const node = assistantNode(c, idx); S.nodes.set(idx, node); place(node); }
+          c.stepAt = Date.now();
         }
         saveConv(c);
         if (sr === "refusal") {
@@ -3067,6 +3366,7 @@
             }
           }));
           c.messages.push({ role: "user", content: results });
+          c.stepAt = Date.now();
           saveConv(c);
           const ai = c.messages.length - 2;
           if (S.conv === c && S.nodes.has(ai)) { const fresh = assistantNode(c, ai); S.nodes.get(ai).replaceWith(fresh); S.nodes.set(ai, fresh); refreshSlip(); }
@@ -3090,27 +3390,32 @@
     } catch (err) {
       streaming = false;
       if (live) { live.remove(); live = null; }
-      if (inflight && inflight.usage) {
-        const u = usageOf(inflight);
-        Object.keys(turn).forEach(k => { turn[k] += u[k]; });
-        calls++;
-        inflight = null;
-      }
+      countInflight();
       // The reply never finished, so nothing of it joins the chat (it ends where it was: the user turn, tool results or
       // a paused turn, all valid to re-send); what had arrived stays on screen, dimmed, as Stop leaves it.
-      const e = idle ? { kind: "error", code: "lost", text: "Connection lost", retry: true }
-        : S.stopped ? { kind: "stopped" } : mapError(err, Anthropic, sentOptimal);
-      if (e.kind === "stopped") mark({ kind: "stopped", text: lastText || "" });
-      else mark({ kind: "error", code: e.code, text: e.text, retry: !!e.retry, action: e.action || null, partial: lastText || null });
+      // gaveUp: the connection's error the app's own re-sends ended on.
+      const e = S.stopped ? { kind: "stopped" } : gaveUp || (idle ? { kind: "error", code: "lost", text: "Connection lost", retry: true }
+        : mapError(err, Anthropic, sentOptimal));
+      if (e.kind === "stopped") mark({ kind: "stopped", text: lastText || kept || "" });
+      else {
+        if (e.code === "lost" || e.code === "offline") noteLost("lost-shown");
+        mark({ kind: "error", code: e.code, text: e.text, retry: !!e.retry, action: e.action || null, partial: lastText || kept || null });
+      }
     } finally {
       clearInterval(wd);
+      ac.signal.removeEventListener("abort", endReq);
+      if (HAS_DOM) document.removeEventListener("visibilitychange", onSight);
+      wake.off();
+      endTurn();
+      delete c.running;
       if (ctx) c.ctx = ctx;
       if (S.act) { S.act.remove(); S.act = null; }
       S.busy = false;
       S.ac = null;
       S.stopped = false;
       setBusyUI(false);
-      if (calls) recordUsage(turn);
+      book();
+      if (!dead) usage.schedule(8000);   // the turn's counts (kept on the device as it went) are sent once
       saveConv(c);
       if (rerender && S.conv === c) renderAll();
       refreshHeader();
@@ -3175,24 +3480,32 @@
     const onOuter = () => { try { ac.abort(); } catch (e) { /* ignore */ } };
     if (outer) outer.addEventListener("abort", onOuter, { once: true });
     S.asks.add(ac);
+    wake.on();
     const wd = setInterval(() => {
       if (!idle && Date.now() - beat > CFG.idleMs) { idle = true; try { ac.abort(); } catch (e) { /* ignore */ } }
     }, Math.max(200, Math.min(5000, Math.floor(CFG.idleMs / 4))));
+    let stream = null;
     try {
       const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true, maxRetries: 2, fetch: watchFetch(() => { beat = Date.now(); }) });
-      const stream = client.beta.messages.stream(params, { signal: ac.signal });
+      stream = client.beta.messages.stream(params, { signal: ac.signal });
       stream.on("streamEvent", (ev, s) => { beat = Date.now(); snap = s; });
       final = await stream.finalMessage();
     } catch (err) {
-      // input tokens are billed from message_start even when the request is stopped or fails mid-stream
-      if (snap && snap.usage && !dead) recordUsage(usageOf(snap), tag);
-      if (outer && outer.aborted) return askFail("error", "Stopped", { aborted: true });
-      if (idle) return askFail("offline", "Connection lost");
-      const e = mapError(err, Anthropic);
-      if (e.kind === "stopped") return askFail("error", "Stopped", { aborted: true });
-      return askFail(e.code === "offline" || e.code === "auth" || e.code === "credits" ? e.code : "error", e.text || "Something went wrong");
+      // the whole reply had arrived and only the connection's end went wrong: it is taken as it stands
+      final = !ac.signal.aborted && !dead ? wholeOf(stream) : null;
+      if (!final) {
+        // input tokens are billed from message_start even when the request is stopped or fails mid-stream
+        if (snap && snap.usage && !dead) recordUsage(usageOf(snap), tag);
+        if (outer && outer.aborted) return askFail("error", "Stopped", { aborted: true });
+        if (idle) return askFail("offline", "Connection lost");
+        const e = mapError(err, Anthropic);
+        // an abort nobody here asked for is the system ending the load of a suspended app: a cut, not a stop
+        if (e.kind === "stopped") return ac.signal.aborted ? askFail("error", "Stopped", { aborted: true }) : askFail("offline", offline() ? "Offline" : "Connection lost");
+        return askFail(e.code === "offline" || e.code === "auth" || e.code === "credits" ? e.code : "error", e.text || "Something went wrong");
+      }
     } finally {
       clearInterval(wd);
+      wake.off();
       S.asks.delete(ac);
       if (outer) outer.removeEventListener("abort", onOuter);
     }
@@ -3416,7 +3729,25 @@
     // yesterday's chat isn't reopened: the sheet starts empty and that chat is deleted. A long chat from today is
     // (he may still be reading its picks); his next message starts the new one.
     if (staleDay(c)) { dropConv(c.id); return; }
-    if (repairHistory(c)) saveConv(c);
+    if (repairHistory(c)) saveConv(c, true);   // a repair is not a use of the chat: its time stays
+    // The page went away while this chat was being answered (iOS closed the suspended app, a reload): nothing was
+    // there to put a note under it. It gets one now, and Retry sends the chat again from its last finished step.
+    // Not when the turn is still running in another tab of this browser: that tab holds the turn's lock.
+    if (c.running) {
+      const elsewhere = await turnElsewhere();
+      if (S.conv || dropped.has(id) || lsGet(LS.cur) !== id) return;
+      if (elsewhere) delete c.running;   // in this copy only: the chat is that tab's to save
+      else {
+        const at = c.messages.length, last = c.messages[at - 1], ms = c.marks || [], lm = ms[ms.length - 1];
+        const open = !!last && (last.role === "user" || isNum(c.pausedAt));
+        if (open && !(lm && lm.at === at && !lm.done)) {
+          (c.marks || (c.marks = [])).push({ kind: "error", code: "lost", text: "Interrupted", retry: true, at, t: isNum(c.running) ? c.running : Date.now() });
+          noteLost("lost-reload");
+        }
+        delete c.running;
+        saveConv(c, true);
+      }
+    }
     // a chat from before v34 with nothing priced in it holds no old chance: what it gets from here on is today's
     if (oldChances(c) && !hasPriced(c)) { c.cal = CAL_V; saveConv(c, true); }
     S.conv = c;
@@ -3639,6 +3970,7 @@
     armMidnight();
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") return;
+      wake.again();
       newDay();
       armMidnight();   // timers sleep while the phone does
     });
@@ -3649,6 +3981,7 @@
     version: 1,
     init, open, close, renderModel, forget, hasKey, ask,
     isOpen: () => S.open,
+    isBusy: () => S.busy,   // an answer is on its way (also while it waits to be sent again): the host shouldn't reload
     MODEL, SYSTEM_PROMPT, TOOLS, PROMPT_SIG,
     _test: { echoContent, fitJSON, usageOf, mapError, contextBlock, validate, toolLabel, ledgerView, cleanFeatures, vsLine, usage,
       // the request as it would be built, with his link's key cut out: window.ViciChat._test is on the page
@@ -3656,6 +3989,7 @@
       dropPaused, stale, refusalLabel, CFG, LONG_CHAT, purgeOld, saveConv, nextMidnight, oneTeam, teamName, bestSlips, spreadSlips, sameGame, MAX_SPREAD, ymdLocal, localNote, tidyStats,
       parseOptimal, hasOptimal: () => !!optimalUrl(), wireMessages, scrub, chatSig, stakeUsd, dayNow, RISK, OPTIMAL, optimalPrizePicks, PP_PAGES,
       entryDay, namesOptimal, waitingCall, mcpTail, INSIDERS, TOOL_MAX, PICKS_MAX, hadDayLimit, CAL_V, hadOldChances, hasPriced, viciToday, newConv, tellOld,
+      wake, comeBack, rejoinCost, mayRejoin, bodyDropped, wholeOf, turnElsewhere,
       reloadSlip: () => { loadSlip(); refreshSlip(); } }
   };
   if (root && HAS_DOM) root.ViciChat = api;

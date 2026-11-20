@@ -2380,7 +2380,8 @@ html.vl-motion .kpi { position: relative; }
     if (document.querySelector("dialog[open]")) return true;
     const shown = id => { const el = document.getElementById(id); return !!(el && !el.hidden); };
     if (shown("vchat") || shown("connect")) return true;
-    const draft = document.querySelector(".vc-ta"); return !!(draft && draft.value.trim());
+    const draft = document.querySelector(".vc-ta"); if (draft && draft.value.trim()) return true;
+    try { return !!(window.ViciChat && typeof ViciChat.isBusy === "function" && ViciChat.isBusy()); } catch (e) { return false; } // an answer is on its way, or waiting to be sent again
   };
   const look = () => (sw && sw.getRegistration ? sw.getRegistration().then(r => (r ? r.update().then(() => r, () => r) : null)).catch(() => null) : Promise.resolve(null));
   function cover() {
